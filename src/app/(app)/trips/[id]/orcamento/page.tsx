@@ -54,8 +54,8 @@ export default function OrcamentoPage() {
   const { id: tripId } = useParams<{ id: string }>();
   const [days, setDays] = useState<TripDay[]>([]);
   const [loading, setLoading] = useState(true);
-  const [savingKey, setSavingKey] = useState<string | null>(null);
-  const [isReplicating, setIsReplicating] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
   const [focusedCell, setFocusedCell] = useState<FocusedCell | null>(null);
   const [editingKey, setEditingKey] = useState<string | null>(null);
 
@@ -63,6 +63,7 @@ export default function OrcamentoPage() {
     setLoading(true);
     const res = await fetch(`/api/trips/${tripId}/days`);
     if (res.ok) setDays(await res.json());
+    setIsDirty(false);
     setLoading(false);
   }, [tripId]);
 
@@ -70,36 +71,29 @@ export default function OrcamentoPage() {
     load();
   }, [load]);
 
+  useEffect(() => {
+    function warnBeforeUnload(e: BeforeUnloadEvent) {
+      if (!isDirty) return;
+      e.preventDefault();
+      e.returnValue = "";
+    }
+    window.addEventListener("beforeunload", warnBeforeUnload);
+    return () => window.removeEventListener("beforeunload", warnBeforeUnload);
+  }, [isDirty]);
+
   function updateLocal(dayId: string, field: keyof TripDay, value: string) {
     setDays((prev) => prev.map((d) => (d.id === dayId ? { ...d, [field]: value } : d)));
+    setIsDirty(true);
   }
 
-  async function persistText(dayId: string, field: keyof TripDay, value: string) {
-    const key = `${dayId}:${field}`;
-    setSavingKey(key);
-    await fetch(`/api/trips/${tripId}/days/${dayId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ [field]: value }),
-    });
-    setSavingKey((current) => (current === key ? null : current));
-  }
-
-  async function persistCost(dayId: string, field: keyof TripDay, rawValue: string) {
+  function normalizeCostOnBlur(dayId: string, field: keyof TripDay, rawValue: string) {
     const num = parseDecimal(rawValue);
     updateLocal(dayId, field, String(num));
     const key = `${dayId}:${field}`;
     setEditingKey((current) => (current === key ? null : current));
-    setSavingKey(key);
-    await fetch(`/api/trips/${tripId}/days/${dayId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ [field]: num }),
-    });
-    setSavingKey((current) => (current === key ? null : current));
   }
 
-  async function replicateColumn(scope: "all" | "down") {
+  function replicateColumn(scope: "all" | "down") {
     if (!focusedCell) return;
     const { dayId, field } = focusedCell;
     const sourceDay = days.find((d) => d.id === dayId);
@@ -107,7 +101,6 @@ export default function OrcamentoPage() {
     const isCost = COST_FIELDS.some((f) => f.key === field);
     const value = isCost ? String(parseDecimal(sourceDay[field])) : sourceDay[field];
 
-    setIsReplicating(true);
     setDays((prev) => {
       if (scope === "down") {
         const idx = prev.findIndex((d) => d.id === dayId);
@@ -115,12 +108,18 @@ export default function OrcamentoPage() {
       }
       return prev.map((d) => ({ ...d, [field]: value }));
     });
-    await fetch(`/api/trips/${tripId}/days`, {
-      method: "PATCH",
+    setIsDirty(true);
+  }
+
+  async function saveAll() {
+    setIsSaving(true);
+    const res = await fetch(`/api/trips/${tripId}/days`, {
+      method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sourceDayId: dayId, field, value, scope }),
+      body: JSON.stringify({ days }),
     });
-    setIsReplicating(false);
+    if (res.ok) setIsDirty(false);
+    setIsSaving(false);
   }
 
   const totals = COST_FIELDS.reduce<Record<string, number>>((acc, f) => {
@@ -134,45 +133,55 @@ export default function OrcamentoPage() {
   return (
     <div className="flex flex-col gap-3">
       <p className="text-sm text-slate-500">
-        Valores por pessoa, por dia. Editar e sair do campo salva automaticamente.
+        Valores por pessoa, por dia. As edições ficam só nesta tela até você clicar em{" "}
+        <strong>Salvar</strong>.
       </p>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          onClick={() => replicateColumn("all")}
-          disabled={!focusedCell || isReplicating}
-          className="flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:border-blue-300 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-3.5 w-3.5">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2M10 10h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-8a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2Z" />
-          </svg>
-          Replicar todas as linhas
-        </button>
-        <button
-          type="button"
-          onClick={() => replicateColumn("down")}
-          disabled={!focusedCell || isReplicating}
-          className="flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:border-blue-300 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-3.5 w-3.5">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14m0 0-5-5m5 5 5-5" />
-          </svg>
-          Replicar para baixo
-        </button>
-        <span className="text-xs text-slate-400">
-          {focusedCell
-            ? `Coluna selecionada: ${FIELD_LABELS[focusedCell.field]}`
-            : "Clique em um campo para selecionar a coluna a replicar"}
-        </span>
-      </div>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => replicateColumn("all")}
+            disabled={!focusedCell}
+            className="flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:border-blue-300 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-3.5 w-3.5">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2M10 10h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-8a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2Z" />
+            </svg>
+            Replicar todas as linhas
+          </button>
+          <button
+            type="button"
+            onClick={() => replicateColumn("down")}
+            disabled={!focusedCell}
+            className="flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:border-blue-300 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-3.5 w-3.5">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14m0 0-5-5m5 5 5-5" />
+            </svg>
+            Replicar para baixo
+          </button>
+          <span className="text-xs text-slate-400">
+            {focusedCell
+              ? `Coluna selecionada: ${FIELD_LABELS[focusedCell.field]}`
+              : "Clique em um campo para selecionar a coluna a replicar"}
+          </span>
+        </div>
 
-      {isReplicating && (
-        <p className="text-sm font-medium text-amber-600">
-          Replicando a coluna &quot;{focusedCell ? FIELD_LABELS[focusedCell.field] : ""}&quot;, aguarde
-          antes de sair da página...
-        </p>
-      )}
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-slate-500">
+            {isDirty ? "Alterações não salvas" : "Tudo salvo"}
+          </span>
+          <button
+            type="button"
+            onClick={saveAll}
+            disabled={!isDirty || isSaving}
+            className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+          >
+            {isSaving ? "Salvando..." : "Salvar"}
+          </button>
+        </div>
+      </div>
 
       <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
         <table className="w-full whitespace-nowrap text-xs">
@@ -202,8 +211,7 @@ export default function OrcamentoPage() {
                       value={day[f.key] ?? ""}
                       onChange={(e) => updateLocal(day.id, f.key, e.target.value)}
                       onFocus={() => setFocusedCell({ dayId: day.id, field: f.key })}
-                      onBlur={(e) => persistText(day.id, f.key, e.target.value)}
-                      disabled={savingKey === `${day.id}:${f.key}` || isReplicating}
+                      disabled={isSaving}
                       className="w-24 rounded-md border border-slate-300 px-1.5 py-0.5 text-xs"
                     />
                   </td>
@@ -223,8 +231,8 @@ export default function OrcamentoPage() {
                           setFocusedCell({ dayId: day.id, field: f.key });
                           setEditingKey(`${day.id}:${f.key}`);
                         }}
-                        onBlur={(e) => persistCost(day.id, f.key, e.target.value)}
-                        disabled={savingKey === `${day.id}:${f.key}` || isReplicating}
+                        onBlur={(e) => normalizeCostOnBlur(day.id, f.key, e.target.value)}
+                        disabled={isSaving}
                         className="w-20 rounded-md border border-slate-300 px-1.5 py-0.5 text-right text-xs"
                       />
                     </td>

@@ -1,5 +1,5 @@
 import { v4 as uuid } from "uuid";
-import { appendRows, findRowById, readSheet, updateRow, updateRows } from "./repository";
+import { appendRows, findRowById, readSheet, updateRows } from "./repository";
 import { TripDayRow, TripRow, UserTripRow } from "./types";
 
 function toDateOnly(iso: string): Date {
@@ -113,46 +113,31 @@ export const DAY_EDITABLE_FIELDS = [...DAY_COST_FIELDS, ...DAY_TEXT_FIELDS] as c
 
 export type DayEditableField = (typeof DAY_EDITABLE_FIELDS)[number];
 
-export async function updateTripDay(
-  dayId: string,
-  patch: Partial<Record<DayCostField, number>> & Partial<Record<DayTextField, string>>
-): Promise<void> {
-  const stringPatch: Record<string, string> = {};
-  for (const field of DAY_COST_FIELDS) {
-    if (patch[field] !== undefined) {
-      stringPatch[field] = String(patch[field]);
-    }
-  }
-  for (const field of DAY_TEXT_FIELDS) {
-    if (patch[field] !== undefined) {
-      stringPatch[field] = patch[field] as string;
-    }
-  }
-  await updateRow("TripDays", dayId, stringPatch);
-}
-
-export type ReplicateScope = "all" | "down";
-
 /**
- * Copia um único campo (a coluna onde o cursor estava) para os demais dias, usando o valor
- * informado pelo cliente (não o que já está salvo na planilha) — evita usar um valor
- * desatualizado quando o usuário replica antes do campo ter salvo individualmente.
- * scope "all" atinge todos os dias da viagem; "down" só os dias a partir do dia de origem
- * (inclusive), na ordem cronológica.
+ * Grava de uma vez só (uma única chamada ao Apps Script) os campos editáveis de vários dias —
+ * usado pelo botão "Salvar" da tela de diárias, que só grava quando o usuário confirma, em vez
+ * de gravar a cada edição ou a cada uso do "replicar".
+ * Ignora silenciosamente ids que não pertencem à viagem informada.
  */
-export async function replicateTripDayField(
+export async function saveTripDays(
   tripId: string,
-  sourceDayId: string,
-  field: DayEditableField,
-  value: string,
-  scope: ReplicateScope = "all"
+  rows: Array<{ id: string } & Partial<Record<DayEditableField, string>>>
 ): Promise<void> {
   const days = await listTripDays(tripId);
-  const sourceIndex = days.findIndex((d) => d.id === sourceDayId);
-  if (sourceIndex === -1) throw new Error("Dia de origem não encontrado");
+  const validIds = new Set(days.map((d) => d.id));
 
-  const targets = scope === "down" ? days.slice(sourceIndex) : days;
-  const updates = targets.map((d) => ({ id: d.id, patch: { [field]: value } }));
+  const updates = rows
+    .filter((r) => validIds.has(r.id))
+    .map((r) => {
+      const patch: Record<string, string> = {};
+      for (const field of DAY_EDITABLE_FIELDS) {
+        if (r[field] !== undefined) patch[field] = r[field] as string;
+      }
+      return { id: r.id, patch };
+    })
+    .filter((u) => Object.keys(u.patch).length > 0);
+
+  if (!updates.length) return;
   await updateRows("TripDays", updates);
 }
 
