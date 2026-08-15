@@ -27,9 +27,11 @@ export async function GET(
 const replicateSchema = z.object({
   sourceDayId: z.string().min(1),
   field: z.enum(DAY_EDITABLE_FIELDS),
+  value: z.string(),
+  scope: z.enum(["all", "down"]).default("all"),
 });
 
-/** Copia um único campo (a coluna com o cursor) de um dia para todos os outros dias da viagem. */
+/** Copia um único campo (a coluna com o cursor) de um dia para os outros dias ("all") ou só os de baixo ("down"). */
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -46,6 +48,12 @@ export async function PATCH(
   const parsed = replicateSchema.safeParse(await req.json());
   if (!parsed.success) return errorResponse(parsed.error.issues[0].message);
 
-  await replicateTripDayField(id, parsed.data.sourceDayId, parsed.data.field);
+  await replicateTripDayField(
+    id,
+    parsed.data.sourceDayId,
+    parsed.data.field,
+    parsed.data.value,
+    parsed.data.scope
+  );
   return NextResponse.json({ ok: true });
 }

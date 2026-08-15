@@ -131,18 +131,28 @@ export async function updateTripDay(
   await updateRow("TripDays", dayId, stringPatch);
 }
 
-/** Copia um único campo (a coluna onde o cursor estava) de um dia para todos os dias da viagem. */
+export type ReplicateScope = "all" | "down";
+
+/**
+ * Copia um único campo (a coluna onde o cursor estava) para os demais dias, usando o valor
+ * informado pelo cliente (não o que já está salvo na planilha) — evita usar um valor
+ * desatualizado quando o usuário replica antes do campo ter salvo individualmente.
+ * scope "all" atinge todos os dias da viagem; "down" só os dias a partir do dia de origem
+ * (inclusive), na ordem cronológica.
+ */
 export async function replicateTripDayField(
   tripId: string,
   sourceDayId: string,
-  field: DayEditableField
+  field: DayEditableField,
+  value: string,
+  scope: ReplicateScope = "all"
 ): Promise<void> {
   const days = await listTripDays(tripId);
-  const source = days.find((d) => d.id === sourceDayId);
-  if (!source) throw new Error("Dia de origem não encontrado");
+  const sourceIndex = days.findIndex((d) => d.id === sourceDayId);
+  if (sourceIndex === -1) throw new Error("Dia de origem não encontrado");
 
-  const value = source[field] ?? "";
-  const updates = days.map((d) => ({ id: d.id, patch: { [field]: value } }));
+  const targets = scope === "down" ? days.slice(sourceIndex) : days;
+  const updates = targets.map((d) => ({ id: d.id, patch: { [field]: value } }));
   await updateRows("TripDays", updates);
 }
 

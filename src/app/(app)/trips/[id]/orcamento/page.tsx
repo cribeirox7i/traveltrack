@@ -16,23 +16,39 @@ interface TripDay {
   hospedagem_pp: string;
 }
 
+type FocusedCell = { dayId: string; field: keyof TripDay };
+
 const TEXT_FIELDS: { key: keyof TripDay; label: string }[] = [
   { key: "origem", label: "Origem" },
   { key: "destino", label: "Destino" },
   { key: "pernoite", label: "Pernoite" },
 ];
 
-const COST_FIELDS: { key: keyof TripDay; label: string }[] = [
-  { key: "traslado_pp", label: "Traslado" },
-  { key: "passagem_pp", label: "Passagem" },
-  { key: "alimentacao_pp", label: "Alimentação" },
-  { key: "passeio_pp", label: "Passeio" },
-  { key: "hospedagem_pp", label: "Hospedagem" },
+const COST_FIELDS: { key: keyof TripDay; label: string; fullLabel: string }[] = [
+  { key: "traslado_pp", label: "TRAS.", fullLabel: "Traslado" },
+  { key: "passagem_pp", label: "PASS.", fullLabel: "Passagem" },
+  { key: "alimentacao_pp", label: "ALIM.", fullLabel: "Alimentação" },
+  { key: "passeio_pp", label: "INGR.", fullLabel: "Ingressos" },
+  { key: "hospedagem_pp", label: "HOSP.", fullLabel: "Hospedagem" },
 ];
 
-const FIELD_LABELS: Record<string, string> = Object.fromEntries(
-  [...TEXT_FIELDS, ...COST_FIELDS].map((f) => [f.key, f.label])
-);
+const FIELD_LABELS: Record<string, string> = Object.fromEntries([
+  ...TEXT_FIELDS.map((f) => [f.key, f.label]),
+  ...COST_FIELDS.map((f) => [f.key, f.fullLabel]),
+]);
+
+function parseDecimal(raw: string): number {
+  const cleaned = raw.trim();
+  const num = cleaned.includes(",")
+    ? Number(cleaned.replace(/\./g, "").replace(",", "."))
+    : Number(cleaned);
+  return Math.max(0, num || 0);
+}
+
+function formatDecimal(value: string): string {
+  const num = Number(value) || 0;
+  return num.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
 
 export default function OrcamentoPage() {
   const { id: tripId } = useParams<{ id: string }>();
@@ -40,7 +56,8 @@ export default function OrcamentoPage() {
   const [loading, setLoading] = useState(true);
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [isReplicating, setIsReplicating] = useState(false);
-  const [focusedField, setFocusedField] = useState<keyof TripDay | null>(null);
+  const [focusedCell, setFocusedCell] = useState<FocusedCell | null>(null);
+  const [editingKey, setEditingKey] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -57,27 +74,51 @@ export default function OrcamentoPage() {
     setDays((prev) => prev.map((d) => (d.id === dayId ? { ...d, [field]: value } : d)));
   }
 
-  async function persist(dayId: string, field: keyof TripDay, value: string, isText: boolean) {
+  async function persistText(dayId: string, field: keyof TripDay, value: string) {
     const key = `${dayId}:${field}`;
     setSavingKey(key);
     await fetch(`/api/trips/${tripId}/days/${dayId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ [field]: isText ? value : Number(value) || 0 }),
+      body: JSON.stringify({ [field]: value }),
     });
     setSavingKey((current) => (current === key ? null : current));
   }
 
-  async function replicateColumn(sourceDay: TripDay) {
-    if (!focusedField) return;
-    const field = focusedField;
-    const value = sourceDay[field];
+  async function persistCost(dayId: string, field: keyof TripDay, rawValue: string) {
+    const num = parseDecimal(rawValue);
+    updateLocal(dayId, field, String(num));
+    const key = `${dayId}:${field}`;
+    setEditingKey((current) => (current === key ? null : current));
+    setSavingKey(key);
+    await fetch(`/api/trips/${tripId}/days/${dayId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ [field]: num }),
+    });
+    setSavingKey((current) => (current === key ? null : current));
+  }
+
+  async function replicateColumn(scope: "all" | "down") {
+    if (!focusedCell) return;
+    const { dayId, field } = focusedCell;
+    const sourceDay = days.find((d) => d.id === dayId);
+    if (!sourceDay) return;
+    const isCost = COST_FIELDS.some((f) => f.key === field);
+    const value = isCost ? String(parseDecimal(sourceDay[field])) : sourceDay[field];
+
     setIsReplicating(true);
-    setDays((prev) => prev.map((d) => ({ ...d, [field]: value })));
+    setDays((prev) => {
+      if (scope === "down") {
+        const idx = prev.findIndex((d) => d.id === dayId);
+        return prev.map((d, i) => (i >= idx ? { ...d, [field]: value } : d));
+      }
+      return prev.map((d) => ({ ...d, [field]: value }));
+    });
     await fetch(`/api/trips/${tripId}/days`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sourceDayId: sourceDay.id, field }),
+      body: JSON.stringify({ sourceDayId: dayId, field, value, scope }),
     });
     setIsReplicating(false);
   }
@@ -93,15 +134,43 @@ export default function OrcamentoPage() {
   return (
     <div className="flex flex-col gap-3">
       <p className="text-sm text-slate-500">
-        Valores por pessoa, por dia. Editar e sair do campo salva automaticamente. Clique em um
-        campo para selecioná-lo e depois no ícone de réplica da linha para copiar só aquela coluna
-        para todos os dias.
+        Valores por pessoa, por dia. Editar e sair do campo salva automaticamente.
       </p>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() => replicateColumn("all")}
+          disabled={!focusedCell || isReplicating}
+          className="flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:border-blue-300 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-3.5 w-3.5">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2M10 10h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-8a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2Z" />
+          </svg>
+          Replicar todas as linhas
+        </button>
+        <button
+          type="button"
+          onClick={() => replicateColumn("down")}
+          disabled={!focusedCell || isReplicating}
+          className="flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:border-blue-300 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-3.5 w-3.5">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14m0 0-5-5m5 5 5-5" />
+          </svg>
+          Replicar para baixo
+        </button>
+        <span className="text-xs text-slate-400">
+          {focusedCell
+            ? `Coluna selecionada: ${FIELD_LABELS[focusedCell.field]}`
+            : "Clique em um campo para selecionar a coluna a replicar"}
+        </span>
+      </div>
 
       {isReplicating && (
         <p className="text-sm font-medium text-amber-600">
-          Replicando a coluna &quot;{focusedField ? FIELD_LABELS[focusedField] : ""}&quot; para todos os
-          dias, aguarde antes de sair da página...
+          Replicando a coluna &quot;{focusedCell ? FIELD_LABELS[focusedCell.field] : ""}&quot;, aguarde
+          antes de sair da página...
         </p>
       )}
 
@@ -116,11 +185,10 @@ export default function OrcamentoPage() {
                 </th>
               ))}
               {COST_FIELDS.map((f) => (
-                <th key={f.key} className="px-2 py-1.5">
+                <th key={f.key} className="px-2 py-1.5 text-right">
                   {f.label}
                 </th>
               ))}
-              <th className="px-2 py-1.5" />
             </tr>
           </thead>
           <tbody>
@@ -133,46 +201,35 @@ export default function OrcamentoPage() {
                       type="text"
                       value={day[f.key] ?? ""}
                       onChange={(e) => updateLocal(day.id, f.key, e.target.value)}
-                      onFocus={() => setFocusedField(f.key)}
-                      onBlur={(e) => persist(day.id, f.key, e.target.value, true)}
+                      onFocus={() => setFocusedCell({ dayId: day.id, field: f.key })}
+                      onBlur={(e) => persistText(day.id, f.key, e.target.value)}
                       disabled={savingKey === `${day.id}:${f.key}` || isReplicating}
                       className="w-24 rounded-md border border-slate-300 px-1.5 py-0.5 text-xs"
                     />
                   </td>
                 ))}
-                {COST_FIELDS.map((f) => (
-                  <td key={f.key} className="px-1 py-1">
-                    <input
-                      type="number"
-                      min={0}
-                      step="0.01"
-                      value={day[f.key]}
-                      onChange={(e) => updateLocal(day.id, f.key, e.target.value)}
-                      onFocus={() => setFocusedField(f.key)}
-                      onBlur={(e) => persist(day.id, f.key, e.target.value, false)}
-                      disabled={savingKey === `${day.id}:${f.key}` || isReplicating}
-                      className="w-16 rounded-md border border-slate-300 px-1.5 py-0.5 text-xs"
-                    />
-                  </td>
-                ))}
-                <td className="px-1 py-1">
-                  <button
-                    type="button"
-                    tabIndex={-1}
-                    title={
-                      focusedField
-                        ? `Replicar "${FIELD_LABELS[focusedField]}" desta linha para todos os dias`
-                        : "Clique antes em um campo para escolher a coluna a replicar"
-                    }
-                    onClick={() => replicateColumn(day)}
-                    disabled={isReplicating || !focusedField}
-                    className="shrink-0 rounded-md border border-slate-200 p-1 text-slate-400 hover:border-blue-300 hover:text-blue-600 disabled:opacity-50"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-3.5 w-3.5">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2M10 10h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-8a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2Z" />
-                    </svg>
-                  </button>
-                </td>
+                {COST_FIELDS.map((f) => {
+                  const isEditingHere = editingKey === `${day.id}:${f.key}`;
+                  return (
+                    <td key={f.key} className="px-1 py-1">
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={isEditingHere ? day[f.key] : formatDecimal(day[f.key])}
+                        onChange={(e) =>
+                          updateLocal(day.id, f.key, e.target.value.replace(/[^0-9.,]/g, ""))
+                        }
+                        onFocus={() => {
+                          setFocusedCell({ dayId: day.id, field: f.key });
+                          setEditingKey(`${day.id}:${f.key}`);
+                        }}
+                        onBlur={(e) => persistCost(day.id, f.key, e.target.value)}
+                        disabled={savingKey === `${day.id}:${f.key}` || isReplicating}
+                        className="w-20 rounded-md border border-slate-300 px-1.5 py-0.5 text-right text-xs"
+                      />
+                    </td>
+                  );
+                })}
               </tr>
             ))}
           </tbody>
@@ -183,18 +240,18 @@ export default function OrcamentoPage() {
                 <td key={f.key} className="px-2 py-1.5" />
               ))}
               {COST_FIELDS.map((f) => (
-                <td key={f.key} className="px-2 py-1.5">
-                  {totals[f.key].toFixed(2)}
+                <td key={f.key} className="px-2 py-1.5 text-right">
+                  {formatDecimal(String(totals[f.key]))}
                 </td>
               ))}
-              <td className="px-2 py-1.5" />
             </tr>
           </tfoot>
         </table>
       </div>
 
       <p className="text-sm text-slate-600">
-        Total geral por pessoa: <span className="font-semibold">R$ {totalGeralPorPessoa.toFixed(2)}</span>
+        Total geral por pessoa:{" "}
+        <span className="font-semibold">R$ {formatDecimal(String(totalGeralPorPessoa))}</span>
       </p>
     </div>
   );
