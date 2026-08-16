@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, requireAdmin } from "@/lib/api-helpers";
-import { setUserActive } from "@/lib/sheets/users";
+import { updateUser } from "@/lib/sheets/users";
 
-const patchSchema = z.object({ ativo: z.boolean() });
+const patchSchema = z.object({
+  nome: z.string().min(1).optional(),
+  email: z.string().email().optional(),
+  role: z.enum(["admin", "user"]).optional(),
+  ativo: z.boolean().optional(),
+  senha: z.string().min(6).optional(),
+});
 
 export async function PATCH(
   req: NextRequest,
@@ -16,6 +22,10 @@ export async function PATCH(
   const parsed = patchSchema.safeParse(await req.json());
   if (!parsed.success) return errorResponse(parsed.error.issues[0].message);
 
-  await setUserActive(id, parsed.data.ativo);
-  return NextResponse.json({ ok: true });
+  try {
+    await updateUser(id, parsed.data);
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    return errorResponse(err instanceof Error ? err.message : "Erro ao atualizar usuário");
+  }
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { PasswordInput } from "@/components/PasswordInput";
 
 interface UserItem {
@@ -17,6 +17,16 @@ export default function UsuariosAdminPage() {
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({ nome: "", email: "", senha: "", role: "user" as "admin" | "user" });
   const [saving, setSaving] = useState(false);
+
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({ nome: "", email: "", role: "user" as "admin" | "user" });
+  const [editError, setEditError] = useState<string | null>(null);
+  const [editSaving, setEditSaving] = useState(false);
+
+  const [resettingId, setResettingId] = useState<string | null>(null);
+  const [resetSenha, setResetSenha] = useState("");
+  const [resetError, setResetError] = useState<string | null>(null);
+  const [resetSaving, setResetSaving] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -59,6 +69,77 @@ export default function UsuariosAdminPage() {
       body: JSON.stringify({ ativo: user.ativo !== "true" }),
     });
     load();
+  }
+
+  function startEdit(user: UserItem) {
+    setResettingId(null);
+    setEditingId(user.id);
+    setEditError(null);
+    setEditForm({ nome: user.nome, email: user.email, role: user.role });
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setEditError(null);
+  }
+
+  async function saveEdit(id: string) {
+    setEditError(null);
+    setEditSaving(true);
+
+    const res = await fetch(`/api/users/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(editForm),
+    });
+
+    setEditSaving(false);
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setEditError(data.error ?? "Erro ao salvar usuário");
+      return;
+    }
+
+    setEditingId(null);
+    load();
+  }
+
+  function startReset(user: UserItem) {
+    setEditingId(null);
+    setResettingId(user.id);
+    setResetSenha("");
+    setResetError(null);
+  }
+
+  function cancelReset() {
+    setResettingId(null);
+    setResetError(null);
+  }
+
+  async function saveReset(id: string) {
+    setResetError(null);
+    if (resetSenha.length < 6) {
+      setResetError("A senha precisa ter pelo menos 6 caracteres");
+      return;
+    }
+    setResetSaving(true);
+
+    const res = await fetch(`/api/users/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ senha: resetSenha }),
+    });
+
+    setResetSaving(false);
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setResetError(data.error ?? "Erro ao redefinir senha");
+      return;
+    }
+
+    setResettingId(null);
   }
 
   return (
@@ -147,30 +228,148 @@ export default function UsuariosAdminPage() {
               </tr>
             )}
             {users.map((u) => (
-              <tr key={u.id} className="border-t border-slate-100">
-                <td className="px-4 py-2">{u.nome}</td>
-                <td className="px-4 py-2">{u.email}</td>
-                <td className="px-4 py-2 capitalize">{u.role}</td>
-                <td className="px-4 py-2">
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-xs ${
-                      u.ativo === "true"
-                        ? "bg-emerald-100 text-emerald-700"
-                        : "bg-slate-100 text-slate-500"
-                    }`}
-                  >
-                    {u.ativo === "true" ? "Ativo" : "Inativo"}
-                  </span>
-                </td>
-                <td className="px-4 py-2 text-right">
-                  <button
-                    onClick={() => toggleActive(u)}
-                    className="text-xs font-medium text-slate-500 hover:text-slate-900"
-                  >
-                    {u.ativo === "true" ? "Desativar" : "Ativar"}
-                  </button>
-                </td>
-              </tr>
+              <Fragment key={u.id}>
+                <tr className="border-t border-slate-100">
+                  {editingId === u.id ? (
+                    <>
+                      <td className="px-4 py-2">
+                        <input
+                          value={editForm.nome}
+                          onChange={(e) => setEditForm({ ...editForm, nome: e.target.value })}
+                          className="w-full rounded-lg border border-slate-300 px-2 py-1 text-sm"
+                        />
+                      </td>
+                      <td className="px-4 py-2">
+                        <input
+                          type="email"
+                          value={editForm.email}
+                          onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                          className="w-full rounded-lg border border-slate-300 px-2 py-1 text-sm"
+                        />
+                      </td>
+                      <td className="px-4 py-2">
+                        <select
+                          value={editForm.role}
+                          onChange={(e) =>
+                            setEditForm({ ...editForm, role: e.target.value as "admin" | "user" })
+                          }
+                          className="w-full rounded-lg border border-slate-300 px-2 py-1 text-sm"
+                        >
+                          <option value="user">Usuário</option>
+                          <option value="admin">Admin</option>
+                        </select>
+                      </td>
+                      <td className="px-4 py-2">
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-xs ${
+                            u.ativo === "true"
+                              ? "bg-emerald-100 text-emerald-700"
+                              : "bg-slate-100 text-slate-500"
+                          }`}
+                        >
+                          {u.ativo === "true" ? "Ativo" : "Inativo"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2 text-right">
+                        <div className="flex justify-end gap-3">
+                          <button
+                            onClick={() => saveEdit(u.id)}
+                            disabled={editSaving}
+                            className="text-xs font-medium text-blue-600 hover:text-blue-800 disabled:opacity-50"
+                          >
+                            {editSaving ? "Salvando..." : "Salvar"}
+                          </button>
+                          <button
+                            onClick={cancelEdit}
+                            className="text-xs font-medium text-slate-500 hover:text-slate-900"
+                          >
+                            Cancelar
+                          </button>
+                        </div>
+                      </td>
+                    </>
+                  ) : (
+                    <>
+                      <td className="px-4 py-2">{u.nome}</td>
+                      <td className="px-4 py-2">{u.email}</td>
+                      <td className="px-4 py-2 capitalize">{u.role}</td>
+                      <td className="px-4 py-2">
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-xs ${
+                            u.ativo === "true"
+                              ? "bg-emerald-100 text-emerald-700"
+                              : "bg-slate-100 text-slate-500"
+                          }`}
+                        >
+                          {u.ativo === "true" ? "Ativo" : "Inativo"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2 text-right">
+                        <div className="flex justify-end gap-3">
+                          <button
+                            onClick={() => startEdit(u)}
+                            className="text-xs font-medium text-slate-500 hover:text-slate-900"
+                          >
+                            Editar
+                          </button>
+                          <button
+                            onClick={() => startReset(u)}
+                            className="text-xs font-medium text-slate-500 hover:text-slate-900"
+                          >
+                            Redefinir senha
+                          </button>
+                          <button
+                            onClick={() => toggleActive(u)}
+                            className="text-xs font-medium text-slate-500 hover:text-slate-900"
+                          >
+                            {u.ativo === "true" ? "Desativar" : "Ativar"}
+                          </button>
+                        </div>
+                      </td>
+                    </>
+                  )}
+                </tr>
+                {editingId === u.id && editError && (
+                  <tr key={`${u.id}-edit-error`} className="border-t border-slate-100 bg-red-50">
+                    <td className="px-4 py-2 text-xs text-red-600" colSpan={5}>
+                      {editError}
+                    </td>
+                  </tr>
+                )}
+                {resettingId === u.id && (
+                  <tr key={`${u.id}-reset`} className="border-t border-slate-100 bg-slate-50">
+                    <td className="px-4 py-3" colSpan={5}>
+                      <div className="flex flex-wrap items-end gap-3">
+                        <div className="min-w-[220px]">
+                          <label className="mb-1 block text-xs font-medium text-slate-600">
+                            Nova senha para {u.nome}
+                          </label>
+                          <PasswordInput
+                            minLength={6}
+                            value={resetSenha}
+                            onChange={(e) => setResetSenha(e.target.value)}
+                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                          />
+                        </div>
+                        <button
+                          onClick={() => saveReset(u.id)}
+                          disabled={resetSaving}
+                          className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+                        >
+                          {resetSaving ? "Salvando..." : "Salvar nova senha"}
+                        </button>
+                        <button
+                          onClick={cancelReset}
+                          className="text-xs font-medium text-slate-500 hover:text-slate-900"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                      {resetError && <p className="mt-2 text-xs text-red-600">{resetError}</p>}
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
             ))}
           </tbody>
         </table>

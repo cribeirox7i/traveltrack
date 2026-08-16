@@ -50,6 +50,23 @@ function formatDecimal(value: string): string {
   return num.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+const WEEKDAY_LABELS = ["DO", "2A", "3A", "4A", "5A", "6A", "SA"];
+
+function weekdayLabel(iso: string): string {
+  const d = new Date(`${iso.slice(0, 10)}T00:00:00`);
+  return WEEKDAY_LABELS[d.getDay()] ?? "";
+}
+
+function formatDateBR(iso: string): string {
+  const [y, m, d] = iso.slice(0, 10).split("-");
+  return d && m && y ? `${d}/${m}/${y}` : iso;
+}
+
+function monthDay(iso: string): { month: number; day: number } {
+  const d = new Date(`${iso.slice(0, 10)}T00:00:00`);
+  return { month: d.getMonth() + 1, day: d.getDate() };
+}
+
 export default function OrcamentoPage() {
   const { id: tripId } = useParams<{ id: string }>();
   const [days, setDays] = useState<TripDay[]>([]);
@@ -58,6 +75,8 @@ export default function OrcamentoPage() {
   const [isDirty, setIsDirty] = useState(false);
   const [focusedCell, setFocusedCell] = useState<FocusedCell | null>(null);
   const [editingKey, setEditingKey] = useState<string | null>(null);
+  const [tempByDay, setTempByDay] = useState<Record<string, number | null>>({});
+  const [loadingWeather, setLoadingWeather] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -109,6 +128,30 @@ export default function OrcamentoPage() {
       return prev.map((d) => ({ ...d, [field]: value }));
     });
     setIsDirty(true);
+  }
+
+  async function fetchWeather() {
+    setLoadingWeather(true);
+    const cache: Record<string, number | null> = {};
+    for (const day of days) {
+      const city = day.pernoite?.trim();
+      if (!city) continue;
+      const { month, day: dayOfMonth } = monthDay(day.data);
+      const cacheKey = `${city.toLowerCase()}|${month}-${dayOfMonth}`;
+      if (!(cacheKey in cache)) {
+        try {
+          const res = await fetch(
+            `/api/weather?city=${encodeURIComponent(city)}&month=${month}&day=${dayOfMonth}`
+          );
+          const data = res.ok ? await res.json() : { tempC: null };
+          cache[cacheKey] = data.tempC;
+        } catch {
+          cache[cacheKey] = null;
+        }
+      }
+      setTempByDay((prev) => ({ ...prev, [day.id]: cache[cacheKey] }));
+    }
+    setLoadingWeather(false);
   }
 
   async function saveAll() {
@@ -169,6 +212,14 @@ export default function OrcamentoPage() {
         </div>
 
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={fetchWeather}
+            disabled={loadingWeather}
+            className="flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:border-blue-300 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {loadingWeather ? "Buscando temperaturas..." : "Buscar temperatura média"}
+          </button>
           <span className="text-xs text-slate-500">
             {isDirty ? "Alterações não salvas" : "Tudo salvo"}
           </span>
@@ -188,11 +239,13 @@ export default function OrcamentoPage() {
           <thead className="bg-slate-50 text-left uppercase text-slate-500">
             <tr>
               <th className="px-2 py-1.5">Data</th>
+              <th className="px-2 py-1.5">Dia</th>
               {TEXT_FIELDS.map((f) => (
                 <th key={f.key} className="px-2 py-1.5">
                   {f.label}
                 </th>
               ))}
+              <th className="px-2 py-1.5 text-right">Temp. média</th>
               {COST_FIELDS.map((f) => (
                 <th key={f.key} className="px-2 py-1.5 text-right">
                   {f.label}
@@ -203,7 +256,8 @@ export default function OrcamentoPage() {
           <tbody>
             {days.map((day) => (
               <tr key={day.id} className="border-t border-slate-100">
-                <td className="px-2 py-1 text-slate-600">{day.data}</td>
+                <td className="px-2 py-1 text-slate-600">{formatDateBR(day.data)}</td>
+                <td className="px-2 py-1 text-slate-500">{weekdayLabel(day.data)}</td>
                 {TEXT_FIELDS.map((f) => (
                   <td key={f.key} className="px-1 py-1">
                     <input
@@ -216,6 +270,9 @@ export default function OrcamentoPage() {
                     />
                   </td>
                 ))}
+                <td className="px-2 py-1 text-right text-slate-500">
+                  {tempByDay[day.id] != null ? `${tempByDay[day.id]!.toFixed(1)}°C` : "—"}
+                </td>
                 {COST_FIELDS.map((f) => {
                   const isEditingHere = editingKey === `${day.id}:${f.key}`;
                   return (
@@ -242,11 +299,13 @@ export default function OrcamentoPage() {
             ))}
           </tbody>
           <tfoot>
-            <tr className="border-t border-slate-200 bg-slate-50 font-medium">
+            <tr className="border-t border-slate-200 bg-slate-50 font-bold">
               <td className="px-2 py-1.5">Total por pessoa</td>
+              <td className="px-2 py-1.5" />
               {TEXT_FIELDS.map((f) => (
                 <td key={f.key} className="px-2 py-1.5" />
               ))}
+              <td className="px-2 py-1.5" />
               {COST_FIELDS.map((f) => (
                 <td key={f.key} className="px-2 py-1.5 text-right">
                   {formatDecimal(String(totals[f.key]))}
@@ -259,7 +318,7 @@ export default function OrcamentoPage() {
 
       <p className="text-sm text-slate-600">
         Total geral por pessoa:{" "}
-        <span className="font-semibold">R$ {formatDecimal(String(totalGeralPorPessoa))}</span>
+        <span className="font-bold">R$ {formatDecimal(String(totalGeralPorPessoa))}</span>
       </p>
     </div>
   );

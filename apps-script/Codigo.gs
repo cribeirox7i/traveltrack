@@ -108,9 +108,20 @@ function lerTabela(nome) {
   return rows;
 }
 
-/** Converte Date -> ISO para serialização segura em JSON */
+/**
+ * Converte Date -> string segura para serialização em JSON e para regravação na planilha.
+ * Datas "puras" (meia-noite no fuso da planilha, caso de todos os campos "data" deste app)
+ * viram "yyyy-MM-dd"; qualquer outro Date (não deveria ocorrer aqui, mas por segurança)
+ * cai para ISO completo.
+ */
 function sanitizarValor(v) {
-  if (v instanceof Date) return v.toISOString();
+  if (v instanceof Date) {
+    const fuso = Session.getScriptTimeZone();
+    const meiaNoite = Utilities.formatDate(v, fuso, 'HH:mm:ss') === '00:00:00';
+    return meiaNoite
+      ? Utilities.formatDate(v, fuso, 'yyyy-MM-dd')
+      : v.toISOString();
+  }
   return v === null || v === undefined ? '' : String(v);
 }
 
@@ -186,8 +197,15 @@ function atualizarPorId(nome, id, patch) {
 /**
  * Igual a atualizarPorId, mas para vários ids em uma única chamada: lê a
  * aba uma vez, aplica todos os patches em memória e grava tudo com uma
- * única chamada a setValues, em vez de um round-trip por linha. Usado pela
- * função "replicar" da tela de diárias, para não fazer 1 chamada por dia.
+ * única chamada a setValues, em vez de um round-trip por linha. Usado pelo
+ * botão "Salvar" da tela de diárias, para não fazer 1 chamada por dia.
+ *
+ * Importante: todo valor regravado (inclusive os campos que NÃO fazem parte
+ * de nenhum patch, só "carregados" de volta) passa por sanitizarValor. Sem
+ * isso, uma célula que o Sheets já tenha convertido para o tipo Date (ex.:
+ * a coluna "data") seria regravada como objeto Date de novo em vez de texto,
+ * mesmo com setNumberFormat('@') - o formato de exibição muda, mas o valor
+ * gravado continua sendo reinterpretado como data.
  */
 function atualizarVariosPorId(nome, updates) {
   if (!updates.length) return null;
@@ -210,9 +228,12 @@ function atualizarVariosPorId(nome, updates) {
     }
 
     if (values.length > 1) {
+      const linhasSanitizadas = values.slice(1).map(function (linha) {
+        return linha.map(sanitizarValor);
+      });
       sh.getRange(2, 1, values.length - 1, headers.length)
         .setNumberFormat('@')
-        .setValues(values.slice(1));
+        .setValues(linhasSanitizadas);
     }
   } finally {
     lock.releaseLock();
