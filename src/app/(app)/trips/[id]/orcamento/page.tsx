@@ -16,6 +16,8 @@ interface TripDay {
   alimentacao_pp: string;
   passeio_pp: string;
   hospedagem_pp: string;
+  temp_min: string;
+  temp_max: string;
 }
 
 type FocusedCell = { dayId: string; field: keyof TripDay };
@@ -79,7 +81,6 @@ export default function OrcamentoPage() {
   const [isDirty, setIsDirty] = useState(false);
   const [focusedCell, setFocusedCell] = useState<FocusedCell | null>(null);
   const [editingKey, setEditingKey] = useState<string | null>(null);
-  const [tempByDay, setTempByDay] = useState<Record<string, { min: number; max: number } | null>>({});
   const [loadingWeather, setLoadingWeather] = useState(false);
 
   // Snapshot do que já está sincronizado, pra "Salvar" enviar só os campos que mudaram de fato.
@@ -132,9 +133,13 @@ export default function OrcamentoPage() {
     setIsDirty(true);
   }
 
+  /** Busca a temperatura e já grava (não depende do botão "Salvar" — a busca por si só persiste
+   * o resultado, senão ele se perderia ao recarregar a página). */
   async function fetchWeather() {
     setLoadingWeather(true);
     const cache: Record<string, { min: number; max: number } | null> = {};
+    const updates: { id: string; temp_min: string; temp_max: string }[] = [];
+
     for (const day of days) {
       const city = day.pernoite?.trim();
       if (!city) continue;
@@ -151,8 +156,15 @@ export default function OrcamentoPage() {
           cache[cacheKey] = null;
         }
       }
-      setTempByDay((prev) => ({ ...prev, [day.id]: cache[cacheKey] }));
+      const result = cache[cacheKey];
+      if (!result) continue;
+      const temp_min = result.min.toFixed(1);
+      const temp_max = result.max.toFixed(1);
+      setDays((prev) => prev.map((d) => (d.id === day.id ? { ...d, temp_min, temp_max } : d)));
+      updates.push({ id: day.id, temp_min, temp_max });
     }
+
+    if (updates.length) await saveDaysOffline(tripId, updates);
     setLoadingWeather(false);
   }
 
@@ -234,7 +246,7 @@ export default function OrcamentoPage() {
             disabled={loadingWeather}
             className="flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:border-blue-300 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {loadingWeather ? "Buscando temperaturas..." : "Buscar temperaturas"}
+            {loadingWeather ? "Buscando e salvando..." : "Buscar temperaturas"}
           </button>
           <span className="text-xs text-slate-500">
             {isDirty ? "Alterações não salvas" : "Tudo salvo"}
@@ -287,9 +299,7 @@ export default function OrcamentoPage() {
                   </td>
                 ))}
                 <td className="px-2 py-1 text-right text-slate-500">
-                  {tempByDay[day.id]
-                    ? `${tempByDay[day.id]!.min.toFixed(1)}° / ${tempByDay[day.id]!.max.toFixed(1)}°`
-                    : "—"}
+                  {day.temp_min && day.temp_max ? `${day.temp_min}° / ${day.temp_max}°` : "—"}
                 </td>
                 {COST_FIELDS.map((f) => {
                   const isEditingHere = editingKey === `${day.id}:${f.key}`;

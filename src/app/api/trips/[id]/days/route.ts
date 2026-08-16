@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, requireSession } from "@/lib/api-helpers";
-import { DAY_EDITABLE_FIELDS, listTripDays, saveTripDays, userCanAccessTrip } from "@/lib/sheets/trips";
+import { DAY_PATCHABLE_FIELDS, listTripDays, saveTripDays, userCanAccessTrip } from "@/lib/sheets/trips";
 
 export async function GET(
   _req: NextRequest,
@@ -21,7 +21,7 @@ export async function GET(
 
 const dayPatchSchema = z
   .object({ id: z.string().min(1) })
-  .and(z.object(Object.fromEntries(DAY_EDITABLE_FIELDS.map((f) => [f, z.string().optional()]))));
+  .and(z.object(Object.fromEntries(DAY_PATCHABLE_FIELDS.map((f) => [f, z.string().optional()]))));
 
 const saveSchema = z.object({
   days: z.array(dayPatchSchema),

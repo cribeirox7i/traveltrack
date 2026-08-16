@@ -321,6 +321,8 @@ export async function createTripOffline(input: {
     alimentacao_pp: "0",
     passeio_pp: "0",
     hospedagem_pp: "0",
+    temp_min: "",
+    temp_max: "",
   }));
   await putAll("tripDays", days);
 

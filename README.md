@@ -97,12 +97,18 @@ Abra [http://localhost:3000](http://localhost:3000).
 
 Cada aba usa a linha 1 como cabeçalho; a coluna `id` é sempre um UUID gerado pelo app. A criação das
 abas é feita pelo `ensureStructure` do Apps Script (via tela Admin → Parâmetros ou pelo script de
-criação do admin).
+criação do admin). Esse mesmo botão também serve para atualizar uma planilha já em uso quando o
+app ganha um campo novo (ex.: `temp_min`/`temp_max`) — `ensureStructure` acrescenta ao final do
+cabeçalho as colunas que ainda faltarem em abas já existentes, sem apagar nada. Depois de
+atualizar o `Codigo.gs` publicado, clique em **Admin → Parâmetros → "Verificar/criar abas na
+planilha"** para aplicar colunas novas às planilhas já em uso.
 
 - **Users**: id, nome, email, senha_hash, role (`admin`/`user`), ativo
 - **Parametros**: id, chave, valor, descricao
 - **Trips**: id, nome, data_inicio, data_fim, qtd_pessoas, criado_por, criado_em
-- **TripDays**: id, trip_id, data, traslado_pp, passagem_pp, alimentacao_pp, passeio_pp, hospedagem_pp
+- **TripDays**: id, trip_id, data, origem, destino, pernoite, traslado_pp, passagem_pp,
+  alimentacao_pp, passeio_pp, hospedagem_pp, temp_min, temp_max (as duas últimas são preenchidas
+  automaticamente pelo botão "Buscar temperaturas" da tela de orçamento, não são digitadas)
 - **UserTrip**: id, user_id, trip_id
 - **Despesas**: id, trip_id, categoria, valor, data, lancado_por, descricao
 - **Receitas**: id, trip_id, user_id, valor, data, descricao

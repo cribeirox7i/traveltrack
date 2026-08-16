@@ -67,6 +67,8 @@ export async function createTrip(input: {
     alimentacao_pp: "0",
     passeio_pp: "0",
     hospedagem_pp: "0",
+    temp_min: "",
+    temp_max: "",
   }));
 
   await appendRows("Trips", [trip]);
@@ -100,15 +102,26 @@ export const DAY_EDITABLE_FIELDS = [...DAY_COST_FIELDS, ...DAY_TEXT_FIELDS] as c
 
 export type DayEditableField = (typeof DAY_EDITABLE_FIELDS)[number];
 
+/** Campos preenchidos automaticamente pelo app (busca de temperatura), não pelo usuário digitando
+ * na grade — mas gravados pelo mesmo endpoint de "salvar dias", por isso entram na whitelist de
+ * patch abaixo junto com os campos editáveis de verdade. */
+export const DAY_AUTO_FIELDS = ["temp_min", "temp_max"] as const;
+
+export type DayAutoField = (typeof DAY_AUTO_FIELDS)[number];
+
+export const DAY_PATCHABLE_FIELDS = [...DAY_EDITABLE_FIELDS, ...DAY_AUTO_FIELDS] as const;
+
+export type DayPatchableField = (typeof DAY_PATCHABLE_FIELDS)[number];
+
 /**
- * Grava de uma vez só (uma única chamada ao Apps Script) os campos editáveis de vários dias —
- * usado pelo botão "Salvar" da tela de diárias, que só grava quando o usuário confirma, em vez
- * de gravar a cada edição ou a cada uso do "replicar".
+ * Grava de uma vez só (uma única chamada ao Apps Script) os campos de vários dias — usado tanto
+ * pelo botão "Salvar" da tela de diárias (campos editáveis) quanto pela busca de temperatura, que
+ * grava sozinha assim que a busca termina, sem esperar o usuário clicar em "Salvar".
  * Ignora silenciosamente ids que não pertencem à viagem informada.
  */
 export async function saveTripDays(
   tripId: string,
-  rows: Array<{ id: string } & Partial<Record<DayEditableField, string>>>
+  rows: Array<{ id: string } & Partial<Record<DayPatchableField, string>>>
 ): Promise<void> {
   const days = await listTripDays(tripId);
   const validIds = new Set(days.map((d) => d.id));
@@ -117,7 +130,7 @@ export async function saveTripDays(
     .filter((r) => validIds.has(r.id))
     .map((r) => {
       const patch: Record<string, string> = {};
-      for (const field of DAY_EDITABLE_FIELDS) {
+      for (const field of DAY_PATCHABLE_FIELDS) {
         if (r[field] !== undefined) patch[field] = r[field] as string;
       }
       return { id: r.id, patch };

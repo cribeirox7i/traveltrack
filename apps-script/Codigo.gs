@@ -18,7 +18,7 @@ const ESTRUTURA = {
   Users: ['id', 'nome', 'email', 'senha_hash', 'role', 'ativo'],
   Parametros: ['id', 'chave', 'valor', 'descricao'],
   Trips: ['id', 'nome', 'data_inicio', 'data_fim', 'qtd_pessoas', 'criado_por', 'criado_em'],
-  TripDays: ['id', 'trip_id', 'data', 'origem', 'destino', 'pernoite', 'traslado_pp', 'passagem_pp', 'alimentacao_pp', 'passeio_pp', 'hospedagem_pp'],
+  TripDays: ['id', 'trip_id', 'data', 'origem', 'destino', 'pernoite', 'traslado_pp', 'passagem_pp', 'alimentacao_pp', 'passeio_pp', 'hospedagem_pp', 'temp_min', 'temp_max'],
   UserTrip: ['id', 'user_id', 'trip_id'],
   Despesas: ['id', 'trip_id', 'categoria', 'valor', 'data', 'lancado_por', 'descricao'],
   Receitas: ['id', 'trip_id', 'user_id', 'valor', 'data', 'descricao']
@@ -285,6 +285,7 @@ function resetarAba(nome) {
 /** Garante que todas as abas esperadas existam, com cabeçalho. Não apaga dados. */
 function ensureStructure() {
   const criadas = [];
+  const colunasAdicionadas = {};
   Object.keys(ESTRUTURA).forEach(function (nome) {
     const ss = abrirPlanilha();
     const existiaAntes = !!ss.getSheetByName(nome);
@@ -292,10 +293,28 @@ function ensureStructure() {
     if (!existiaAntes) criadas.push(nome);
     if (sh.getLastRow() === 0) {
       sh.getRange(1, 1, 1, ESTRUTURA[nome].length).setValues([ESTRUTURA[nome]]);
+    } else {
+      const novas = adicionarColunasFaltantes(sh, ESTRUTURA[nome]);
+      if (novas.length) colunasAdicionadas[nome] = novas;
     }
     sh.setFrozenRows(1);
   });
-  return { abasCriadas: criadas };
+  return { abasCriadas: criadas, colunasAdicionadas: colunasAdicionadas };
+}
+
+/**
+ * Acrescenta ao final do cabeçalho as colunas de `colunasEsperadas` que ainda não existem na
+ * aba — não mexe em colunas/linhas já existentes, só estende a estrutura pra campos novos (ex.:
+ * quando o app ganha um campo novo depois que a planilha já tinha dados). Linhas já existentes
+ * ficam com a célula vazia nas colunas novas.
+ */
+function adicionarColunasFaltantes(sh, colunasEsperadas) {
+  const headerAtual = sh.getRange(1, 1, 1, sh.getLastColumn() || 1).getValues()[0].map(String);
+  const faltando = colunasEsperadas.filter(function (c) { return headerAtual.indexOf(c) === -1; });
+  if (faltando.length) {
+    sh.getRange(1, headerAtual.length + 1, 1, faltando.length).setValues([faltando]);
+  }
+  return faltando;
 }
 
 // ---------- ANEXOS (GOOGLE DRIVE) ----------

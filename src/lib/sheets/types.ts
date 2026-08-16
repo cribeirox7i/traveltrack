@@ -23,6 +23,8 @@ export const SHEET_HEADERS: Record<SheetTab, string[]> = {
     "alimentacao_pp",
     "passeio_pp",
     "hospedagem_pp",
+    "temp_min",
+    "temp_max",
   ],
   UserTrip: ["id", "user_id", "trip_id"],
   Despesas: ["id", "trip_id", "categoria", "valor", "data", "lancado_por", "descricao"],
@@ -73,6 +75,8 @@ export interface TripDayRow {
   alimentacao_pp: string;
   passeio_pp: string;
   hospedagem_pp: string;
+  temp_min: string;
+  temp_max: string;
 }
 
 export interface UserTripRow {

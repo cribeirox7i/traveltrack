@@ -47,10 +47,21 @@ export default function ParametrosAdminPage() {
     const res = await fetch("/api/admin/setup-sheets", { method: "POST" });
     const data = await res.json().catch(() => ({}));
     setSettingUpSheets(false);
+
+    if (!res.ok) {
+      setSetupMessage(data.error ?? "Erro ao configurar planilha");
+      return;
+    }
+
+    const abas = data.abasCriadas?.length ? data.abasCriadas.join(", ") : "nenhuma (já existiam)";
+    const colunas: Record<string, string[]> = data.colunasAdicionadas ?? {};
+    const colunasTexto = Object.entries(colunas)
+      .map(([aba, campos]) => `${aba} (${campos.join(", ")})`)
+      .join("; ");
+
     setSetupMessage(
-      res.ok
-        ? `Planilha verificada. Abas criadas: ${data.abasCriadas?.length ? data.abasCriadas.join(", ") : "nenhuma (já existiam)"}`
-        : data.error ?? "Erro ao configurar planilha"
+      `Planilha verificada. Abas criadas: ${abas}.` +
+        (colunasTexto ? ` Colunas adicionadas: ${colunasTexto}.` : " Nenhuma coluna nova.")
     );
   }
 
