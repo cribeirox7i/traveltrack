@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { getOne, listAll, listByTrip, listOutbox } from "./db";
-import { isOnline, pullTripDetail, pullTrips, syncEvents } from "./sync";
+import { getAnexoFile, getOne, listAll, listByTrip, listOutbox } from "./db";
+import { isOnline, pullAnexosList, pullTripDetail, pullTrips, syncEvents } from "./sync";
 
 function useSyncChangeListener(callback: () => void) {
   useEffect(() => {
@@ -76,6 +76,37 @@ export function useOfflineCollection<T extends { id: string }>(
   useSyncChangeListener(refresh);
 
   return { items, loading, refresh };
+}
+
+/** Lista de anexos (metadados) de uma viagem — funciona offline se a viagem estiver marcada
+ * "Dados offline" (os arquivos já baixados ficam em anexoFiles, ver getLocalAnexoUrl). */
+export function useOfflineAnexos<T extends { fileId: string }>(tripId: string | undefined) {
+  const [items, setItems] = useState<T[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const refresh = useCallback(async () => {
+    if (!tripId) return;
+    const local = await listByTrip("anexos", tripId);
+    setItems(local as unknown as T[]);
+    setLoading(false);
+  }, [tripId]);
+
+  useEffect(() => {
+    refresh();
+    if (tripId && isOnline()) pullAnexosList(tripId).catch(() => {});
+  }, [refresh, tripId]);
+
+  useSyncChangeListener(refresh);
+
+  return { items, loading, refresh };
+}
+
+/** Object URL (blob local) de um anexo já baixado, ou null se ainda não foi baixado neste
+ * aparelho — nesse caso a tela deve cair para o link ao vivo do Drive. */
+export async function getLocalAnexoUrl(fileId: string): Promise<string | null> {
+  const file = await getAnexoFile(fileId);
+  if (!file) return null;
+  return URL.createObjectURL(file.blob);
 }
 
 /** Indicador de conectividade (navigator.onLine + eventos online/offline) pra UI (banner, etc.). */

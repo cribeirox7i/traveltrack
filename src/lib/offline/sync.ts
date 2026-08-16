@@ -1,13 +1,19 @@
 import { v4 as uuid } from "uuid";
 import { enumerateDates } from "../dateRange";
 import {
-  DataTab,
   OutboxEntry,
+  deleteByTrip,
+  deleteMany,
   enqueueOutbox,
+  getMeta,
+  listAnexoFilesByTrip,
+  listByTrip,
   listOutbox,
   putAll,
+  putAnexoFile,
   putOne,
   removeOutboxEntry,
+  setMeta,
   updateOutboxEntry,
 } from "./db";
 
@@ -27,6 +33,16 @@ async function getJson<T>(url: string): Promise<T | null> {
     const res = await fetch(url, { cache: "no-store" });
     if (!res.ok) return null;
     return (await res.json()) as T;
+  } catch {
+    return null;
+  }
+}
+
+async function getBlob(url: string): Promise<Blob | null> {
+  try {
+    const res = await fetch(url, { cache: "no-store" });
+    if (!res.ok) return null;
+    return await res.blob();
   } catch {
     return null;
   }
@@ -56,6 +72,150 @@ export async function pullTripDetail(tripId: string): Promise<void> {
   notifyChange();
 }
 
+// ---------- "Dados offline" — download completo por viagem, incluindo anexos ----------
+
+const OFFLINE_TRIPS_KEY = "offlineTripIds";
+
+export async function listOfflineTripIds(): Promise<string[]> {
+  const ids = await getMeta(OFFLINE_TRIPS_KEY);
+  return Array.isArray(ids) ? (ids as string[]) : [];
+}
+
+export async function isTripOffline(tripId: string): Promise<boolean> {
+  return (await listOfflineTripIds()).includes(tripId);
+}
+
+interface AnexoInfoLike {
+  fileId: string;
+  name: string;
+  url: string;
+  size: number;
+  mimeType: string;
+  categoria: string;
+  criadoEm: string;
+}
+
+const downloading = new Set<string>();
+
+/** Atualiza só os metadados da lista de anexos (sem baixar os arquivos) — usado pela tela de
+ * Anexos pra qualquer viagem, marcada offline ou não. O download dos arquivos em si só acontece
+ * via `downloadTripFull`, quando a viagem está marcada. */
+export async function pullAnexosList(tripId: string): Promise<void> {
+  if (!isOnline()) return;
+  const anexos = await getJson<AnexoInfoLike[]>(`/api/trips/${tripId}/anexos`);
+  if (!anexos) return;
+  await putAll(
+    "anexos",
+    anexos.map((a) => ({ ...a, id: a.fileId, trip_id: tripId }))
+  );
+  notifyChange();
+}
+
+/** Baixa por completo uma viagem — dias/despesas/receitas + os ARQUIVOS dos anexos (não só o
+ * link do Drive) — pro cache local. Chamado ao marcar "Dados offline" e, depois, sempre que algo
+ * daquela viagem muda (edição local, sincronização, ou no ciclo periódico/ao voltar o sinal). */
+export async function downloadTripFull(tripId: string): Promise<void> {
+  if (!isOnline() || downloading.has(tripId)) return;
+  downloading.add(tripId);
+  try {
+    await pullTripDetail(tripId);
+
+    const anexos = await getJson<AnexoInfoLike[]>(`/api/trips/${tripId}/anexos`);
+    if (!anexos) return;
+
+    const existingMeta = await listByTrip("anexos", tripId);
+    const existingFiles = await listAnexoFilesByTrip(tripId);
+    const currentIds = new Set(anexos.map((a) => a.fileId));
+
+    await putAll(
+      "anexos",
+      anexos.map((a) => ({ ...a, id: a.fileId, trip_id: tripId }))
+    );
+
+    const staleMetaIds = existingMeta.filter((m) => !currentIds.has(m.id)).map((m) => m.id);
+    await deleteMany("anexos", staleMetaIds);
+
+    const staleFileIds = existingFiles
+      .filter((f) => !currentIds.has(f.fileId))
+      .map((f) => f.fileId);
+    await deleteMany("anexoFiles", staleFileIds);
+
+    const existingFileIds = new Set(existingFiles.map((f) => f.fileId));
+    const toDownload = anexos.filter((a) => !existingFileIds.has(a.fileId));
+    for (const anexo of toDownload) {
+      const blob = await getBlob(`/api/trips/${tripId}/anexos/${anexo.fileId}`);
+      if (!blob) continue;
+      await putAnexoFile({
+        fileId: anexo.fileId,
+        trip_id: tripId,
+        name: anexo.name,
+        mimeType: anexo.mimeType,
+        blob,
+      });
+      notifyChange();
+    }
+
+    notifyChange();
+  } finally {
+    downloading.delete(tripId);
+  }
+}
+
+async function refreshIfOffline(tripId: string): Promise<void> {
+  if (await isTripOffline(tripId)) void downloadTripFull(tripId);
+}
+
+/** Liga/desliga "Dados offline" pra uma viagem. Ligar baixa tudo (incl. anexos) na hora; desligar
+ * apaga os anexos baixados daquele aparelho e para de atualizar sozinho. */
+export async function setTripOffline(tripId: string, enabled: boolean): Promise<void> {
+  const ids = new Set(await listOfflineTripIds());
+  if (enabled) {
+    ids.add(tripId);
+    await setMeta(OFFLINE_TRIPS_KEY, Array.from(ids));
+    notifyChange();
+    if (typeof navigator !== "undefined") {
+      navigator.storage?.persist?.().catch(() => {});
+    }
+    await downloadTripFull(tripId);
+  } else {
+    ids.delete(tripId);
+    await setMeta(OFFLINE_TRIPS_KEY, Array.from(ids));
+    await deleteByTrip("anexos", tripId);
+    await deleteByTrip("anexoFiles", tripId);
+    notifyChange();
+  }
+}
+
+async function refreshAllOfflineTrips(): Promise<void> {
+  for (const tripId of await listOfflineTripIds()) {
+    await downloadTripFull(tripId);
+  }
+}
+
+// ---------- Anexos (upload/exclusão continuam exigindo internet — só o cache é offline) ----------
+
+export async function uploadAnexoAndRefresh(
+  tripId: string,
+  form: FormData
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const res = await fetch(`/api/trips/${tripId}/anexos`, { method: "POST", body: form });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    return { ok: false, error: data.error ?? "Erro ao enviar anexo" };
+  }
+  await refreshIfOffline(tripId);
+  notifyChange();
+  return { ok: true };
+}
+
+export async function deleteAnexoAndRefresh(tripId: string, fileId: string): Promise<void> {
+  await fetch(`/api/trips/${tripId}/anexos/${fileId}`, { method: "DELETE" });
+  await deleteMany("anexos", [fileId]);
+  await deleteMany("anexoFiles", [fileId]);
+  await refreshIfOffline(tripId);
+  notifyChange();
+}
+
 let pushing = false;
 
 /** Reenvia a fila de mutações pendentes contra os endpoints /api/* já existentes, em ordem. */
@@ -69,6 +229,7 @@ export async function pushOutbox(): Promise<void> {
       if (result === "network-error") break; // provavelmente caiu a conexão de novo — para e tenta depois
       if (result === "ok") {
         await removeOutboxEntry(entry.localId);
+        if (entry.tripId) await refreshIfOffline(entry.tripId);
       } else {
         await updateOutboxEntry({
           ...entry,
@@ -228,6 +389,7 @@ export function initSync(): void {
   window.addEventListener("online", () => {
     pullTrips().catch(() => {});
     pushOutbox().catch(() => {});
+    refreshAllOfflineTrips().catch(() => {});
     notifyChange();
   });
   window.addEventListener("offline", notifyChange);
@@ -237,13 +399,17 @@ export function initSync(): void {
     }
   });
   setInterval(() => {
-    if (isOnline()) pushOutbox().catch(() => {});
+    if (isOnline()) {
+      pushOutbox().catch(() => {});
+      refreshAllOfflineTrips().catch(() => {});
+    }
   }, 60_000);
 
   if (isOnline()) {
     pullTrips().catch(() => {});
     pushOutbox().catch(() => {});
+    refreshAllOfflineTrips().catch(() => {});
   }
 }
 
-export type { DataTab };
+export type { DataTab } from "./db";

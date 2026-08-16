@@ -1,7 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
+import { getLocalAnexoUrl, useOfflineAnexos } from "@/lib/offline/useOfflineData";
+import { deleteAnexoAndRefresh, uploadAnexoAndRefresh } from "@/lib/offline/sync";
 
 interface Anexo {
   fileId: string;
@@ -59,23 +61,39 @@ function formatSize(bytes: number): string {
 
 export default function AnexosPage() {
   const { id: tripId } = useParams<{ id: string }>();
-  const [anexos, setAnexos] = useState<Anexo[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { items: anexos, loading } = useOfflineAnexos<Anexo>(tripId);
   const [categoria, setCategoria] = useState("outros");
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [localUrls, setLocalUrls] = useState<Record<string, string>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    const res = await fetch(`/api/trips/${tripId}/anexos`);
-    if (res.ok) setAnexos(await res.json());
-    setLoading(false);
-  }, [tripId]);
-
+  // Resolve, pra cada anexo já baixado neste aparelho, um object URL local que abre offline —
+  // os que ainda não foram baixados caem pro link ao vivo do Drive (a.url) na renderização.
   useEffect(() => {
-    load();
-  }, [load]);
+    let cancelled = false;
+    const created: string[] = [];
+
+    (async () => {
+      const entries = await Promise.all(
+        anexos.map(async (a) => {
+          const url = await getLocalAnexoUrl(a.fileId);
+          if (url) created.push(url);
+          return [a.fileId, url] as const;
+        })
+      );
+      if (cancelled) {
+        created.forEach((u) => URL.revokeObjectURL(u));
+        return;
+      }
+      setLocalUrls(Object.fromEntries(entries.filter(([, url]) => url) as [string, string][]));
+    })();
+
+    return () => {
+      cancelled = true;
+      created.forEach((u) => URL.revokeObjectURL(u));
+    };
+  }, [anexos]);
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -87,13 +105,8 @@ export default function AnexosPage() {
       const form = new FormData();
       form.set("file", toSend);
       form.set("categoria", categoria);
-      const res = await fetch(`/api/trips/${tripId}/anexos`, { method: "POST", body: form });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        setError(data.error ?? "Erro ao enviar anexo");
-        return;
-      }
-      await load();
+      const result = await uploadAnexoAndRefresh(tripId, form);
+      if (!result.ok) setError(result.error);
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -102,8 +115,7 @@ export default function AnexosPage() {
 
   async function handleDelete(fileId: string) {
     if (!confirm("Excluir este anexo? Ele vai para a lixeira do Drive.")) return;
-    await fetch(`/api/trips/${tripId}/anexos/${fileId}`, { method: "DELETE" });
-    setAnexos((prev) => prev.filter((a) => a.fileId !== fileId));
+    await deleteAnexoAndRefresh(tripId, fileId);
   }
 
   const porCategoria = CATEGORIAS.map((c) => ({
@@ -161,7 +173,7 @@ export default function AnexosPage() {
                 className="flex items-center justify-between gap-2 rounded-lg border border-slate-100 px-3 py-2 text-sm"
               >
                 <a
-                  href={a.url}
+                  href={localUrls[a.fileId] ?? a.url}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="truncate text-slate-700 hover:text-blue-600 hover:underline"
@@ -169,6 +181,11 @@ export default function AnexosPage() {
                   {a.name}
                 </a>
                 <div className="flex shrink-0 items-center gap-3">
+                  {localUrls[a.fileId] && (
+                    <span className="text-xs text-emerald-600" title="Baixado neste aparelho">
+                      ⬇️
+                    </span>
+                  )}
                   <span className="text-xs text-slate-400">{formatSize(a.size)}</span>
                   <button
                     type="button"

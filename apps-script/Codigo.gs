@@ -59,6 +59,7 @@ function api(action, payload) {
       case 'driveUploadFile':  return ok(driveUploadFile(payload));
       case 'driveListFiles':   return ok(driveListFiles(payload));
       case 'driveDeleteFile':  return ok(driveDeleteFile(payload));
+      case 'driveDownloadFile': return ok(driveDownloadFile(payload));
       default:                 return erro('Ação desconhecida: ' + action);
     }
   } catch (err) {
@@ -379,6 +380,17 @@ function driveListFiles(payload) {
 function driveDeleteFile(payload) {
   DriveApp.getFileById(payload.fileId).setTrashed(true);
   return null;
+}
+
+/** Devolve os bytes (base64) de um anexo já enviado — usado pelo download para uso offline. */
+function driveDownloadFile(payload) {
+  const file = DriveApp.getFileById(payload.fileId);
+  const blob = file.getBlob();
+  return {
+    name: file.getName(),
+    mimeType: file.getMimeType(),
+    base64Data: Utilities.base64Encode(blob.getBytes())
+  };
 }
 
 // ---------- TESTE DE AUTORIZAÇÃO (executar no editor para conceder os escopos) ----------

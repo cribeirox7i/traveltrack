@@ -39,3 +39,9 @@ export async function uploadAnexo(input: {
 export async function deleteAnexo(fileId: string): Promise<void> {
   await callAppsScript<null>("driveDeleteFile", { fileId });
 }
+
+export async function downloadAnexo(
+  fileId: string
+): Promise<{ name: string; mimeType: string; base64Data: string }> {
+  return callAppsScript("driveDownloadFile", { fileId });
+}
