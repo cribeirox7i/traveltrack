@@ -1,7 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { useParams } from "next/navigation";
+import { useOfflineCollection } from "@/lib/offline/useOfflineData";
+import { createDespesaOffline } from "@/lib/offline/sync";
 
 interface Despesa {
   id: string;
@@ -21,8 +23,7 @@ const CATEGORIAS = [
 
 export default function DespesasPage() {
   const { id: tripId } = useParams<{ id: string }>();
-  const [despesas, setDespesas] = useState<Despesa[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { items: despesas, loading } = useOfflineCollection<Despesa>("despesas", tripId);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     categoria: "traslado",
@@ -31,28 +32,12 @@ export default function DespesasPage() {
     descricao: "",
   });
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    const res = await fetch(`/api/trips/${tripId}/despesas`);
-    if (res.ok) setDespesas(await res.json());
-    setLoading(false);
-  }, [tripId]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
-    await fetch(`/api/trips/${tripId}/despesas`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...form, valor: Number(form.valor) }),
-    });
+    await createDespesaOffline(tripId, { ...form, valor: Number(form.valor) });
     setSaving(false);
     setForm({ categoria: "traslado", valor: "", data: "", descricao: "" });
-    load();
   }
 
   const total = despesas.reduce((sum, d) => sum + (Number(d.valor) || 0), 0);

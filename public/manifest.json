@@ -1,0 +1,16 @@
+{
+  "name": "TravelTrack",
+  "short_name": "TravelTrack",
+  "description": "Planejamento e orçamento de viagens em grupo",
+  "start_url": "/trips",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#0f172a",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "48x48",
+      "type": "image/x-icon"
+    }
+  ]
+}

@@ -1,7 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { useParams } from "next/navigation";
+import { useOfflineCollection } from "@/lib/offline/useOfflineData";
+import { createReceitaOffline } from "@/lib/offline/sync";
 
 interface Receita {
   id: string;
@@ -12,33 +14,16 @@ interface Receita {
 
 export default function ReceitasPage() {
   const { id: tripId } = useParams<{ id: string }>();
-  const [receitas, setReceitas] = useState<Receita[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { items: receitas, loading } = useOfflineCollection<Receita>("receitas", tripId);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ valor: "", data: "", descricao: "" });
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    const res = await fetch(`/api/trips/${tripId}/receitas`);
-    if (res.ok) setReceitas(await res.json());
-    setLoading(false);
-  }, [tripId]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
-    await fetch(`/api/trips/${tripId}/receitas`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...form, valor: Number(form.valor) }),
-    });
+    await createReceitaOffline(tripId, { ...form, valor: Number(form.valor) });
     setSaving(false);
     setForm({ valor: "", data: "", descricao: "" });
-    load();
   }
 
   const total = receitas.reduce((sum, r) => sum + (Number(r.valor) || 0), 0);

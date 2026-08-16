@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
+import { useOfflineCollection } from "@/lib/offline/useOfflineData";
+import { saveDaysOffline } from "@/lib/offline/sync";
 
 interface TripDay {
   id: string;
@@ -31,6 +33,8 @@ const COST_FIELDS: { key: keyof TripDay; label: string; fullLabel: string }[] = 
   { key: "passeio_pp", label: "INGR.", fullLabel: "Ingressos" },
   { key: "hospedagem_pp", label: "HOSP.", fullLabel: "Hospedagem" },
 ];
+
+const EDITABLE_FIELDS = [...TEXT_FIELDS, ...COST_FIELDS].map((f) => f.key);
 
 const FIELD_LABELS: Record<string, string> = Object.fromEntries([
   ...TEXT_FIELDS.map((f) => [f.key, f.label]),
@@ -69,26 +73,24 @@ function monthDay(iso: string): { month: number; day: number } {
 
 export default function OrcamentoPage() {
   const { id: tripId } = useParams<{ id: string }>();
+  const { items, loading } = useOfflineCollection<TripDay>("tripDays", tripId);
   const [days, setDays] = useState<TripDay[]>([]);
-  const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
   const [focusedCell, setFocusedCell] = useState<FocusedCell | null>(null);
   const [editingKey, setEditingKey] = useState<string | null>(null);
-  const [tempByDay, setTempByDay] = useState<Record<string, number | null>>({});
+  const [tempByDay, setTempByDay] = useState<Record<string, { min: number; max: number } | null>>({});
   const [loadingWeather, setLoadingWeather] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    const res = await fetch(`/api/trips/${tripId}/days`);
-    if (res.ok) setDays(await res.json());
-    setIsDirty(false);
-    setLoading(false);
-  }, [tripId]);
+  // Snapshot do que já está sincronizado, pra "Salvar" enviar só os campos que mudaram de fato.
+  const snapshotRef = useRef<Record<string, TripDay>>({});
 
   useEffect(() => {
-    load();
-  }, [load]);
+    if (isDirty) return; // não pisa em edição em andamento com uma atualização em segundo plano
+    const sorted = [...items].sort((a, b) => a.data.localeCompare(b.data));
+    setDays(sorted);
+    snapshotRef.current = Object.fromEntries(sorted.map((d) => [d.id, d]));
+  }, [items, isDirty]);
 
   useEffect(() => {
     function warnBeforeUnload(e: BeforeUnloadEvent) {
@@ -132,7 +134,7 @@ export default function OrcamentoPage() {
 
   async function fetchWeather() {
     setLoadingWeather(true);
-    const cache: Record<string, number | null> = {};
+    const cache: Record<string, { min: number; max: number } | null> = {};
     for (const day of days) {
       const city = day.pernoite?.trim();
       if (!city) continue;
@@ -143,8 +145,8 @@ export default function OrcamentoPage() {
           const res = await fetch(
             `/api/weather?city=${encodeURIComponent(city)}&month=${month}&day=${dayOfMonth}`
           );
-          const data = res.ok ? await res.json() : { tempC: null };
-          cache[cacheKey] = data.tempC;
+          const data = res.ok ? await res.json() : { temp: null };
+          cache[cacheKey] = data.temp;
         } catch {
           cache[cacheKey] = null;
         }
@@ -156,12 +158,26 @@ export default function OrcamentoPage() {
 
   async function saveAll() {
     setIsSaving(true);
-    const res = await fetch(`/api/trips/${tripId}/days`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ days }),
-    });
-    if (res.ok) setIsDirty(false);
+
+    // Só manda pra fila de sincronização os dias/campos que realmente mudaram desde o último
+    // carregamento — reduz o risco de uma edição antiga (ex.: feita offline há horas) sobrescrever
+    // um campo que outra pessoa alterou nesse meio-tempo em outro dispositivo.
+    const changed = days
+      .map((day) => {
+        const before = snapshotRef.current[day.id];
+        const patch: Record<string, string> = {};
+        for (const field of EDITABLE_FIELDS) {
+          if (!before || before[field] !== day[field]) patch[field] = day[field] as string;
+        }
+        return Object.keys(patch).length ? { id: day.id, ...patch } : null;
+      })
+      .filter((d): d is { id: string } & Record<string, string> => d !== null);
+
+    if (changed.length) {
+      await saveDaysOffline(tripId, changed);
+    }
+    snapshotRef.current = Object.fromEntries(days.map((d) => [d.id, d]));
+    setIsDirty(false);
     setIsSaving(false);
   }
 
@@ -218,7 +234,7 @@ export default function OrcamentoPage() {
             disabled={loadingWeather}
             className="flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:border-blue-300 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {loadingWeather ? "Buscando temperaturas..." : "Buscar temperatura média"}
+            {loadingWeather ? "Buscando temperaturas..." : "Buscar temperaturas"}
           </button>
           <span className="text-xs text-slate-500">
             {isDirty ? "Alterações não salvas" : "Tudo salvo"}
@@ -245,7 +261,7 @@ export default function OrcamentoPage() {
                   {f.label}
                 </th>
               ))}
-              <th className="px-2 py-1.5 text-right">Temp. média</th>
+              <th className="px-2 py-1.5 text-right">Temp. mín/máx</th>
               {COST_FIELDS.map((f) => (
                 <th key={f.key} className="px-2 py-1.5 text-right">
                   {f.label}
@@ -271,7 +287,9 @@ export default function OrcamentoPage() {
                   </td>
                 ))}
                 <td className="px-2 py-1 text-right text-slate-500">
-                  {tempByDay[day.id] != null ? `${tempByDay[day.id]!.toFixed(1)}°C` : "—"}
+                  {tempByDay[day.id]
+                    ? `${tempByDay[day.id]!.min.toFixed(1)}° / ${tempByDay[day.id]!.max.toFixed(1)}°`
+                    : "—"}
                 </td>
                 {COST_FIELDS.map((f) => {
                   const isEditingHere = editingKey === `${day.id}:${f.key}`;

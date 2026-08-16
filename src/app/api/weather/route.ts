@@ -12,6 +12,6 @@ export async function GET(req: NextRequest) {
   const day = Number(searchParams.get("day"));
   if (!city || !month || !day) return errorResponse("Parâmetros inválidos");
 
-  const tempC = await averageTemperatureForCity(city, month, day);
-  return NextResponse.json({ tempC });
+  const temp = await averageTemperatureForCity(city, month, day);
+  return NextResponse.json({ temp });
 }

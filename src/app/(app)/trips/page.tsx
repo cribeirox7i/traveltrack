@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
+import { useOfflineTrips } from "@/lib/offline/useOfflineData";
 
 interface TripItem {
   id: string;
@@ -14,15 +14,7 @@ interface TripItem {
 
 export default function TripsPage() {
   const { data: session } = useSession();
-  const [trips, setTrips] = useState<TripItem[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetch("/api/trips")
-      .then((res) => res.json())
-      .then(setTrips)
-      .finally(() => setLoading(false));
-  }, []);
+  const { trips, loading } = useOfflineTrips<TripItem>();
 
   return (
     <div className="flex flex-col gap-6">

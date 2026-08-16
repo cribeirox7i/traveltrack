@@ -5,6 +5,7 @@ import { createTrip, listTripsForUser } from "@/lib/sheets/trips";
 
 const createTripSchema = z
   .object({
+    id: z.string().min(1).optional(),
     nome: z.string().min(1),
     data_inicio: z.string().date(),
     data_fim: z.string().date(),

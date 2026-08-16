@@ -17,6 +17,11 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Viagens App",
   description: "Planejamento e orçamento de viagens em grupo",
+  manifest: "/manifest.json",
+};
+
+export const viewport = {
+  themeColor: "#0f172a",
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {

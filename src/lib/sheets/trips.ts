@@ -1,21 +1,7 @@
 import { v4 as uuid } from "uuid";
+import { enumerateDates } from "../dateRange";
 import { appendRows, findRowById, readSheet, updateRows } from "./repository";
 import { TripDayRow, TripRow, UserTripRow } from "./types";
-
-function toDateOnly(iso: string): Date {
-  return new Date(`${iso}T00:00:00`);
-}
-
-function enumerateDates(start: string, end: string): string[] {
-  const dates: string[] = [];
-  const cursor = toDateOnly(start);
-  const last = toDateOnly(end);
-  while (cursor <= last) {
-    dates.push(cursor.toISOString().slice(0, 10));
-    cursor.setDate(cursor.getDate() + 1);
-  }
-  return dates;
-}
 
 export async function listAllTrips(): Promise<TripRow[]> {
   return readSheet<TripRow>("Trips");
@@ -51,6 +37,7 @@ export async function getTrip(id: string): Promise<TripRow | null> {
 }
 
 export async function createTrip(input: {
+  id?: string;
   nome: string;
   data_inicio: string;
   data_fim: string;
@@ -58,7 +45,7 @@ export async function createTrip(input: {
   criado_por: string;
 }): Promise<TripRow> {
   const trip: TripRow = {
-    id: uuid(),
+    id: input.id || uuid(),
     nome: input.nome,
     data_inicio: input.data_inicio,
     data_fim: input.data_fim,

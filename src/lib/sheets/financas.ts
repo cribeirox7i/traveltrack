@@ -10,6 +10,7 @@ export async function listDespesasByTrip(tripId: string): Promise<DespesaRow[]> 
 }
 
 export async function createDespesa(input: {
+  id?: string;
   trip_id: string;
   categoria: Categoria;
   valor: number;
@@ -18,7 +19,7 @@ export async function createDespesa(input: {
   descricao: string;
 }): Promise<DespesaRow> {
   const row: DespesaRow = {
-    id: uuid(),
+    id: input.id || uuid(),
     trip_id: input.trip_id,
     categoria: input.categoria,
     valor: String(input.valor),
@@ -38,6 +39,7 @@ export async function listReceitasByTrip(tripId: string): Promise<ReceitaRow[]> 
 }
 
 export async function createReceita(input: {
+  id?: string;
   trip_id: string;
   user_id: string;
   valor: number;
@@ -45,7 +47,7 @@ export async function createReceita(input: {
   descricao: string;
 }): Promise<ReceitaRow> {
   const row: ReceitaRow = {
-    id: uuid(),
+    id: input.id || uuid(),
     trip_id: input.trip_id,
     user_id: input.user_id,
     valor: String(input.valor),

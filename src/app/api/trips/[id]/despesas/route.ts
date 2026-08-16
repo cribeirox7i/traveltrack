@@ -5,6 +5,7 @@ import { createDespesa, listDespesasByTrip } from "@/lib/sheets/financas";
 import { userCanAccessTrip } from "@/lib/sheets/trips";
 
 const createSchema = z.object({
+  id: z.string().min(1).optional(),
   categoria: z.enum(["traslado", "passagem", "alimentacao", "passeio", "hospedagem"]),
   valor: z.number().positive(),
   data: z.string().date(),

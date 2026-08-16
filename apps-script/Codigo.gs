@@ -9,17 +9,9 @@
  */
 
 // ---------- CONFIGURAÇÃO ----------
-// Se o script estiver vinculado (bound) à planilha, deixe SPREADSHEET_ID vazio
-// e ele usará SpreadsheetApp.getActiveSpreadsheet(). Se for um script avulso,
-// preencha com o ID da planilha (trecho entre /d/ e /edit na URL).
-const SPREADSHEET_ID = '';
-
-// Segredo compartilhado: gere uma string aleatória longa e cole aqui E também
-// na variável de ambiente APPS_SCRIPT_SHARED_SECRET do Next.js/Vercel. Sem
-// isso, qualquer pessoa que descobrir a URL /exec conseguiria ler/escrever
-// na planilha (o Web App é publicado como "Qualquer pessoa", pois o Google
-// não permite autenticação de servidor-a-servidor de outra forma aqui).
-const SHARED_SECRET = 'TROQUE-ESTE-VALOR-POR-UM-SEGREDO-ALEATORIO';
+// SPREADSHEET_ID, SHARED_SECRET e DRIVE_ROOT_FOLDER_ID ficam em Config.gs —
+// arquivo separado para você não perder os valores reais toda vez que colar
+// uma versão nova deste Codigo.gs (veja README, seção 1).
 
 // Estrutura esperada das abas (criadas/conferidas por ensureStructure)
 const ESTRUTURA = {
@@ -64,6 +56,9 @@ function api(action, payload) {
       case 'updateManyById':   return ok(atualizarVariosPorId(payload.tab, payload.updates || []));
       case 'deleteById':       return ok(excluirPorId(payload.tab, payload.id));
       case 'resetTab':         return ok(resetarAba(payload.tab));
+      case 'driveUploadFile':  return ok(driveUploadFile(payload));
+      case 'driveListFiles':   return ok(driveListFiles(payload));
+      case 'driveDeleteFile':  return ok(driveDeleteFile(payload));
       default:                 return erro('Ação desconhecida: ' + action);
     }
   } catch (err) {
@@ -302,8 +297,95 @@ function ensureStructure() {
   return { abasCriadas: criadas };
 }
 
+// ---------- ANEXOS (GOOGLE DRIVE) ----------
+// Mesmo padrão do resto do arquivo: sem service account, usa DriveApp com a
+// identidade de quem publicou o Web App (mesma autorização já usada para a
+// planilha). Estrutura no Drive: {DRIVE_ROOT_FOLDER_ID}/{nome da viagem} —
+// {tripId}/{categoria}/arquivo. As subpastas de categoria só são criadas na
+// hora do primeiro upload daquela categoria, para não deixar pasta vazia.
+
+/** Acha ou cria (com lock, para não duplicar em uploads simultâneos) uma subpasta pelo nome. */
+function getOrCreateSubfolder(pai, nome) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const existentes = pai.getFoldersByName(nome);
+    if (existentes.hasNext()) return existentes.next();
+    return pai.createFolder(nome);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function getTripFolder(tripId, tripName) {
+  if (!DRIVE_ROOT_FOLDER_ID) {
+    throw new Error('DRIVE_ROOT_FOLDER_ID não configurado em Config.gs');
+  }
+  const raiz = DriveApp.getFolderById(DRIVE_ROOT_FOLDER_ID);
+  const nomePasta = tripName + ' — ' + tripId;
+  return getOrCreateSubfolder(raiz, nomePasta);
+}
+
+/** Recebe o arquivo em base64, salva na subpasta de categoria da viagem. */
+function driveUploadFile(payload) {
+  const tripFolder = getTripFolder(payload.tripId, payload.tripName);
+  const categoriaFolder = getOrCreateSubfolder(tripFolder, payload.categoria || 'outros');
+
+  const blob = Utilities.newBlob(
+    Utilities.base64Decode(payload.base64Data),
+    payload.mimeType || 'application/octet-stream',
+    payload.filename || 'anexo'
+  );
+  const file = categoriaFolder.createFile(blob);
+
+  return {
+    fileId: file.getId(),
+    name: file.getName(),
+    url: file.getUrl(),
+    size: file.getSize(),
+    mimeType: file.getMimeType(),
+    categoria: payload.categoria || 'outros',
+    criadoEm: file.getDateCreated().toISOString()
+  };
+}
+
+/** Varre as subpastas de categoria da viagem e devolve a lista achatada de arquivos. */
+function driveListFiles(payload) {
+  const tripFolder = getTripFolder(payload.tripId, payload.tripName);
+  const resultado = [];
+
+  const subpastas = tripFolder.getFolders();
+  while (subpastas.hasNext()) {
+    const sub = subpastas.next();
+    const categoria = sub.getName();
+    const arquivos = sub.getFiles();
+    while (arquivos.hasNext()) {
+      const file = arquivos.next();
+      resultado.push({
+        fileId: file.getId(),
+        name: file.getName(),
+        url: file.getUrl(),
+        size: file.getSize(),
+        mimeType: file.getMimeType(),
+        categoria: categoria,
+        criadoEm: file.getDateCreated().toISOString()
+      });
+    }
+  }
+  return resultado;
+}
+
+/** Move para a lixeira do Drive (reversível) em vez de apagar de vez. */
+function driveDeleteFile(payload) {
+  DriveApp.getFileById(payload.fileId).setTrashed(true);
+  return null;
+}
+
 // ---------- TESTE DE AUTORIZAÇÃO (executar no editor para conceder os escopos) ----------
 function testeAutorizacao() {
   Logger.log('Planilha: ' + abrirPlanilha().getName());
+  if (DRIVE_ROOT_FOLDER_ID) {
+    Logger.log('Pasta de anexos: ' + DriveApp.getFolderById(DRIVE_ROOT_FOLDER_ID).getName());
+  }
   Logger.log('Autorização OK!');
 }

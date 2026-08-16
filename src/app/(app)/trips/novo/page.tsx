@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { createTripOffline } from "@/lib/offline/sync";
 
 export default function NovaViagemPage() {
   const router = useRouter();
@@ -17,24 +18,16 @@ export default function NovaViagemPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    setSaving(true);
 
-    const res = await fetch("/api/trips", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
-
-    setSaving(false);
-
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      setError(data.error ?? "Erro ao criar viagem");
+    if (form.data_fim < form.data_inicio) {
+      setError("Data de término deve ser após a data de início");
       return;
     }
 
-    const trip = await res.json();
-    router.push(`/trips/${trip.id}/orcamento`);
+    setSaving(true);
+    const tripId = await createTripOffline(form);
+    setSaving(false);
+    router.push(`/trips/${tripId}/orcamento`);
   }
 
   return (

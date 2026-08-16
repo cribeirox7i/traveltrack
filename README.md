@@ -18,26 +18,34 @@ chave de service account.
 2. Vá em **Extensões → Apps Script**.
 3. Apague o conteúdo padrão de `Código.gs` e cole o conteúdo de
    [`apps-script/Codigo.gs`](apps-script/Codigo.gs) deste repositório.
-4. No editor, clique no ícone de engrenagem **Configurações do projeto** → marque "Mostrar arquivo
+4. Crie um **novo arquivo de script** no projeto (ícone `+` ao lado de "Arquivos" → Script),
+   chame de `Config` e cole o conteúdo de [`apps-script/Config.gs`](apps-script/Config.gs). Esse
+   arquivo separado existe justamente para guardar os valores reais desta implantação — daqui pra
+   frente, quando você for aplicar uma atualização de código, só mexe em `Codigo.gs` e deixa
+   `Config.gs` intocado, sem precisar copiar/colar o segredo e os IDs de novo.
+5. No editor, clique no ícone de engrenagem **Configurações do projeto** → marque "Mostrar arquivo
    de manifesto `appsscript.json`". Depois abra esse arquivo e substitua o conteúdo pelo de
    [`apps-script/appsscript.json`](apps-script/appsscript.json).
-5. Em `Codigo.gs`, troque a constante `SHARED_SECRET` por uma string aleatória longa (ex.: gere com
+6. Em `Config.gs`, troque a constante `SHARED_SECRET` por uma string aleatória longa (ex.: gere com
    `openssl rand -base64 32` no seu terminal). Guarde esse valor — ele também vai para a variável de
    ambiente `APPS_SCRIPT_SHARED_SECRET` do Next.js. **Sem esse segredo, qualquer pessoa que
    descobrir a URL do Web App conseguiria ler/escrever na planilha**, já que o Web App é publicado
    como "Qualquer pessoa" (o Google não oferece outra forma de chamada servidor-a-servidor aqui).
-6. Rode a função `testeAutorizacao` uma vez pelo editor (▶️ ao lado do seletor de função) — isso
-   vai pedir para você autorizar o script a acessar a planilha com a sua conta Google. Aceite (pode
-   aparecer um aviso "app não verificado" → clique em **Avançado → Acessar [nome do projeto]**,
-   normal para scripts pessoais).
-7. Clique em **Implantar → Nova implantação → tipo "App da Web"**.
+   Se for usar a funcionalidade de anexos, preencha também `DRIVE_ROOT_FOLDER_ID` com o ID da pasta
+   do Drive (trecho depois de `/folders/` na URL da pasta).
+7. Rode a função `testeAutorizacao` uma vez pelo editor (▶️ ao lado do seletor de função) — isso
+   vai pedir para você autorizar o script a acessar a planilha (e o Drive, se for usar anexos) com
+   a sua conta Google. Aceite (pode aparecer um aviso "app não verificado" → clique em
+   **Avançado → Acessar [nome do projeto]**, normal para scripts pessoais).
+8. Clique em **Implantar → Nova implantação → tipo "App da Web"**.
    - Executar como: **Eu (sua conta)**
    - Quem pode acessar: **Qualquer pessoa**
    - Implantar, e copie a URL terminada em `/exec`.
 
-Essa URL é o valor de `APPS_SCRIPT_URL`. Se no futuro você editar o `Codigo.gs`, use **Gerenciar
-implantações → editar (ícone de lápis) → Nova versão** para que a URL publicada reflita as
-mudanças (a URL em si não muda).
+Essa URL é o valor de `APPS_SCRIPT_URL`. Se no futuro você editar o `Codigo.gs` (ex.: para pegar uma
+atualização deste repositório), apague só o conteúdo de `Codigo.gs` e cole o novo — `Config.gs`
+continua com seus valores reais — depois use **Gerenciar implantações → editar (ícone de lápis) →
+Nova versão** para que a URL publicada reflita as mudanças (a URL em si não muda).
 
 ## 2. Variáveis de ambiente
 
@@ -98,6 +106,12 @@ criação do admin).
 - **UserTrip**: id, user_id, trip_id
 - **Despesas**: id, trip_id, categoria, valor, data, lancado_por, descricao
 - **Receitas**: id, trip_id, user_id, valor, data, descricao
+
+**Anexos (comprovantes)** não ficam na planilha — vivem direto no Google Drive, numa
+subpasta por viagem (nome = "{nome da viagem} — {id}") dentro da pasta configurada em
+`DRIVE_ROOT_FOLDER_ID` (`Config.gs`), com uma subpasta por categoria dentro de cada
+viagem. O próprio Drive é a fonte da verdade da listagem — não há aba extra pra manter
+sincronizada.
 
 ## Limitações do Sheets como banco
 

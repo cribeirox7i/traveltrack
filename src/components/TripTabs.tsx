@@ -7,6 +7,7 @@ const TABS = [
   { slug: "orcamento", label: "Orçamento" },
   { slug: "despesas", label: "Despesas" },
   { slug: "receitas", label: "Receitas" },
+  { slug: "anexos", label: "Anexos" },
   { slug: "relatorio", label: "Relatório" },
 ];
 

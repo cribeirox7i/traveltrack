@@ -1,36 +1,31 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-
-interface RelatorioCategoria {
-  categoria: string;
-  orcado: number;
-  realizado: number;
-}
-
-interface Relatorio {
-  categorias: RelatorioCategoria[];
-  totalOrcado: number;
-  totalDespesas: number;
-  totalReceitas: number;
-  saldo: number;
-}
+import { useOfflineCollection, useOfflineTrip } from "@/lib/offline/useOfflineData";
+import { computeRelatorio } from "@/lib/relatorioCalc";
 
 export default function RelatorioPage() {
   const { id: tripId } = useParams<{ id: string }>();
-  const [relatorio, setRelatorio] = useState<Relatorio | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { trip, loading: loadingTrip } = useOfflineTrip<{ id: string; qtd_pessoas: string }>(tripId);
+  const { items: days, loading: loadingDays } = useOfflineCollection<
+    { id: string } & Record<string, unknown>
+  >("tripDays", tripId);
+  const { items: despesas, loading: loadingDespesas } = useOfflineCollection<{
+    id: string;
+    categoria: string;
+    valor: string;
+  }>("despesas", tripId);
+  const { items: receitas, loading: loadingReceitas } = useOfflineCollection<{
+    id: string;
+    valor: string;
+  }>("receitas", tripId);
 
-  useEffect(() => {
-    fetch(`/api/trips/${tripId}/relatorio`)
-      .then((res) => res.json())
-      .then(setRelatorio)
-      .finally(() => setLoading(false));
-  }, [tripId]);
+  const loading = loadingTrip || loadingDays || loadingDespesas || loadingReceitas;
 
   if (loading) return <p className="text-sm text-slate-500">Carregando...</p>;
-  if (!relatorio) return <p className="text-sm text-red-600">Erro ao carregar relatório.</p>;
+  if (!trip) return <p className="text-sm text-red-600">Erro ao carregar relatório.</p>;
+
+  const relatorio = computeRelatorio(tripId, Number(trip.qtd_pessoas) || 0, days, despesas, receitas);
 
   return (
     <div className="flex flex-col gap-4">

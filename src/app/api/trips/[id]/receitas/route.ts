@@ -5,6 +5,7 @@ import { createReceita, listReceitasByTrip } from "@/lib/sheets/financas";
 import { userCanAccessTrip } from "@/lib/sheets/trips";
 
 const createSchema = z.object({
+  id: z.string().min(1).optional(),
   valor: z.number().positive(),
   data: z.string().date(),
   descricao: z.string().optional().default(""),

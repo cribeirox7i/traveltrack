@@ -4,17 +4,21 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
     "create-admin": "node --env-file=.env.local scripts/create-admin.js"
   },
   "dependencies": {
+    "@serwist/cli": "^9.5.12",
+    "@serwist/next": "^9.5.12",
     "bcryptjs": "^3.0.3",
+    "idb": "^8.0.3",
     "next": "16.3.0",
     "next-auth": "^5.0.0-beta.32",
     "react": "19.2.8",
     "react-dom": "19.2.8",
+    "serwist": "^9.5.12",
     "uuid": "^14.0.1",
     "zod": "^4.4.3"
   },
