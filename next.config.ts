@@ -15,6 +15,12 @@ const withSerwist = withSerwistInit({
   // suporta — desliga em dev pra não quebrar o dia a dia. `npm run build` já força `--webpack`
   // (só nesse comando) justamente pra gerar o service worker de produção sem esse conflito.
   disable: process.env.NODE_ENV !== "production",
+  // Por padrão o Serwist recarrega a página inteira toda vez que a conexão volta a ficar
+  // online — péssimo em ações que fazem várias chamadas seguidas (ex.: "Buscar temperaturas",
+  // uma requisição por dia/cidade), onde uma oscilação de sinal no meio dispara um reload no
+  // pior momento e derruba a tela com erro. Deixamos o app controlar isso sozinho (já reagimos
+  // a "voltar online" via initSync, sem precisar recarregar a página toda).
+  reloadOnOnline: false,
 });
 
 export default withSerwist(nextConfig);
