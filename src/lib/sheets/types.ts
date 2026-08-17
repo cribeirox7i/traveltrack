@@ -11,7 +11,18 @@ export type SheetTab =
 export const SHEET_HEADERS: Record<SheetTab, string[]> = {
   Users: ["id", "nome", "email", "senha_hash", "role", "ativo"],
   Parametros: ["id", "chave", "valor", "descricao"],
-  Trips: ["id", "nome", "data_inicio", "data_fim", "qtd_pessoas", "criado_por", "criado_em"],
+  Trips: [
+    "id",
+    "nome",
+    "data_inicio",
+    "data_fim",
+    "qtd_pessoas",
+    "criado_por",
+    "criado_em",
+    "cidade_origem",
+    "cidade_origem_lat",
+    "cidade_origem_lon",
+  ],
   TripDays: [
     "id",
     "trip_id",
@@ -26,6 +37,12 @@ export const SHEET_HEADERS: Record<SheetTab, string[]> = {
     "hospedagem_pp",
     "temp_min",
     "temp_max",
+    "origem_lat",
+    "origem_lon",
+    "destino_lat",
+    "destino_lon",
+    "pernoite_lat",
+    "pernoite_lon",
   ],
   UserTrip: ["id", "user_id", "trip_id"],
   Despesas: [
@@ -72,6 +89,9 @@ export interface TripRow {
   qtd_pessoas: string;
   criado_por: string;
   criado_em: string;
+  cidade_origem: string;
+  cidade_origem_lat: string;
+  cidade_origem_lon: string;
 }
 
 export interface TripDayRow {
@@ -89,6 +109,12 @@ export interface TripDayRow {
   hospedagem_pp: string;
   temp_min: string;
   temp_max: string;
+  origem_lat: string;
+  origem_lon: string;
+  destino_lat: string;
+  destino_lon: string;
+  pernoite_lat: string;
+  pernoite_lon: string;
 }
 
 export interface UserTripRow {

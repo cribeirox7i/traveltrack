@@ -1,6 +1,6 @@
 import { v4 as uuid } from "uuid";
 import { enumerateDates } from "../dateRange";
-import { appendRows, findRowById, readSheet, updateRows } from "./repository";
+import { appendRows, findRowById, readSheet, updateRow, updateRows } from "./repository";
 import { TripDayRow, TripRow, UserRow, UserTripRow } from "./types";
 
 export async function listAllTrips(): Promise<TripRow[]> {
@@ -43,6 +43,9 @@ export async function createTrip(input: {
   data_fim: string;
   qtd_pessoas: number;
   criado_por: string;
+  cidade_origem?: string;
+  cidade_origem_lat?: string;
+  cidade_origem_lon?: string;
 }): Promise<TripRow> {
   const trip: TripRow = {
     id: input.id || uuid(),
@@ -52,6 +55,9 @@ export async function createTrip(input: {
     qtd_pessoas: String(input.qtd_pessoas),
     criado_por: input.criado_por,
     criado_em: new Date().toISOString(),
+    cidade_origem: input.cidade_origem ?? "",
+    cidade_origem_lat: input.cidade_origem_lat ?? "",
+    cidade_origem_lon: input.cidade_origem_lon ?? "",
   };
 
   const days = enumerateDates(input.data_inicio, input.data_fim);
@@ -69,12 +75,25 @@ export async function createTrip(input: {
     hospedagem_pp: "0",
     temp_min: "",
     temp_max: "",
+    origem_lat: "",
+    origem_lon: "",
+    destino_lat: "",
+    destino_lon: "",
+    pernoite_lat: "",
+    pernoite_lon: "",
   }));
 
   await appendRows("Trips", [trip]);
   await appendRows("TripDays", dayRows);
 
   return trip;
+}
+
+export async function updateTrip(
+  id: string,
+  patch: { cidade_origem?: string; cidade_origem_lat?: string; cidade_origem_lon?: string }
+): Promise<void> {
+  await updateRow("Trips", id, patch);
 }
 
 export async function listTripDays(tripId: string): Promise<TripDayRow[]> {
@@ -109,7 +128,24 @@ export const DAY_AUTO_FIELDS = ["temp_min", "temp_max"] as const;
 
 export type DayAutoField = (typeof DAY_AUTO_FIELDS)[number];
 
-export const DAY_PATCHABLE_FIELDS = [...DAY_EDITABLE_FIELDS, ...DAY_AUTO_FIELDS] as const;
+/** Coordenadas dos campos de cidade (origem/destino/pernoite) — preenchidas junto quando o
+ * autocomplete de cidade grava uma escolha, não digitadas diretamente pelo usuário. */
+export const DAY_GEO_FIELDS = [
+  "origem_lat",
+  "origem_lon",
+  "destino_lat",
+  "destino_lon",
+  "pernoite_lat",
+  "pernoite_lon",
+] as const;
+
+export type DayGeoField = (typeof DAY_GEO_FIELDS)[number];
+
+export const DAY_PATCHABLE_FIELDS = [
+  ...DAY_EDITABLE_FIELDS,
+  ...DAY_AUTO_FIELDS,
+  ...DAY_GEO_FIELDS,
+] as const;
 
 export type DayPatchableField = (typeof DAY_PATCHABLE_FIELDS)[number];
 

@@ -105,10 +105,14 @@ planilha"** para aplicar colunas novas às planilhas já em uso.
 
 - **Users**: id, nome, email, senha_hash, role (`admin`/`user`), ativo
 - **Parametros**: id, chave, valor, descricao
-- **Trips**: id, nome, data_inicio, data_fim, qtd_pessoas, criado_por, criado_em
+- **Trips**: id, nome, data_inicio, data_fim, qtd_pessoas, criado_por, criado_em,
+  cidade_origem, cidade_origem_lat, cidade_origem_lon (as 3 últimas definem o ponto de partida
+  do roteiro na aba Mapa — opcional, definida na criação da viagem ou depois pela própria aba Mapa)
 - **TripDays**: id, trip_id, data, origem, destino, pernoite, traslado_pp, passagem_pp,
-  alimentacao_pp, passeio_pp, hospedagem_pp, temp_min, temp_max (as duas últimas são preenchidas
-  automaticamente pelo botão "Buscar temperaturas" da tela de orçamento, não são digitadas)
+  alimentacao_pp, passeio_pp, hospedagem_pp, temp_min, temp_max, origem_lat, origem_lon,
+  destino_lat, destino_lon, pernoite_lat, pernoite_lon (temp_min/temp_max são preenchidos
+  automaticamente pelo botão "Buscar temperaturas"; os `_lat`/`_lon` são preenchidos ao escolher
+  uma cidade pelo autocomplete nos campos Origem/Destino/Pernoite — nenhum dos dois é digitado)
 - **UserTrip**: id, user_id, trip_id
 - **Despesas**: id, trip_id, categoria, valor, data, lancado_por, descricao, pagador_id,
   meio_pagamento_id

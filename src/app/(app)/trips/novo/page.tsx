@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createTripOffline } from "@/lib/offline/sync";
+import { CityAutocomplete } from "@/components/CityAutocomplete";
 
 export default function NovaViagemPage() {
   const router = useRouter();
@@ -11,6 +12,9 @@ export default function NovaViagemPage() {
     data_inicio: "",
     data_fim: "",
     qtd_pessoas: 1,
+    cidade_origem: "",
+    cidade_origem_lat: "",
+    cidade_origem_lon: "",
   });
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -79,6 +83,28 @@ export default function NovaViagemPage() {
             onChange={(e) => setForm({ ...form, qtd_pessoas: Number(e.target.value) })}
             className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
           />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-slate-700">
+            Cidade de origem <span className="font-normal text-slate-400">(opcional)</span>
+          </label>
+          <CityAutocomplete
+            value={form.cidade_origem}
+            placeholder="De onde o grupo parte"
+            onTextChange={(text) =>
+              setForm({ ...form, cidade_origem: text, cidade_origem_lat: "", cidade_origem_lon: "" })
+            }
+            onSelect={(city) =>
+              setForm({
+                ...form,
+                cidade_origem: city.nome,
+                cidade_origem_lat: city.lat,
+                cidade_origem_lon: city.lon,
+              })
+            }
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+          />
+          <p className="mt-1 text-xs text-slate-400">Usada como ponto de partida do roteiro na aba Mapa.</p>
         </div>
 
         {error && <p className="text-sm text-red-600">{error}</p>}

@@ -3,13 +3,21 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-export const TRIP_TAB_SLUGS = ["orcamento", "despesas", "receitas", "anexos", "relatorio"] as const;
+export const TRIP_TAB_SLUGS = [
+  "orcamento",
+  "despesas",
+  "receitas",
+  "anexos",
+  "mapa",
+  "relatorio",
+] as const;
 
 const TABS = [
   { slug: "orcamento", label: "Orçamento" },
   { slug: "despesas", label: "Despesas" },
   { slug: "receitas", label: "Receitas" },
   { slug: "anexos", label: "Anexos" },
+  { slug: "mapa", label: "Mapa" },
   { slug: "relatorio", label: "Relatório" },
 ];
 

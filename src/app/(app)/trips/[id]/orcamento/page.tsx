@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { useOfflineCollection } from "@/lib/offline/useOfflineData";
 import { saveDaysOffline } from "@/lib/offline/sync";
+import { CityAutocomplete } from "@/components/CityAutocomplete";
 
 interface TripDay {
   id: string;
@@ -18,6 +19,12 @@ interface TripDay {
   hospedagem_pp: string;
   temp_min: string;
   temp_max: string;
+  origem_lat: string;
+  origem_lon: string;
+  destino_lat: string;
+  destino_lon: string;
+  pernoite_lat: string;
+  pernoite_lon: string;
 }
 
 type FocusedCell = { dayId: string; field: keyof TripDay };
@@ -36,7 +43,19 @@ const COST_FIELDS: { key: keyof TripDay; label: string; fullLabel: string }[] = 
   { key: "hospedagem_pp", label: "HOSP.", fullLabel: "Hospedagem" },
 ];
 
-const EDITABLE_FIELDS = [...TEXT_FIELDS, ...COST_FIELDS].map((f) => f.key);
+const TEXT_FIELD_KEYS = TEXT_FIELDS.map((f) => f.key);
+
+function latKey(field: (typeof TEXT_FIELD_KEYS)[number]): keyof TripDay {
+  return `${field}_lat` as keyof TripDay;
+}
+
+function lonKey(field: (typeof TEXT_FIELD_KEYS)[number]): keyof TripDay {
+  return `${field}_lon` as keyof TripDay;
+}
+
+const GEO_FIELDS = TEXT_FIELD_KEYS.flatMap((k) => [latKey(k), lonKey(k)]);
+
+const EDITABLE_FIELDS = [...TEXT_FIELD_KEYS, ...COST_FIELDS.map((f) => f.key), ...GEO_FIELDS];
 
 const FIELD_LABELS: Record<string, string> = Object.fromEntries([
   ...TEXT_FIELDS.map((f) => [f.key, f.label]),
@@ -121,14 +140,28 @@ export default function OrcamentoPage() {
     const sourceDay = days.find((d) => d.id === dayId);
     if (!sourceDay) return;
     const isCost = COST_FIELDS.some((f) => f.key === field);
+    const isCity = TEXT_FIELD_KEYS.includes(field as (typeof TEXT_FIELD_KEYS)[number]);
     const value = isCost ? String(parseDecimal(sourceDay[field])) : sourceDay[field];
+    // Cidade replicada leva a coordenada junto — senão a linha copiada ficaria com o nome mas
+    // sem ponto no mapa.
+    const geoLat = isCity ? sourceDay[latKey(field as (typeof TEXT_FIELD_KEYS)[number])] : null;
+    const geoLon = isCity ? sourceDay[lonKey(field as (typeof TEXT_FIELD_KEYS)[number])] : null;
+
+    function apply(d: TripDay): TripDay {
+      const next = { ...d, [field]: value };
+      if (isCity) {
+        next[latKey(field as (typeof TEXT_FIELD_KEYS)[number])] = geoLat ?? "";
+        next[lonKey(field as (typeof TEXT_FIELD_KEYS)[number])] = geoLon ?? "";
+      }
+      return next;
+    }
 
     setDays((prev) => {
       if (scope === "down") {
         const idx = prev.findIndex((d) => d.id === dayId);
-        return prev.map((d, i) => (i >= idx ? { ...d, [field]: value } : d));
+        return prev.map((d, i) => (i >= idx ? apply(d) : d));
       }
-      return prev.map((d) => ({ ...d, [field]: value }));
+      return prev.map(apply);
     });
     setIsDirty(true);
   }
@@ -288,10 +321,18 @@ export default function OrcamentoPage() {
                 <td className="px-2 py-1 text-slate-500">{weekdayLabel(day.data)}</td>
                 {TEXT_FIELDS.map((f) => (
                   <td key={f.key} className="px-1 py-1">
-                    <input
-                      type="text"
+                    <CityAutocomplete
                       value={day[f.key] ?? ""}
-                      onChange={(e) => updateLocal(day.id, f.key, e.target.value)}
+                      onTextChange={(text) => {
+                        updateLocal(day.id, f.key, text);
+                        updateLocal(day.id, latKey(f.key), "");
+                        updateLocal(day.id, lonKey(f.key), "");
+                      }}
+                      onSelect={(city) => {
+                        updateLocal(day.id, f.key, city.nome);
+                        updateLocal(day.id, latKey(f.key), city.lat);
+                        updateLocal(day.id, lonKey(f.key), city.lon);
+                      }}
                       onFocus={() => setFocusedCell({ dayId: day.id, field: f.key })}
                       disabled={isSaving}
                       className="w-24 rounded-md border border-slate-300 px-1.5 py-0.5 text-xs"

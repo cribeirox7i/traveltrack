@@ -323,6 +323,9 @@ export async function createTripOffline(input: {
   data_inicio: string;
   data_fim: string;
   qtd_pessoas: number;
+  cidade_origem?: string;
+  cidade_origem_lat?: string;
+  cidade_origem_lon?: string;
 }): Promise<string> {
   const id = uuid();
   const trip = {
@@ -333,6 +336,9 @@ export async function createTripOffline(input: {
     qtd_pessoas: String(input.qtd_pessoas),
     criado_por: "",
     criado_em: new Date().toISOString(),
+    cidade_origem: input.cidade_origem ?? "",
+    cidade_origem_lat: input.cidade_origem_lat ?? "",
+    cidade_origem_lon: input.cidade_origem_lon ?? "",
   };
   await putOne("trips", trip);
 
@@ -350,6 +356,12 @@ export async function createTripOffline(input: {
     hospedagem_pp: "0",
     temp_min: "",
     temp_max: "",
+    origem_lat: "",
+    origem_lon: "",
+    destino_lat: "",
+    destino_lon: "",
+    pernoite_lat: "",
+    pernoite_lon: "",
   }));
   await putAll("tripDays", days);
 
