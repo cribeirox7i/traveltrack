@@ -20,8 +20,9 @@ const ESTRUTURA = {
   Trips: ['id', 'nome', 'data_inicio', 'data_fim', 'qtd_pessoas', 'criado_por', 'criado_em'],
   TripDays: ['id', 'trip_id', 'data', 'origem', 'destino', 'pernoite', 'traslado_pp', 'passagem_pp', 'alimentacao_pp', 'passeio_pp', 'hospedagem_pp', 'temp_min', 'temp_max'],
   UserTrip: ['id', 'user_id', 'trip_id'],
-  Despesas: ['id', 'trip_id', 'categoria', 'valor', 'data', 'lancado_por', 'descricao'],
-  Receitas: ['id', 'trip_id', 'user_id', 'valor', 'data', 'descricao']
+  Despesas: ['id', 'trip_id', 'categoria', 'valor', 'data', 'lancado_por', 'descricao', 'pagador_id', 'meio_pagamento_id'],
+  Receitas: ['id', 'trip_id', 'user_id', 'valor', 'data', 'descricao'],
+  MeiosPagamento: ['id', 'nome', 'ativo']
 };
 
 // ---------- PONTO DE ENTRADA DO WEB APP ----------

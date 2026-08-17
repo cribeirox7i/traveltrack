@@ -1,7 +1,7 @@
 import { v4 as uuid } from "uuid";
 import { enumerateDates } from "../dateRange";
 import { appendRows, findRowById, readSheet, updateRows } from "./repository";
-import { TripDayRow, TripRow, UserTripRow } from "./types";
+import { TripDayRow, TripRow, UserRow, UserTripRow } from "./types";
 
 export async function listAllTrips(): Promise<TripRow[]> {
   return readSheet<TripRow>("Trips");
@@ -152,4 +152,22 @@ export async function linkUserToTrip(userId: string, tripId: string): Promise<vo
 export async function listTripCollaborators(tripId: string): Promise<UserTripRow[]> {
   const links = await readSheet<UserTripRow>("UserTrip");
   return links.filter((l) => l.trip_id === tripId);
+}
+
+/**
+ * Usuários com acesso à viagem, com nome (pro dropdown de "Pagador" em Despesas) — sempre inclui
+ * `currentUserId`, mesmo sem vínculo explícito em UserTrip: cobre o caso comum do admin/criador
+ * da viagem nunca ter se auto-vinculado, o que deixaria o dropdown vazio pra quem mais usa.
+ */
+export async function listTripCollaboratorsWithNames(
+  tripId: string,
+  currentUserId: string
+): Promise<{ id: string; nome: string }[]> {
+  const [links, users] = await Promise.all([listTripCollaborators(tripId), readSheet<UserRow>("Users")]);
+  const userIds = new Set(links.map((l) => l.user_id));
+  userIds.add(currentUserId);
+
+  return users
+    .filter((u) => userIds.has(u.id))
+    .map((u) => ({ id: u.id, nome: u.nome }));
 }

@@ -3,8 +3,9 @@
 import { useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { TripTabs } from "@/components/TripTabs";
+import { TRIP_TAB_SLUGS, TripTabs } from "@/components/TripTabs";
 import { useOfflineTrip } from "@/lib/offline/useOfflineData";
+import { isOnline } from "@/lib/offline/sync";
 
 interface TripMeta {
   id: string;
@@ -23,6 +24,16 @@ export default function TripLayout({ children }: { children: React.ReactNode }) 
   useEffect(() => {
     if (status === "unauthenticated") router.replace("/login");
   }, [status, router]);
+
+  // Garante que o código de TODAS as abas da viagem (não só a que foi clicada) já
+  // esteja em cache assim que a viagem é aberta online — é o que faz Despesas/Anexos/
+  // etc. abrirem offline depois, mesmo sem ter passado por elas antes manualmente.
+  useEffect(() => {
+    if (!isOnline()) return;
+    for (const slug of TRIP_TAB_SLUGS) {
+      router.prefetch(`/trips/${id}/${slug}`);
+    }
+  }, [id, router]);
 
   // Sem dado local nenhum e sem conexão: não dá pra saber se a viagem existe/o usuário tem acesso
   // (a lista de viagens já vem filtrada por acesso do servidor — se não está no cache, ou é uma

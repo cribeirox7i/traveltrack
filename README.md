@@ -110,8 +110,10 @@ planilha"** para aplicar colunas novas às planilhas já em uso.
   alimentacao_pp, passeio_pp, hospedagem_pp, temp_min, temp_max (as duas últimas são preenchidas
   automaticamente pelo botão "Buscar temperaturas" da tela de orçamento, não são digitadas)
 - **UserTrip**: id, user_id, trip_id
-- **Despesas**: id, trip_id, categoria, valor, data, lancado_por, descricao
+- **Despesas**: id, trip_id, categoria, valor, data, lancado_por, descricao, pagador_id,
+  meio_pagamento_id
 - **Receitas**: id, trip_id, user_id, valor, data, descricao
+- **MeiosPagamento**: id, nome, ativo (gerido pela tela Admin → Config)
 
 **Anexos (comprovantes)** não ficam na planilha — vivem direto no Google Drive, numa
 subpasta por viagem (nome = "{nome da viagem} — {id}") dentro da pasta configurada em

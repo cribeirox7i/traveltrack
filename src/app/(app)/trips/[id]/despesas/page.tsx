@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { useOfflineCollection } from "@/lib/offline/useOfflineData";
+import { useSession } from "next-auth/react";
+import { useCollaborators, useMeiosPagamento, useOfflineCollection } from "@/lib/offline/useOfflineData";
 import { createDespesaOffline } from "@/lib/offline/sync";
 
 interface Despesa {
@@ -11,6 +12,8 @@ interface Despesa {
   valor: string;
   data: string;
   descricao: string;
+  pagador_id: string;
+  meio_pagamento_id: string;
 }
 
 const CATEGORIAS = [
@@ -23,24 +26,47 @@ const CATEGORIAS = [
 
 export default function DespesasPage() {
   const { id: tripId } = useParams<{ id: string }>();
+  const { data: session } = useSession();
   const { items: despesas, loading } = useOfflineCollection<Despesa>("despesas", tripId);
+  const collaborators = useCollaborators(tripId);
+  const meiosPagamento = useMeiosPagamento().filter((m) => m.ativo === "true");
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     categoria: "traslado",
     valor: "",
     data: "",
     descricao: "",
+    pagador_id: "",
+    meio_pagamento_id: "",
   });
+
+  // Pré-seleciona o próprio usuário como pagador assim que a lista de colaboradores chega.
+  useEffect(() => {
+    if (form.pagador_id) return;
+    const me = session?.user.id;
+    if (me && collaborators.some((c) => c.id === me)) {
+      setForm((prev) => ({ ...prev, pagador_id: me }));
+    }
+  }, [collaborators, session, form.pagador_id]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
     await createDespesaOffline(tripId, { ...form, valor: Number(form.valor) });
     setSaving(false);
-    setForm({ categoria: "traslado", valor: "", data: "", descricao: "" });
+    setForm((prev) => ({
+      categoria: "traslado",
+      valor: "",
+      data: "",
+      descricao: "",
+      pagador_id: prev.pagador_id,
+      meio_pagamento_id: "",
+    }));
   }
 
   const total = despesas.reduce((sum, d) => sum + (Number(d.valor) || 0), 0);
+  const nomePorPagador = Object.fromEntries(collaborators.map((c) => [c.id, c.nome]));
+  const nomePorMeio = Object.fromEntries(meiosPagamento.map((m) => [m.id, m.nome]));
 
   return (
     <div className="flex flex-col gap-4">
@@ -84,6 +110,42 @@ export default function DespesasPage() {
             className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
           />
         </div>
+        <div className="min-w-[160px]">
+          <label className="mb-1 block text-xs font-medium text-slate-600">Pagador</label>
+          <select
+            required
+            value={form.pagador_id}
+            onChange={(e) => setForm({ ...form, pagador_id: e.target.value })}
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+          >
+            <option value="" disabled>
+              Selecione...
+            </option>
+            {collaborators.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.nome}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="min-w-[160px]">
+          <label className="mb-1 block text-xs font-medium text-slate-600">Meio de pagamento</label>
+          <select
+            required
+            value={form.meio_pagamento_id}
+            onChange={(e) => setForm({ ...form, meio_pagamento_id: e.target.value })}
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+          >
+            <option value="" disabled>
+              Selecione...
+            </option>
+            {meiosPagamento.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.nome}
+              </option>
+            ))}
+          </select>
+        </div>
         <div className="flex-1 min-w-[160px]">
           <label className="mb-1 block text-xs font-medium text-slate-600">Descrição</label>
           <input
@@ -108,20 +170,22 @@ export default function DespesasPage() {
               <th className="px-3 py-2">Data</th>
               <th className="px-3 py-2">Categoria</th>
               <th className="px-3 py-2">Valor</th>
+              <th className="px-3 py-2">Pagador</th>
+              <th className="px-3 py-2">Meio de pagamento</th>
               <th className="px-3 py-2">Descrição</th>
             </tr>
           </thead>
           <tbody>
             {loading && (
               <tr>
-                <td className="px-3 py-3 text-slate-500" colSpan={4}>
+                <td className="px-3 py-3 text-slate-500" colSpan={6}>
                   Carregando...
                 </td>
               </tr>
             )}
             {!loading && despesas.length === 0 && (
               <tr>
-                <td className="px-3 py-3 text-slate-500" colSpan={4}>
+                <td className="px-3 py-3 text-slate-500" colSpan={6}>
                   Nenhuma despesa lançada.
                 </td>
               </tr>
@@ -131,6 +195,8 @@ export default function DespesasPage() {
                 <td className="px-3 py-2">{d.data}</td>
                 <td className="px-3 py-2 capitalize">{d.categoria}</td>
                 <td className="px-3 py-2">R$ {Number(d.valor).toFixed(2)}</td>
+                <td className="px-3 py-2">{nomePorPagador[d.pagador_id] ?? "—"}</td>
+                <td className="px-3 py-2">{nomePorMeio[d.meio_pagamento_id] ?? "—"}</td>
                 <td className="px-3 py-2 text-slate-500">{d.descricao}</td>
               </tr>
             ))}

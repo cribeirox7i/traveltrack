@@ -5,7 +5,8 @@ export type SheetTab =
   | "TripDays"
   | "UserTrip"
   | "Despesas"
-  | "Receitas";
+  | "Receitas"
+  | "MeiosPagamento";
 
 export const SHEET_HEADERS: Record<SheetTab, string[]> = {
   Users: ["id", "nome", "email", "senha_hash", "role", "ativo"],
@@ -27,8 +28,19 @@ export const SHEET_HEADERS: Record<SheetTab, string[]> = {
     "temp_max",
   ],
   UserTrip: ["id", "user_id", "trip_id"],
-  Despesas: ["id", "trip_id", "categoria", "valor", "data", "lancado_por", "descricao"],
+  Despesas: [
+    "id",
+    "trip_id",
+    "categoria",
+    "valor",
+    "data",
+    "lancado_por",
+    "descricao",
+    "pagador_id",
+    "meio_pagamento_id",
+  ],
   Receitas: ["id", "trip_id", "user_id", "valor", "data", "descricao"],
+  MeiosPagamento: ["id", "nome", "ativo"],
 };
 
 export type Role = "admin" | "user";
@@ -102,6 +114,15 @@ export interface DespesaRow {
   data: string;
   lancado_por: string;
   descricao: string;
+  pagador_id: string;
+  meio_pagamento_id: string;
+}
+
+export interface MeioPagamentoRow {
+  [key: string]: string;
+  id: string;
+  nome: string;
+  ativo: "true" | "false";
 }
 
 export interface ReceitaRow {

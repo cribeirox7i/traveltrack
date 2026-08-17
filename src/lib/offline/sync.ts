@@ -72,6 +72,33 @@ export async function pullTripDetail(tripId: string): Promise<void> {
   notifyChange();
 }
 
+// ---------- Listas de referência (colaboradores da viagem, meios de pagamento) ----------
+// Cacheadas em `meta` pra alimentar os selects de Pagador/Meio de pagamento em Despesas mesmo
+// offline — atualizadas sempre que a tela de Despesas abre com sinal.
+
+export interface PersonOption {
+  id: string;
+  nome: string;
+}
+
+export async function pullCollaborators(tripId: string): Promise<void> {
+  if (!isOnline()) return;
+  const list = await getJson<PersonOption[]>(`/api/trips/${tripId}/collaboradores`);
+  if (list) {
+    await setMeta(`collaborators:${tripId}`, list);
+    notifyChange();
+  }
+}
+
+export async function pullMeiosPagamento(): Promise<void> {
+  if (!isOnline()) return;
+  const list = await getJson<{ id: string; nome: string; ativo: string }[]>("/api/meios-pagamento");
+  if (list) {
+    await setMeta("meiosPagamento", list);
+    notifyChange();
+  }
+}
+
 // ---------- "Dados offline" — download completo por viagem, incluindo anexos ----------
 
 const OFFLINE_TRIPS_KEY = "offlineTripIds";
@@ -334,7 +361,14 @@ export async function createTripOffline(input: {
 
 export async function createDespesaOffline(
   tripId: string,
-  input: { categoria: string; valor: number; data: string; descricao: string }
+  input: {
+    categoria: string;
+    valor: number;
+    data: string;
+    descricao: string;
+    pagador_id: string;
+    meio_pagamento_id: string;
+  }
 ): Promise<void> {
   const id = uuid();
   await putOne("despesas", { id, trip_id: tripId, lancado_por: "", ...input, valor: String(input.valor) });

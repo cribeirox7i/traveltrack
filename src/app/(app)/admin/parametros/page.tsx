@@ -9,6 +9,12 @@ interface ParametroItem {
   descricao: string;
 }
 
+interface MeioPagamentoItem {
+  id: string;
+  nome: string;
+  ativo: "true" | "false";
+}
+
 export default function ParametrosAdminPage() {
   const [parametros, setParametros] = useState<ParametroItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -17,6 +23,11 @@ export default function ParametrosAdminPage() {
   const [settingUpSheets, setSettingUpSheets] = useState(false);
   const [setupMessage, setSetupMessage] = useState<string | null>(null);
 
+  const [meiosPagamento, setMeiosPagamento] = useState<MeioPagamentoItem[]>([]);
+  const [loadingMeios, setLoadingMeios] = useState(true);
+  const [novoMeio, setNovoMeio] = useState("");
+  const [savingMeio, setSavingMeio] = useState(false);
+
   async function load() {
     setLoading(true);
     const res = await fetch("/api/parametros");
@@ -24,9 +35,39 @@ export default function ParametrosAdminPage() {
     setLoading(false);
   }
 
+  async function loadMeiosPagamento() {
+    setLoadingMeios(true);
+    const res = await fetch("/api/meios-pagamento");
+    if (res.ok) setMeiosPagamento(await res.json());
+    setLoadingMeios(false);
+  }
+
   useEffect(() => {
     load();
+    loadMeiosPagamento();
   }, []);
+
+  async function handleCreateMeioPagamento(e: React.FormEvent) {
+    e.preventDefault();
+    setSavingMeio(true);
+    await fetch("/api/meios-pagamento", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nome: novoMeio }),
+    });
+    setSavingMeio(false);
+    setNovoMeio("");
+    loadMeiosPagamento();
+  }
+
+  async function toggleMeioPagamentoAtivo(meio: MeioPagamentoItem) {
+    await fetch(`/api/meios-pagamento/${meio.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ativo: meio.ativo !== "true" }),
+    });
+    loadMeiosPagamento();
+  }
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
@@ -67,7 +108,7 @@ export default function ParametrosAdminPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-xl font-semibold text-slate-900">Parâmetros</h1>
+      <h1 className="text-xl font-semibold text-slate-900">Config</h1>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-4">
         <p className="mb-2 text-sm text-slate-600">
@@ -82,6 +123,52 @@ export default function ParametrosAdminPage() {
           {settingUpSheets ? "Verificando..." : "Verificar/criar abas na planilha"}
         </button>
         {setupMessage && <p className="mt-2 text-sm text-slate-600">{setupMessage}</p>}
+      </div>
+
+      <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4">
+        <h2 className="text-sm font-semibold text-slate-800">Meios de pagamento</h2>
+        <form onSubmit={handleCreateMeioPagamento} className="flex flex-wrap items-end gap-3">
+          <div className="min-w-[200px] flex-1">
+            <label className="mb-1 block text-xs font-medium text-slate-600">Nome</label>
+            <input
+              required
+              value={novoMeio}
+              onChange={(e) => setNovoMeio(e.target.value)}
+              placeholder="Ex.: Pix, Cartão de crédito"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={savingMeio}
+            className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+          >
+            {savingMeio ? "Criando..." : "Adicionar"}
+          </button>
+        </form>
+
+        <ul className="flex flex-col gap-1">
+          {loadingMeios && <li className="text-sm text-slate-500">Carregando...</li>}
+          {!loadingMeios && meiosPagamento.length === 0 && (
+            <li className="text-sm text-slate-500">Nenhum meio de pagamento cadastrado.</li>
+          )}
+          {meiosPagamento.map((m) => (
+            <li
+              key={m.id}
+              className="flex items-center justify-between gap-3 border-t border-slate-100 py-2 text-sm first:border-t-0"
+            >
+              <span className={m.ativo === "true" ? "text-slate-800" : "text-slate-400 line-through"}>
+                {m.nome}
+              </span>
+              <button
+                onClick={() => toggleMeioPagamentoAtivo(m)}
+                className="text-xs font-medium text-slate-500 hover:text-slate-900"
+              >
+                {m.ativo === "true" ? "Desativar" : "Ativar"}
+              </button>
+            </li>
+          ))}
+        </ul>
       </div>
 
       <form

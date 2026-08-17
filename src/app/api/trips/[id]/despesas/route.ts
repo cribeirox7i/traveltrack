@@ -10,6 +10,8 @@ const createSchema = z.object({
   valor: z.number().positive(),
   data: z.string().date(),
   descricao: z.string().optional().default(""),
+  pagador_id: z.string().min(1),
+  meio_pagamento_id: z.string().min(1),
 });
 
 export async function GET(

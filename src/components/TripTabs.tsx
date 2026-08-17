@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+export const TRIP_TAB_SLUGS = ["orcamento", "despesas", "receitas", "anexos", "relatorio"] as const;
+
 const TABS = [
   { slug: "orcamento", label: "Orçamento" },
   { slug: "despesas", label: "Despesas" },

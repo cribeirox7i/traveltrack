@@ -1,8 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { getAnexoFile, getOne, listAll, listByTrip, listOutbox } from "./db";
-import { isOnline, pullAnexosList, pullTripDetail, pullTrips, syncEvents } from "./sync";
+import { getAnexoFile, getMeta, getOne, listAll, listByTrip, listOutbox } from "./db";
+import {
+  PersonOption,
+  isOnline,
+  pullAnexosList,
+  pullCollaborators,
+  pullMeiosPagamento,
+  pullTripDetail,
+  pullTrips,
+  syncEvents,
+} from "./sync";
 
 function useSyncChangeListener(callback: () => void) {
   useEffect(() => {
@@ -107,6 +116,46 @@ export async function getLocalAnexoUrl(fileId: string): Promise<string | null> {
   const file = await getAnexoFile(fileId);
   if (!file) return null;
   return URL.createObjectURL(file.blob);
+}
+
+/** Usuários com acesso à viagem (pro select de "Pagador" em Despesas) — cacheado localmente,
+ * atualizado em segundo plano quando online. */
+export function useCollaborators(tripId: string | undefined) {
+  const [people, setPeople] = useState<PersonOption[]>([]);
+
+  const refresh = useCallback(async () => {
+    if (!tripId) return;
+    const local = await getMeta(`collaborators:${tripId}`);
+    setPeople(Array.isArray(local) ? (local as PersonOption[]) : []);
+  }, [tripId]);
+
+  useEffect(() => {
+    refresh();
+    if (tripId && isOnline()) pullCollaborators(tripId).catch(() => {});
+  }, [refresh, tripId]);
+
+  useSyncChangeListener(refresh);
+
+  return people;
+}
+
+/** Meios de pagamento cadastrados (pro select em Despesas) — mesma lógica de cache local. */
+export function useMeiosPagamento() {
+  const [meios, setMeios] = useState<{ id: string; nome: string; ativo: string }[]>([]);
+
+  const refresh = useCallback(async () => {
+    const local = await getMeta("meiosPagamento");
+    setMeios(Array.isArray(local) ? (local as { id: string; nome: string; ativo: string }[]) : []);
+  }, []);
+
+  useEffect(() => {
+    refresh();
+    if (isOnline()) pullMeiosPagamento().catch(() => {});
+  }, [refresh]);
+
+  useSyncChangeListener(refresh);
+
+  return meios;
 }
 
 /** Indicador de conectividade (navigator.onLine + eventos online/offline) pra UI (banner, etc.). */

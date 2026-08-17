@@ -6,10 +6,9 @@ import { signOut, useSession } from "next-auth/react";
 
 const links = [
   { href: "/trips", label: "Viagens", icon: "🧳" },
-  { href: "/config", label: "Configurações", icon: "⚙️" },
   { href: "/admin/usuarios", label: "Usuários", icon: "👤", adminOnly: true },
   { href: "/admin/acessos", label: "Acessos", icon: "🔑", adminOnly: true },
-  { href: "/admin/parametros", label: "Parâmetros", icon: "🛠️", adminOnly: true },
+  { href: "/admin/parametros", label: "Config", icon: "⚙️", adminOnly: true },
 ];
 
 export function NavBar() {

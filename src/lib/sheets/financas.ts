@@ -17,6 +17,8 @@ export async function createDespesa(input: {
   data: string;
   lancado_por: string;
   descricao: string;
+  pagador_id: string;
+  meio_pagamento_id: string;
 }): Promise<DespesaRow> {
   const row: DespesaRow = {
     id: input.id || uuid(),
@@ -26,6 +28,8 @@ export async function createDespesa(input: {
     data: input.data,
     lancado_por: input.lancado_por,
     descricao: input.descricao,
+    pagador_id: input.pagador_id,
+    meio_pagamento_id: input.meio_pagamento_id,
   };
   await appendRows("Despesas", [row]);
   return row;
