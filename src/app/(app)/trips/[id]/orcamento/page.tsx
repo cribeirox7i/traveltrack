@@ -299,16 +299,16 @@ export default function OrcamentoPage() {
         <table className="w-full whitespace-nowrap text-xs">
           <thead className="bg-slate-50 text-left uppercase text-slate-500">
             <tr>
-              <th className="px-2 py-1.5">Data</th>
-              <th className="px-2 py-1.5">Dia</th>
+              <th className="px-2 py-1">Data</th>
+              <th className="px-2 py-1">Dia</th>
               {TEXT_FIELDS.map((f) => (
-                <th key={f.key} className="px-2 py-1.5">
+                <th key={f.key} className="px-1 py-1">
                   {f.label}
                 </th>
               ))}
-              <th className="px-2 py-1.5 text-right">Temp. mín/máx</th>
+              <th className="px-2 py-1 text-right">Temp. mín/máx</th>
               {COST_FIELDS.map((f) => (
-                <th key={f.key} className="px-2 py-1.5 text-right">
+                <th key={f.key} className="px-1 py-1 text-right">
                   {f.label}
                 </th>
               ))}
@@ -336,7 +336,7 @@ export default function OrcamentoPage() {
                       }}
                       onFocus={() => setFocusedCell({ dayId: day.id, field: f.key })}
                       disabled={isSaving}
-                      className="w-24 rounded-md border border-slate-300 px-1.5 py-0.5 text-xs"
+                      className="w-24 rounded-md border border-slate-300 py-0.5 pl-1.5 pr-3.5 text-xs"
                     />
                   </td>
                 ))}
@@ -370,14 +370,14 @@ export default function OrcamentoPage() {
           </tbody>
           <tfoot>
             <tr className="border-t border-slate-200 bg-slate-50 font-bold">
-              <td className="px-2 py-1.5">Total por pessoa</td>
-              <td className="px-2 py-1.5" />
+              <td className="px-2 py-1">Total por pessoa</td>
+              <td className="px-2 py-1" />
               {TEXT_FIELDS.map((f) => (
-                <td key={f.key} className="px-2 py-1.5" />
+                <td key={f.key} className="px-1 py-1" />
               ))}
-              <td className="px-2 py-1.5" />
+              <td className="px-2 py-1" />
               {COST_FIELDS.map((f) => (
-                <td key={f.key} className="px-2 py-1.5 text-right">
+                <td key={f.key} className="px-1 py-1 text-right">
                   {formatDecimal(String(totals[f.key]))}
                 </td>
               ))}

@@ -1,6 +1,6 @@
 import { v4 as uuid } from "uuid";
 import { enumerateDates } from "../dateRange";
-import { appendRows, findRowById, readSheet, updateRow, updateRows } from "./repository";
+import { appendRows, deleteRow, findRowById, readSheet, updateRow, updateRows } from "./repository";
 import { TripDayRow, TripRow, UserRow, UserTripRow } from "./types";
 
 export async function listAllTrips(): Promise<TripRow[]> {
@@ -183,6 +183,14 @@ export async function linkUserToTrip(userId: string, tripId: string): Promise<vo
   if (already) return;
 
   await appendRows("UserTrip", [{ id: uuid(), user_id: userId, trip_id: tripId }]);
+}
+
+export async function unlinkUserFromTrip(userId: string, tripId: string): Promise<void> {
+  const links = await readSheet<UserTripRow>("UserTrip");
+  const link = links.find((l) => l.user_id === userId && l.trip_id === tripId);
+  if (!link) return;
+
+  await deleteRow("UserTrip", link.id);
 }
 
 export async function listTripCollaborators(tripId: string): Promise<UserTripRow[]> {

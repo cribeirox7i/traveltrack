@@ -26,6 +26,7 @@ export default function AcessosAdminPage() {
   const [userId, setUserId] = useState("");
   const [links, setLinks] = useState<UserTripLink[]>([]);
   const [saving, setSaving] = useState(false);
+  const [removingId, setRemovingId] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/users")
@@ -56,6 +57,19 @@ export default function AcessosAdminPage() {
       body: JSON.stringify({ user_id: userId, trip_id: tripId }),
     });
     setSaving(false);
+    const res = await fetch(`/api/user-trip?trip_id=${tripId}`);
+    setLinks(await res.json());
+  }
+
+  async function handleUnlink(userIdToRemove: string) {
+    if (!tripId) return;
+    setRemovingId(userIdToRemove);
+    await fetch("/api/user-trip", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: userIdToRemove, trip_id: tripId }),
+    });
+    setRemovingId(null);
     const res = await fetch(`/api/user-trip?trip_id=${tripId}`);
     setLinks(await res.json());
   }
@@ -117,8 +131,18 @@ export default function AcessosAdminPage() {
           {users
             .filter((u) => linkedUserIds.has(u.id))
             .map((u) => (
-              <li key={u.id} className="text-slate-600">
-                {u.nome} ({u.email})
+              <li key={u.id} className="flex items-center justify-between gap-2 text-slate-600">
+                <span>
+                  {u.nome} ({u.email})
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleUnlink(u.id)}
+                  disabled={removingId === u.id}
+                  className="text-xs font-medium text-red-600 hover:text-red-700 disabled:opacity-50"
+                >
+                  {removingId === u.id ? "Removendo..." : "Remover"}
+                </button>
               </li>
             ))}
           {links.length === 0 && <li className="text-slate-400">Ninguém ainda.</li>}

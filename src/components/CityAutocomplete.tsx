@@ -151,7 +151,7 @@ export function CityAutocomplete({
               ? "Cidade confirmada na busca (com coordenadas)"
               : "Texto livre — não selecionado da busca, sem coordenadas"
           }
-          className={`absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full border border-white ${
+          className={`pointer-events-none absolute right-1 top-1/2 h-1.5 w-1.5 -translate-y-1/2 rounded-full ${
             hasCoordinates ? "bg-green-500" : "bg-amber-400"
           }`}
         />
