@@ -24,6 +24,9 @@ interface CityAutocompleteProps {
   disabled?: boolean;
   className?: string;
   placeholder?: string;
+  /** Tem coordenada salva (veio de uma sugestão escolhida na API)? Controla a bolinha de status:
+   * verde = cidade real da API, amarela = texto livre digitado sem selecionar sugestão. */
+  hasCoordinates?: boolean;
 }
 
 const DEBOUNCE_MS = 300;
@@ -49,6 +52,7 @@ export function CityAutocomplete({
   disabled,
   className,
   placeholder,
+  hasCoordinates,
 }: CityAutocompleteProps) {
   const [suggestions, setSuggestions] = useState<GeoResult[]>([]);
   const [open, setOpen] = useState(false);
@@ -140,6 +144,18 @@ export function CityAutocomplete({
         autoComplete="off"
         className={className}
       />
+      {value.trim() && (
+        <span
+          title={
+            hasCoordinates
+              ? "Cidade confirmada na busca (com coordenadas)"
+              : "Texto livre — não selecionado da busca, sem coordenadas"
+          }
+          className={`absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full border border-white ${
+            hasCoordinates ? "bg-green-500" : "bg-amber-400"
+          }`}
+        />
+      )}
       {open && suggestions.length > 0 && (
         <ul className="absolute z-20 mt-1 max-h-56 w-max min-w-full overflow-auto rounded-lg border border-slate-200 bg-white text-xs shadow-lg">
           {suggestions.map((s, i) => (

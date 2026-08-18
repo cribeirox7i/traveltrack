@@ -56,7 +56,7 @@ export const SHEET_HEADERS: Record<SheetTab, string[]> = {
     "pagador_id",
     "meio_pagamento_id",
   ],
-  Receitas: ["id", "trip_id", "user_id", "valor", "data", "descricao"],
+  Receitas: ["id", "trip_id", "user_id", "valor", "data", "descricao", "credor_id"],
   MeiosPagamento: ["id", "nome", "ativo"],
 };
 
@@ -159,4 +159,5 @@ export interface ReceitaRow {
   valor: string;
   data: string;
   descricao: string;
+  credor_id: string;
 }

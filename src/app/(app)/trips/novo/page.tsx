@@ -90,6 +90,7 @@ export default function NovaViagemPage() {
           </label>
           <CityAutocomplete
             value={form.cidade_origem}
+            hasCoordinates={Boolean(form.cidade_origem_lat && form.cidade_origem_lon)}
             placeholder="De onde o grupo parte"
             onTextChange={(text) =>
               setForm({ ...form, cidade_origem: text, cidade_origem_lat: "", cidade_origem_lon: "" })

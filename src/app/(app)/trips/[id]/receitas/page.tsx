@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { useOfflineCollection } from "@/lib/offline/useOfflineData";
+import { useSession } from "next-auth/react";
+import { useCollaborators, useOfflineCollection } from "@/lib/offline/useOfflineData";
 import { createReceitaOffline } from "@/lib/offline/sync";
 
 interface Receita {
@@ -10,23 +11,36 @@ interface Receita {
   valor: string;
   data: string;
   descricao: string;
+  credor_id: string;
 }
 
 export default function ReceitasPage() {
   const { id: tripId } = useParams<{ id: string }>();
+  const { data: session } = useSession();
   const { items: receitas, loading } = useOfflineCollection<Receita>("receitas", tripId);
+  const collaborators = useCollaborators(tripId);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ valor: "", data: "", descricao: "" });
+  const [form, setForm] = useState({ valor: "", data: "", descricao: "", credor_id: "" });
+
+  // Pré-seleciona o próprio usuário como credor assim que a lista de colaboradores chega.
+  useEffect(() => {
+    if (form.credor_id) return;
+    const me = session?.user.id;
+    if (me && collaborators.some((c) => c.id === me)) {
+      setForm((prev) => ({ ...prev, credor_id: me }));
+    }
+  }, [collaborators, session, form.credor_id]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
     await createReceitaOffline(tripId, { ...form, valor: Number(form.valor) });
     setSaving(false);
-    setForm({ valor: "", data: "", descricao: "" });
+    setForm((prev) => ({ valor: "", data: "", descricao: "", credor_id: prev.credor_id }));
   }
 
   const total = receitas.reduce((sum, r) => sum + (Number(r.valor) || 0), 0);
+  const nomePorCredor = Object.fromEntries(collaborators.map((c) => [c.id, c.nome]));
 
   return (
     <div className="flex flex-col gap-4">
@@ -56,6 +70,24 @@ export default function ReceitasPage() {
             className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
           />
         </div>
+        <div className="min-w-[160px]">
+          <label className="mb-1 block text-xs font-medium text-slate-600">Credor</label>
+          <select
+            required
+            value={form.credor_id}
+            onChange={(e) => setForm({ ...form, credor_id: e.target.value })}
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+          >
+            <option value="" disabled>
+              Selecione...
+            </option>
+            {collaborators.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.nome}
+              </option>
+            ))}
+          </select>
+        </div>
         <div className="flex-1 min-w-[160px]">
           <label className="mb-1 block text-xs font-medium text-slate-600">Descrição</label>
           <input
@@ -80,20 +112,21 @@ export default function ReceitasPage() {
             <tr>
               <th className="px-3 py-2">Data</th>
               <th className="px-3 py-2">Valor</th>
+              <th className="px-3 py-2">Credor</th>
               <th className="px-3 py-2">Descrição</th>
             </tr>
           </thead>
           <tbody>
             {loading && (
               <tr>
-                <td className="px-3 py-3 text-slate-500" colSpan={3}>
+                <td className="px-3 py-3 text-slate-500" colSpan={4}>
                   Carregando...
                 </td>
               </tr>
             )}
             {!loading && receitas.length === 0 && (
               <tr>
-                <td className="px-3 py-3 text-slate-500" colSpan={3}>
+                <td className="px-3 py-3 text-slate-500" colSpan={4}>
                   Nenhum aporte lançado.
                 </td>
               </tr>
@@ -102,6 +135,7 @@ export default function ReceitasPage() {
               <tr key={r.id} className="border-t border-slate-100">
                 <td className="px-3 py-2">{r.data}</td>
                 <td className="px-3 py-2">R$ {Number(r.valor).toFixed(2)}</td>
+                <td className="px-3 py-2">{nomePorCredor[r.credor_id] ?? "—"}</td>
                 <td className="px-3 py-2 text-slate-500">{r.descricao}</td>
               </tr>
             ))}

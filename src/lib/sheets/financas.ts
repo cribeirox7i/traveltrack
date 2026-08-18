@@ -49,6 +49,7 @@ export async function createReceita(input: {
   valor: number;
   data: string;
   descricao: string;
+  credor_id: string;
 }): Promise<ReceitaRow> {
   const row: ReceitaRow = {
     id: input.id || uuid(),
@@ -57,6 +58,7 @@ export async function createReceita(input: {
     valor: String(input.valor),
     data: input.data,
     descricao: input.descricao,
+    credor_id: input.credor_id,
   };
   await appendRows("Receitas", [row]);
   return row;

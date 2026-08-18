@@ -323,6 +323,7 @@ export default function OrcamentoPage() {
                   <td key={f.key} className="px-1 py-1">
                     <CityAutocomplete
                       value={day[f.key] ?? ""}
+                      hasCoordinates={Boolean(day[latKey(f.key)] && day[lonKey(f.key)])}
                       onTextChange={(text) => {
                         updateLocal(day.id, f.key, text);
                         updateLocal(day.id, latKey(f.key), "");

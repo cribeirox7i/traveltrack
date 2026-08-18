@@ -6,6 +6,7 @@ import {
   deleteMany,
   enqueueOutbox,
   getMeta,
+  getOne,
   listAnexoFilesByTrip,
   listByTrip,
   listOutbox,
@@ -396,7 +397,7 @@ export async function createDespesaOffline(
 
 export async function createReceitaOffline(
   tripId: string,
-  input: { valor: number; data: string; descricao: string }
+  input: { valor: number; data: string; descricao: string; credor_id: string }
 ): Promise<void> {
   const id = uuid();
   await putOne("receitas", { id, trip_id: tripId, user_id: "", ...input, valor: String(input.valor) });
@@ -416,10 +417,16 @@ export interface DayPatch {
 }
 
 export async function saveDaysOffline(tripId: string, days: DayPatch[]): Promise<void> {
-  await putAll(
-    "tripDays",
-    days.map((d) => ({ ...d, trip_id: tripId }))
+  // `putAll` substitui o registro inteiro pela chave — como `days` aqui traz só os campos que
+  // mudaram, gravar o patch puro apagaria os campos não editados (ex.: `data` do dia), quebrando
+  // a ordenação da tela. Mescla com o que já está salvo localmente antes de gravar.
+  const merged = await Promise.all(
+    days.map(async (patch) => {
+      const existing = await getOne("tripDays", patch.id);
+      return { ...(existing ?? {}), ...patch, trip_id: tripId };
+    })
   );
+  await putAll("tripDays", merged);
   await enqueueOutbox({ localId: uuid(), kind: "saveDays", tripId, payload: { days } });
   notifyChange();
   void pushOutbox();
