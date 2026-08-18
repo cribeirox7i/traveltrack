@@ -127,6 +127,34 @@ export default function OrcamentoPage() {
     setIsDirty(true);
   }
 
+  /** Ao escolher uma cidade da busca, aplica nome + coordenadas na célula clicada e em qualquer
+   * outra célula de cidade (mesmo campo ou não, qualquer dia) que já tenha o mesmo texto digitado
+   * — evita ter que reclicar a sugestão toda vez que a mesma cidade se repete na grade. */
+  function applyCitySelection(
+    dayId: string,
+    field: (typeof TEXT_FIELD_KEYS)[number],
+    city: { nome: string; lat: string; lon: string }
+  ) {
+    const normalized = city.nome.trim().toLowerCase();
+    setDays((prev) =>
+      prev.map((d) => {
+        let next: TripDay | null = null;
+        for (const f of TEXT_FIELD_KEYS) {
+          const isTarget = d.id === dayId && f === field;
+          const text = (d[f] ?? "").trim().toLowerCase();
+          if (isTarget || (text && text === normalized)) {
+            if (!next) next = { ...d };
+            next[f] = city.nome;
+            next[latKey(f)] = city.lat;
+            next[lonKey(f)] = city.lon;
+          }
+        }
+        return next ?? d;
+      })
+    );
+    setIsDirty(true);
+  }
+
   function normalizeCostOnBlur(dayId: string, field: keyof TripDay, rawValue: string) {
     const num = parseDecimal(rawValue);
     updateLocal(dayId, field, String(num));
@@ -329,11 +357,7 @@ export default function OrcamentoPage() {
                         updateLocal(day.id, latKey(f.key), "");
                         updateLocal(day.id, lonKey(f.key), "");
                       }}
-                      onSelect={(city) => {
-                        updateLocal(day.id, f.key, city.nome);
-                        updateLocal(day.id, latKey(f.key), city.lat);
-                        updateLocal(day.id, lonKey(f.key), city.lon);
-                      }}
+                      onSelect={(city) => applyCitySelection(day.id, f.key, city)}
                       onFocus={() => setFocusedCell({ dayId: day.id, field: f.key })}
                       disabled={isSaving}
                       className="w-24 rounded-md border border-slate-300 py-0.5 pl-1.5 pr-3.5 text-xs"
