@@ -328,13 +328,13 @@ export default function OrcamentoPage() {
           <thead className="bg-slate-50 text-left uppercase text-slate-500">
             <tr>
               <th className="px-2 py-1">Data</th>
-              <th className="px-2 py-1">Dia</th>
+              <th className="px-1 py-1">Dia</th>
               {TEXT_FIELDS.map((f) => (
                 <th key={f.key} className="px-1 py-1">
                   {f.label}
                 </th>
               ))}
-              <th className="px-2 py-1 text-right">Temp. mín/máx</th>
+              <th className="px-1 py-1 text-right">Min/Máx</th>
               {COST_FIELDS.map((f) => (
                 <th key={f.key} className="px-1 py-1 text-right">
                   {f.label}
@@ -346,7 +346,7 @@ export default function OrcamentoPage() {
             {days.map((day) => (
               <tr key={day.id} className="border-t border-slate-100">
                 <td className="px-2 py-1 text-slate-600">{formatDateBR(day.data)}</td>
-                <td className="px-2 py-1 text-slate-500">{weekdayLabel(day.data)}</td>
+                <td className="px-1 py-1 text-slate-500">{weekdayLabel(day.data)}</td>
                 {TEXT_FIELDS.map((f) => (
                   <td key={f.key} className="px-1 py-1">
                     <CityAutocomplete
@@ -360,11 +360,11 @@ export default function OrcamentoPage() {
                       onSelect={(city) => applyCitySelection(day.id, f.key, city)}
                       onFocus={() => setFocusedCell({ dayId: day.id, field: f.key })}
                       disabled={isSaving}
-                      className="w-24 rounded-md border border-slate-300 py-0.5 pl-1.5 pr-3.5 text-xs"
+                      className="w-full rounded-md border border-slate-300 py-0.5 pl-1.5 pr-3.5 text-xs"
                     />
                   </td>
                 ))}
-                <td className="px-2 py-1 text-right text-slate-500">
+                <td className="px-1 py-1 text-right text-slate-500">
                   {day.temp_min && day.temp_max ? `${day.temp_min}° / ${day.temp_max}°` : "—"}
                 </td>
                 {COST_FIELDS.map((f) => {
@@ -384,7 +384,7 @@ export default function OrcamentoPage() {
                         }}
                         onBlur={(e) => normalizeCostOnBlur(day.id, f.key, e.target.value)}
                         disabled={isSaving}
-                        className="w-20 rounded-md border border-slate-300 px-1.5 py-0.5 text-right text-xs"
+                        className="w-full rounded-md border border-slate-300 px-1.5 py-0.5 text-right text-xs"
                       />
                     </td>
                   );
@@ -395,11 +395,11 @@ export default function OrcamentoPage() {
           <tfoot>
             <tr className="border-t border-slate-200 bg-slate-50 font-bold">
               <td className="px-2 py-1">Total por pessoa</td>
-              <td className="px-2 py-1" />
+              <td className="px-1 py-1" />
               {TEXT_FIELDS.map((f) => (
                 <td key={f.key} className="px-1 py-1" />
               ))}
-              <td className="px-2 py-1" />
+              <td className="px-1 py-1" />
               {COST_FIELDS.map((f) => (
                 <td key={f.key} className="px-1 py-1 text-right">
                   {formatDecimal(String(totals[f.key]))}
