@@ -14,6 +14,7 @@ interface UserItem {
 export default function UsuariosAdminPage() {
   const [users, setUsers] = useState<UserItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({ nome: "", email: "", senha: "", role: "user" as "admin" | "user" });
   const [saving, setSaving] = useState(false);
@@ -30,8 +31,20 @@ export default function UsuariosAdminPage() {
 
   async function load() {
     setLoading(true);
-    const res = await fetch("/api/users");
-    if (res.ok) setUsers(await res.json());
+    setLoadError(null);
+    try {
+      const res = await fetch("/api/users");
+      if (res.ok) {
+        setUsers(await res.json());
+      } else {
+        setLoadError("Erro ao carregar usuários");
+      }
+    } catch {
+      // Gerenciamento de usuários exige conexão — sem isso a tela ficava presa em
+      // "Carregando..." pra sempre quando aberta offline (o fetch rejeita e ninguém chamava
+      // setLoading(false)).
+      setLoadError("Sem conexão — esta tela exige internet");
+    }
     setLoading(false);
   }
 
@@ -220,7 +233,14 @@ export default function UsuariosAdminPage() {
                 </td>
               </tr>
             )}
-            {!loading && users.length === 0 && (
+            {!loading && loadError && (
+              <tr>
+                <td className="px-4 py-3 text-red-600" colSpan={5}>
+                  {loadError}
+                </td>
+              </tr>
+            )}
+            {!loading && !loadError && users.length === 0 && (
               <tr>
                 <td className="px-4 py-3 text-slate-500" colSpan={5}>
                   Nenhum usuário cadastrado.

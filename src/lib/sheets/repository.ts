@@ -36,6 +36,15 @@ export async function deleteRow(tab: SheetTab, id: string): Promise<void> {
   await callAppsScript<null>("deleteById", { tab, id });
 }
 
+/** Remove todas as linhas cujo valor em `field` seja `value` (ex.: cascade por trip_id). */
+export async function deleteRowsByField(
+  tab: SheetTab,
+  field: string,
+  value: string
+): Promise<void> {
+  await callAppsScript<null>("deleteByField", { tab, campo: field, valor: value });
+}
+
 export async function findRowById<T extends RowObject>(
   tab: SheetTab,
   id: string

@@ -127,6 +127,11 @@ export async function getOne(tab: DataTab, id: string) {
   return db.get(tab, id);
 }
 
+export async function deleteOne(tab: DataTab, id: string): Promise<void> {
+  const db = await getDB();
+  await db.delete(tab, id);
+}
+
 export async function deleteByTrip(
   tab: "tripDays" | "despesas" | "receitas" | "anexos" | "anexoFiles",
   tripId: string
@@ -167,6 +172,18 @@ export async function listOutbox(): Promise<OutboxEntry[]> {
 export async function removeOutboxEntry(localId: string) {
   const db = await getDB();
   await db.delete("outbox", localId);
+}
+
+/** Descarta mutações pendentes de uma viagem que acabou de ser excluída — evita a fila de
+ * sincronização ficar tentando repetidamente salvar dados de uma viagem que não existe mais. */
+export async function removeOutboxByTrip(tripId: string): Promise<void> {
+  const db = await getDB();
+  const tx = db.transaction("outbox", "readwrite");
+  const all = await tx.store.getAll();
+  await Promise.all(
+    all.filter((e) => e.tripId === tripId).map((e) => tx.store.delete(e.localId))
+  );
+  await tx.done;
 }
 
 export async function updateOutboxEntry(entry: OutboxEntry) {

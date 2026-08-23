@@ -1,6 +1,15 @@
 import { v4 as uuid } from "uuid";
 import { enumerateDates } from "../dateRange";
-import { appendRows, deleteRow, findRowById, readSheet, updateRow, updateRows } from "./repository";
+import {
+  appendRows,
+  deleteRow,
+  deleteRowsByField,
+  findRowById,
+  readSheet,
+  updateRow,
+  updateRows,
+} from "./repository";
+import { deleteTripFolder } from "./anexos";
 import { TripDayRow, TripRow, UserRow, UserTripRow } from "./types";
 
 export async function listAllTrips(): Promise<TripRow[]> {
@@ -46,6 +55,11 @@ export async function createTrip(input: {
   cidade_origem?: string;
   cidade_origem_lat?: string;
   cidade_origem_lon?: string;
+  /** Ids dos dias já gerados no cliente (modo offline) — reaproveitados aqui em vez de gerar
+   * ids novos, senão o cliente e o servidor acabam criando duas linhas por dia (uma com o id
+   * local, outra com o id gerado agora), duplicando a grade de diárias quando a sincronização
+   * puxa os dias do servidor de volta pro IndexedDB. */
+  dayIds?: string[];
 }): Promise<TripRow> {
   const trip: TripRow = {
     id: input.id || uuid(),
@@ -61,8 +75,9 @@ export async function createTrip(input: {
   };
 
   const days = enumerateDates(input.data_inicio, input.data_fim);
-  const dayRows: TripDayRow[] = days.map((data) => ({
-    id: uuid(),
+  const dayIds = input.dayIds && input.dayIds.length === days.length ? input.dayIds : null;
+  const dayRows: TripDayRow[] = days.map((data, i) => ({
+    id: dayIds ? dayIds[i] : uuid(),
     trip_id: trip.id,
     data,
     origem: "",
@@ -94,6 +109,25 @@ export async function updateTrip(
   patch: { cidade_origem?: string; cidade_origem_lat?: string; cidade_origem_lon?: string }
 ): Promise<void> {
   await updateRow("Trips", id, patch);
+}
+
+/**
+ * Exclui a viagem e faz cascade em tudo que depende dela: diárias, despesas, receitas,
+ * vínculos de acesso (UserTrip) e a pasta de anexos no Drive. A linha da própria viagem só é
+ * removida por último, depois que o resto já foi limpo.
+ */
+export async function deleteTrip(tripId: string): Promise<void> {
+  const trip = await getTrip(tripId);
+
+  await Promise.all([
+    deleteRowsByField("TripDays", "trip_id", tripId),
+    deleteRowsByField("Despesas", "trip_id", tripId),
+    deleteRowsByField("Receitas", "trip_id", tripId),
+    deleteRowsByField("UserTrip", "trip_id", tripId),
+    trip ? deleteTripFolder(tripId, trip.nome) : Promise.resolve(),
+  ]);
+
+  await deleteRow("Trips", tripId);
 }
 
 export async function listTripDays(tripId: string): Promise<TripDayRow[]> {

@@ -4,6 +4,7 @@ import {
   OutboxEntry,
   deleteByTrip,
   deleteMany,
+  deleteOne,
   enqueueOutbox,
   getMeta,
   getOne,
@@ -13,6 +14,7 @@ import {
   putAll,
   putAnexoFile,
   putOne,
+  removeOutboxByTrip,
   removeOutboxEntry,
   setMeta,
   updateOutboxEntry,
@@ -146,6 +148,10 @@ export async function downloadTripFull(tripId: string): Promise<void> {
   if (!isOnline() || downloading.has(tripId)) return;
   downloading.add(tripId);
   try {
+    // Sem isso, Despesas/Receitas ficam com as listas de "Pagador"/"Credor"/"Meio de
+    // pagamento" vazias offline pra qualquer viagem que só foi marcada aqui, sem o usuário ter
+    // aberto manualmente a aba Despesas com sinal antes (só essa aba puxava esses dois caches).
+    await Promise.all([pullCollaborators(tripId), pullMeiosPagamento()]);
     await pullTripDetail(tripId);
 
     const anexos = await getJson<AnexoInfoLike[]>(`/api/trips/${tripId}/anexos`);
@@ -214,7 +220,11 @@ export async function setTripOffline(tripId: string, enabled: boolean): Promise<
   }
 }
 
-async function refreshAllOfflineTrips(): Promise<void> {
+/** Baixa (ou atualiza) de uma vez todas as viagens marcadas "Dados offline" — usado tanto pelo
+ * ciclo automático (ao voltar online, periodicamente) quanto pelo botão "Baixar offline" da
+ * tela inicial, pra forçar uma atualização na hora antes de perder o sinal (ex.: saindo de
+ * casa pro aeroporto). */
+export async function refreshAllOfflineTrips(): Promise<void> {
   for (const tripId of await listOfflineTripIds()) {
     await downloadTripFull(tripId);
   }
@@ -366,10 +376,48 @@ export async function createTripOffline(input: {
   }));
   await putAll("tripDays", days);
 
-  await enqueueOutbox({ localId: uuid(), kind: "createTrip", payload: { id, ...input } });
+  // Manda os mesmos ids dos dias já gravados localmente — o servidor reaproveita em vez de
+  // gerar novos, senão a sincronização puxaria de volta um segundo conjunto de dias (ids
+  // diferentes, mesmas datas) e duplicaria a grade de diárias.
+  await enqueueOutbox({
+    localId: uuid(),
+    kind: "createTrip",
+    payload: { id, ...input, dayIds: days.map((d) => d.id) },
+  });
   notifyChange();
   void pushOutbox();
   return id;
+}
+
+/** Exclui a viagem no servidor (cascade de diárias/despesas/receitas/acessos/anexos, ver
+ * `deleteTrip` em trips.ts) e limpa todo o cache local dela. Diferente das outras mutações,
+ * exige conexão — é destrutivo e admin-only, não faz sentido enfileirar pra tentar mais tarde
+ * enquanto o usuário já vê a viagem sumir da lista. */
+export async function deleteTripOffline(
+  tripId: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!isOnline()) return { ok: false, error: "Sem conexão — conecte-se para excluir a viagem" };
+
+  const res = await fetch(`/api/trips/${tripId}`, { method: "DELETE" });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    return { ok: false, error: data.error ?? "Erro ao excluir viagem" };
+  }
+
+  await deleteOne("trips", tripId);
+  await deleteByTrip("tripDays", tripId);
+  await deleteByTrip("despesas", tripId);
+  await deleteByTrip("receitas", tripId);
+  await deleteByTrip("anexos", tripId);
+  await deleteByTrip("anexoFiles", tripId);
+  await removeOutboxByTrip(tripId);
+
+  const ids = new Set(await listOfflineTripIds());
+  ids.delete(tripId);
+  await setMeta(OFFLINE_TRIPS_KEY, Array.from(ids));
+
+  notifyChange();
+  return { ok: true };
 }
 
 export async function createDespesaOffline(

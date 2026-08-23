@@ -40,6 +40,11 @@ export async function deleteAnexo(fileId: string): Promise<void> {
   await callAppsScript<null>("driveDeleteFile", { fileId });
 }
 
+/** Move a pasta inteira de anexos da viagem pra lixeira do Drive — usado ao excluir a viagem. */
+export async function deleteTripFolder(tripId: string, tripName: string): Promise<void> {
+  await callAppsScript<null>("driveDeleteTripFolder", { tripId, tripName });
+}
+
 export async function downloadAnexo(
   fileId: string
 ): Promise<{ name: string; mimeType: string; base64Data: string }> {

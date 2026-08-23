@@ -56,11 +56,13 @@ function api(action, payload) {
       case 'updateById':       return ok(atualizarPorId(payload.tab, payload.id, payload.patch || {}));
       case 'updateManyById':   return ok(atualizarVariosPorId(payload.tab, payload.updates || []));
       case 'deleteById':       return ok(excluirPorId(payload.tab, payload.id));
+      case 'deleteByField':    return ok(excluirPorCampo(payload.tab, payload.campo, payload.valor));
       case 'resetTab':         return ok(resetarAba(payload.tab));
       case 'driveUploadFile':  return ok(driveUploadFile(payload));
       case 'driveListFiles':   return ok(driveListFiles(payload));
       case 'driveDeleteFile':  return ok(driveDeleteFile(payload));
       case 'driveDownloadFile': return ok(driveDownloadFile(payload));
+      case 'driveDeleteTripFolder': return ok(driveDeleteTripFolder(payload));
       default:                 return erro('Ação desconhecida: ' + action);
     }
   } catch (err) {
@@ -268,6 +270,36 @@ function excluirPorId(nome, id) {
 }
 
 /**
+ * Remove, numa única passada, todas as linhas cujo valor na coluna `campo` seja igual a
+ * `valor` (ex.: todas as TripDays de uma viagem excluída) — muito mais rápido que excluirPorId
+ * repetido linha a linha, e evita que os índices de linha mudem no meio do processo.
+ */
+function excluirPorCampo(nome, campo, valor) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const sh = getSheet(nome);
+    const values = sh.getDataRange().getValues();
+    const headers = (values[0] || []).map(String);
+    const col = headers.indexOf(campo);
+    if (col === -1) throw new Error('Aba "' + nome + '" não tem coluna "' + campo + '"');
+
+    const mantidas = values.slice(1).filter(function (linha) { return String(linha[col]) !== String(valor); });
+    const removidas = (values.length - 1) - mantidas.length;
+    if (removidas === 0) return { removidas: 0 };
+
+    sh.getRange(2, 1, Math.max(values.length - 1, 1), headers.length).clearContent();
+    if (mantidas.length) {
+      const sanitizadas = mantidas.map(function (linha) { return linha.map(sanitizarValor); });
+      sh.getRange(2, 1, sanitizadas.length, headers.length).setNumberFormat('@').setValues(sanitizadas);
+    }
+    return { removidas: removidas };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/**
  * DESTRUTIVO - apaga todo o conteúdo da aba (inclusive linhas de dados) e
  * recria só o cabeçalho esperado por ESTRUTURA. Não é usado por nenhuma
  * rota do app; existe só para correção manual pontual (ex.: uma aba que já
@@ -399,6 +431,19 @@ function driveListFiles(payload) {
 /** Move para a lixeira do Drive (reversível) em vez de apagar de vez. */
 function driveDeleteFile(payload) {
   DriveApp.getFileById(payload.fileId).setTrashed(true);
+  return null;
+}
+
+/** Move a pasta inteira de anexos da viagem (todas as categorias) para a lixeira do Drive de
+ * uma vez, em vez de listar e apagar arquivo por arquivo — usado ao excluir uma viagem.
+ * Sem DRIVE_ROOT_FOLDER_ID configurado ou sem a pasta (viagem nunca teve anexo), não há nada a
+ * fazer. */
+function driveDeleteTripFolder(payload) {
+  if (!DRIVE_ROOT_FOLDER_ID) return null;
+  const raiz = DriveApp.getFolderById(DRIVE_ROOT_FOLDER_ID);
+  const nomePasta = payload.tripName + ' — ' + payload.tripId;
+  const pastas = raiz.getFoldersByName(nomePasta);
+  if (pastas.hasNext()) pastas.next().setTrashed(true);
   return null;
 }
 

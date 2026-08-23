@@ -13,6 +13,7 @@ const createTripSchema = z
     cidade_origem: z.string().optional(),
     cidade_origem_lat: z.string().optional(),
     cidade_origem_lon: z.string().optional(),
+    dayIds: z.array(z.string().min(1)).optional(),
   })
   .refine((data) => data.data_fim >= data.data_inicio, {
     message: "Data de término deve ser após a data de início",
