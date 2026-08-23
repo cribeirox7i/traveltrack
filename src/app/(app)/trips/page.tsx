@@ -27,6 +27,7 @@ export default function TripsPage() {
   const [busyIds, setBusyIds] = useState<Set<string>>(new Set());
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleteWarning, setDeleteWarning] = useState<string | null>(null);
   const online = useOnlineStatus();
   const [downloadingAll, setDownloadingAll] = useState(false);
   const [downloadedAt, setDownloadedAt] = useState<Date | null>(null);
@@ -66,6 +67,7 @@ export default function TripsPage() {
     );
     if (!ok) return;
     setDeleteError(null);
+    setDeleteWarning(null);
     setDeletingIds((prev) => new Set(prev).add(tripId));
     const result = await deleteTripOffline(tripId);
     setDeletingIds((prev) => {
@@ -73,7 +75,13 @@ export default function TripsPage() {
       next.delete(tripId);
       return next;
     });
-    if (!result.ok) setDeleteError(result.error);
+    if (!result.ok) {
+      setDeleteError(result.error);
+    } else if (result.avisoAnexos) {
+      setDeleteWarning(
+        `Viagem "${nome}" excluída, mas a pasta de anexos no Google Drive não pôde ser removida (${result.avisoAnexos}). Apague a pasta manualmente pelo Drive, se quiser.`
+      );
+    }
   }
 
   async function handleDownloadAll() {
@@ -118,6 +126,12 @@ export default function TripsPage() {
       )}
 
       {deleteError && <p className="text-sm text-red-600">{deleteError}</p>}
+
+      {deleteWarning && (
+        <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+          {deleteWarning}
+        </p>
+      )}
 
       {loading && <p className="text-sm text-slate-500">Carregando...</p>}
 

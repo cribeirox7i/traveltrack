@@ -144,6 +144,25 @@ Apps Script (em vez de service account do Google Cloud) traz limitações extras
 - **Reautorização manual**: se o escopo de acesso do script mudar, é preciso reautorizar
   interativamente no editor — não é automatizável via CI/deploy.
 
+### Erro `You do not have permission to call DriveApp.getFolderById`
+
+Aparece em qualquer ação que mexe na pasta de anexos (enviar anexo, listar anexos, excluir uma
+viagem) e quer dizer que o script foi autorizado com um escopo de Drive estreito demais para abrir
+uma pasta que não foi ele quem criou. Acontece quando o `appsscript.json` colado no editor não
+declara `oauthScopes` — sem essa lista, o Apps Script infere os escopos sozinho e pode escolher um
+mais restrito que o necessário. Para resolver:
+
+1. No editor, **Configurações do projeto** → marque "Mostrar arquivo de manifesto
+   `appsscript.json`", abra o arquivo e garanta que ele tem o bloco `oauthScopes` igual ao de
+   [`apps-script/appsscript.json`](apps-script/appsscript.json).
+2. Rode `testeAutorizacao` pelo editor de novo. Como os escopos mudaram, o Google vai pedir
+   autorização outra vez — agora incluindo o acesso ao Drive.
+3. **Implantar → Gerenciar implantações → editar → Nova versão**: a implantação publicada carrega
+   os escopos da versão em que foi criada, então sem uma versão nova ela continua com os antigos.
+
+Excluir uma viagem funciona mesmo com esse erro pendente: a remoção da pasta no Drive é feita por
+último e não derruba a exclusão — o app só avisa que a pasta ficou para trás.
+
 Se o uso crescer (muitos usuários simultâneos, muitas viagens) ou a app precisar rodar em nome de
 uma identidade técnica separada da conta pessoal, o caminho recomendado é migrar para um banco
 relacional (Postgres via Neon/Vercel Postgres) ou para uma service account do Google Cloud,

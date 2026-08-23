@@ -429,13 +429,13 @@ export async function createTripOffline(input: {
  * enquanto o usuário já vê a viagem sumir da lista. */
 export async function deleteTripOffline(
   tripId: string
-): Promise<{ ok: true } | { ok: false; error: string }> {
+): Promise<{ ok: true; avisoAnexos?: string } | { ok: false; error: string }> {
   if (!isOnline()) return { ok: false, error: "Sem conexão — conecte-se para excluir a viagem" };
 
   const res = await fetch(`/api/trips/${tripId}`, { method: "DELETE" });
+  const body = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    return { ok: false, error: data.error ?? "Erro ao excluir viagem" };
+    return { ok: false, error: body.error ?? "Erro ao excluir viagem" };
   }
 
   await deleteOne("trips", tripId);
@@ -451,7 +451,10 @@ export async function deleteTripOffline(
   await setMeta(OFFLINE_TRIPS_KEY, Array.from(ids));
 
   notifyChange();
-  return { ok: true };
+  // A viagem saiu; se a pasta de anexos no Drive resistiu, isso é um aviso, não uma falha.
+  return body.anexosRemovidos === false && body.avisoAnexos
+    ? { ok: true, avisoAnexos: body.avisoAnexos }
+    : { ok: true };
 }
 
 export async function createDespesaOffline(

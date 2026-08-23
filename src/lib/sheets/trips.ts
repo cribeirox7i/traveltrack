@@ -111,12 +111,29 @@ export async function updateTrip(
   await updateRow("Trips", id, patch);
 }
 
+export interface DeleteTripResult {
+  /** false quando a pasta de anexos no Drive não pôde ser removida — a viagem em si foi
+   * excluída de qualquer forma; ver o porquê da ordem em `deleteTrip`. */
+  anexosRemovidos: boolean;
+  avisoAnexos?: string;
+}
+
 /**
  * Exclui a viagem e faz cascade em tudo que depende dela: diárias, despesas, receitas,
- * vínculos de acesso (UserTrip) e a pasta de anexos no Drive. A linha da própria viagem só é
- * removida por último, depois que o resto já foi limpo.
+ * vínculos de acesso (UserTrip) e a pasta de anexos no Drive.
+ *
+ * A ordem aqui importa e não é acidental. A planilha vem primeiro (linhas dependentes, depois a
+ * própria viagem) e só no fim, isolada num try/catch, a pasta do Drive. Antes as duas coisas
+ * saíam juntas num `Promise.all` com a exclusão da viagem depois: quando a chamada do Drive
+ * falhava — o que acontece se o Apps Script não tiver o escopo de autorização do Drive —, a
+ * rejeição pulava o `deleteRow("Trips")` **depois** de as diárias/despesas/receitas já terem
+ * sido apagadas, deixando a viagem meio-excluída (ainda na lista, porém vazia).
+ *
+ * Remover os anexos é desejável, mas não é motivo para bloquear a exclusão: quem pediu para
+ * excluir a viagem quer a viagem fora, e uma pasta órfã no Drive é reportada para quem chamou
+ * em vez de virar um erro que desfaz nada.
  */
-export async function deleteTrip(tripId: string): Promise<void> {
+export async function deleteTrip(tripId: string): Promise<DeleteTripResult> {
   const trip = await getTrip(tripId);
 
   await Promise.all([
@@ -124,10 +141,21 @@ export async function deleteTrip(tripId: string): Promise<void> {
     deleteRowsByField("Despesas", "trip_id", tripId),
     deleteRowsByField("Receitas", "trip_id", tripId),
     deleteRowsByField("UserTrip", "trip_id", tripId),
-    trip ? deleteTripFolder(tripId, trip.nome) : Promise.resolve(),
   ]);
 
   await deleteRow("Trips", tripId);
+
+  if (!trip) return { anexosRemovidos: false };
+
+  try {
+    await deleteTripFolder(tripId, trip.nome);
+    return { anexosRemovidos: true };
+  } catch (err) {
+    return {
+      anexosRemovidos: false,
+      avisoAnexos: err instanceof Error ? err.message : String(err),
+    };
+  }
 }
 
 export async function listTripDays(tripId: string): Promise<TripDayRow[]> {
