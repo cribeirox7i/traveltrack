@@ -1,6 +1,12 @@
 import { v4 as uuid } from "uuid";
-import { appendRows, readSheet } from "./repository";
-import { Categoria, DespesaRow, ReceitaRow } from "./types";
+import { appendRows, readSheet, updateRow } from "./repository";
+import {
+  Categoria,
+  DespesaRow,
+  ReceitaRow,
+  StatusDespesa,
+  StatusReceita,
+} from "./types";
 
 export async function listDespesasByTrip(tripId: string): Promise<DespesaRow[]> {
   const all = await readSheet<DespesaRow>("Despesas");
@@ -19,6 +25,7 @@ export async function createDespesa(input: {
   descricao: string;
   pagador_id: string;
   meio_pagamento_id: string;
+  status?: StatusDespesa;
 }): Promise<DespesaRow> {
   const row: DespesaRow = {
     id: input.id || uuid(),
@@ -30,9 +37,17 @@ export async function createDespesa(input: {
     descricao: input.descricao,
     pagador_id: input.pagador_id,
     meio_pagamento_id: input.meio_pagamento_id,
+    status: input.status ?? "a_pagar",
   };
   await appendRows("Despesas", [row]);
   return row;
+}
+
+export async function updateDespesaStatus(
+  id: string,
+  status: StatusDespesa
+): Promise<void> {
+  await updateRow("Despesas", id, { status });
 }
 
 export async function listReceitasByTrip(tripId: string): Promise<ReceitaRow[]> {
@@ -50,6 +65,7 @@ export async function createReceita(input: {
   data: string;
   descricao: string;
   credor_id: string;
+  status?: StatusReceita;
 }): Promise<ReceitaRow> {
   const row: ReceitaRow = {
     id: input.id || uuid(),
@@ -59,7 +75,15 @@ export async function createReceita(input: {
     data: input.data,
     descricao: input.descricao,
     credor_id: input.credor_id,
+    status: input.status ?? "a_receber",
   };
   await appendRows("Receitas", [row]);
   return row;
+}
+
+export async function updateReceitaStatus(
+  id: string,
+  status: StatusReceita
+): Promise<void> {
+  await updateRow("Receitas", id, { status });
 }

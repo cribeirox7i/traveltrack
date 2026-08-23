@@ -1,10 +1,18 @@
 import { DBSchema, IDBPDatabase, openDB } from "idb";
 
-export type DataTab = "trips" | "tripDays" | "despesas" | "receitas" | "anexos";
+export type DataTab = "trips" | "tripDays" | "despesas" | "receitas" | "anexos" | "agenda";
 
 export interface OutboxEntry {
   localId: string;
-  kind: "createTrip" | "createDespesa" | "createReceita" | "saveDays";
+  kind:
+    | "createTrip"
+    | "createDespesa"
+    | "createReceita"
+    | "saveDays"
+    | "createAgenda"
+    | "deleteAgenda"
+    | "updateDespesaStatus"
+    | "updateReceitaStatus";
   tripId?: string;
   payload: unknown;
   createdAt: number;
@@ -33,12 +41,15 @@ interface TravelTrackDB extends DBSchema {
   receitas: { key: string; value: RowBase; indexes: { trip_id: string } };
   anexos: { key: string; value: RowBase; indexes: { trip_id: string } };
   anexoFiles: { key: string; value: AnexoFileRow; indexes: { trip_id: string } };
+  agenda: { key: string; value: RowBase; indexes: { trip_id: string } };
   outbox: { key: string; value: OutboxEntry };
   meta: { key: string; value: { key: string; value: unknown } };
 }
 
 const DB_NAME = "traveltrack-offline";
-const DB_VERSION = 2;
+// 3: store `agenda`. O `upgrade` abaixo é aditivo (só cria o que falta), então subir a versão
+// não descarta nada já baixado nos aparelhos que estavam na 2.
+const DB_VERSION = 3;
 
 let dbPromise: Promise<IDBPDatabase<TravelTrackDB>> | null = null;
 
@@ -70,6 +81,9 @@ export function getDB(): Promise<IDBPDatabase<TravelTrackDB>> {
             "trip_id"
           );
         }
+        if (!db.objectStoreNames.contains("agenda")) {
+          db.createObjectStore("agenda", { keyPath: "id" }).createIndex("trip_id", "trip_id");
+        }
         if (!db.objectStoreNames.contains("outbox")) {
           db.createObjectStore("outbox", { keyPath: "localId" });
         }
@@ -89,6 +103,58 @@ export async function putAll(tab: DataTab, rows: RowBase[]): Promise<void> {
   await tx.done;
 }
 
+/**
+ * Como `putAll`, mas também apaga do IndexedDB qualquer linha local que não veio na resposta do
+ * servidor. `putAll` sozinho só sabe adicionar/atualizar — uma viagem (ou despesa, dia, item de
+ * agenda...) excluída no servidor por outro aparelho, ou numa sessão anterior, nunca sumia do
+ * cache local, só era possível limpando o IndexedDB manualmente. Passe `tripId` para reconciliar
+ * só a fatia de uma viagem numa store compartilhada (tripDays/despesas/receitas/agenda); omita
+ * para reconciliar a store inteira (trips).
+ */
+export async function putAllReplacing(
+  tab: "trips" | "tripDays" | "despesas" | "receitas" | "agenda",
+  rows: RowBase[],
+  tripId?: string,
+  // Ids que nunca devem ser apagados mesmo se ausentes de `rows` — a linha criada offline há
+  // poucos instantes e ainda não sincronizada não existe no servidor ainda, então uma
+  // reconciliação que rodasse nesse intervalo (ex.: sync periódico de 60s, ou outra aba abrindo
+  // a mesma viagem) a apagaria antes mesmo de ela ter a chance de subir. Ver `pendingCreateIds`
+  // em lib/offline/sync.ts, que monta esse conjunto a partir da fila de sincronização.
+  protectedIds?: Set<string>
+): Promise<void> {
+  const db = await getDB();
+  const incomingIds = new Set(rows.map((r) => r.id));
+
+  // Duas transações tipadas em vez de uma genérica: "trips" não tem índice `trip_id` (é a store
+  // de topo, sem escopo por viagem), então o tipo de `tx.store` teria que valer pros dois casos
+  // ao mesmo tempo — o `idb` não permite `.index("trip_id")` num union que inclui uma store sem
+  // esse índice.
+  if (tripId) {
+    const tx = db.transaction(tab as "tripDays" | "despesas" | "receitas" | "agenda", "readwrite");
+    const existingKeys = await tx.store.index("trip_id").getAllKeys(IDBKeyRange.only(tripId));
+    const staleKeys = existingKeys.filter(
+      (k) => !incomingIds.has(String(k)) && !protectedIds?.has(String(k))
+    );
+    await Promise.all([
+      ...rows.map((r) => tx.store.put(r)),
+      ...staleKeys.map((k) => tx.store.delete(k)),
+    ]);
+    await tx.done;
+    return;
+  }
+
+  const tx = db.transaction("trips", "readwrite");
+  const existingKeys = await tx.store.getAllKeys();
+  const staleKeys = existingKeys.filter(
+    (k) => !incomingIds.has(String(k)) && !protectedIds?.has(String(k))
+  );
+  await Promise.all([
+    ...rows.map((r) => tx.store.put(r)),
+    ...staleKeys.map((k) => tx.store.delete(k)),
+  ]);
+  await tx.done;
+}
+
 export async function putOne(tab: DataTab, row: RowBase): Promise<void> {
   const db = await getDB();
   await db.put(tab, row);
@@ -100,7 +166,7 @@ export async function putAnexoFile(row: AnexoFileRow): Promise<void> {
 }
 
 export async function listByTrip(
-  tab: "tripDays" | "despesas" | "receitas" | "anexos",
+  tab: "tripDays" | "despesas" | "receitas" | "anexos" | "agenda",
   tripId: string
 ) {
   const db = await getDB();
@@ -133,7 +199,7 @@ export async function deleteOne(tab: DataTab, id: string): Promise<void> {
 }
 
 export async function deleteByTrip(
-  tab: "tripDays" | "despesas" | "receitas" | "anexos" | "anexoFiles",
+  tab: "tripDays" | "despesas" | "receitas" | "anexos" | "anexoFiles" | "agenda",
   tripId: string
 ): Promise<void> {
   const db = await getDB();

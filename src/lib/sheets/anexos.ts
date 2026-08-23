@@ -7,6 +7,10 @@ export const CATEGORIAS_ANEXO = [
   "passeio",
   "hospedagem",
   "outros",
+  // Anexos presos a um compromisso da Agenda. Ficam na mesma pasta da viagem no Drive, em
+  // subpasta própria, mas não são oferecidos como destino de upload na tela de Anexos: eles
+  // nascem pelo formulário de "Nova agenda" e só aparecem lá na listagem.
+  "agenda",
 ] as const;
 
 export type CategoriaAnexo = (typeof CATEGORIAS_ANEXO)[number];

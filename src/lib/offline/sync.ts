@@ -13,6 +13,7 @@ import {
   listByTrip,
   listOutbox,
   putAll,
+  putAllReplacing,
   putAnexoFile,
   putOne,
   removeOutboxByTrip,
@@ -26,6 +27,17 @@ export const syncEvents = new EventTarget();
 
 function notifyChange() {
   syncEvents.dispatchEvent(new Event("change"));
+}
+
+/** Campos de texto de um compromisso da Agenda — o `file` (quando existe) fica fora, guardado à
+ * parte no payload do outbox (ver `createAgendaOffline`), porque aqui ele vira `String(value)`
+ * ao montar o FormData de reenvio. */
+interface AgendaPayload {
+  id: string;
+  data: string;
+  horario: string;
+  descricao: string;
+  url: string;
 }
 
 export function isOnline(): boolean {
@@ -52,27 +64,52 @@ async function getBlob(url: string): Promise<Blob | null> {
   }
 }
 
+/** Ids de linhas ainda não sincronizadas — protege `putAllReplacing` de apagar uma criação que
+ * está na fila mas o servidor ainda não viu. */
+async function pendingCreateIds(
+  kind: OutboxEntry["kind"],
+  tripId?: string
+): Promise<Set<string>> {
+  const entries = await listOutbox();
+  return new Set(
+    entries
+      .filter((e) => e.kind === kind && (tripId === undefined || e.tripId === tripId))
+      .map((e) => (e.payload as { id: string }).id)
+  );
+}
+
 /** Atualiza a lista de viagens do cache local a partir do servidor. */
 export async function pullTrips(): Promise<void> {
   if (!isOnline()) return;
   const trips = await getJson<Record<string, unknown>[]>("/api/trips");
   if (trips) {
-    await putAll("trips", trips as never);
+    await putAllReplacing("trips", trips as never, undefined, await pendingCreateIds("createTrip"));
     notifyChange();
   }
 }
 
-/** Atualiza dias/despesas/receitas de UMA viagem no cache local — chamado ao abrir a viagem. */
+/** Atualiza dias/despesas/receitas/agenda de UMA viagem no cache local — chamado ao abrir a viagem. */
 export async function pullTripDetail(tripId: string): Promise<void> {
   if (!isOnline()) return;
-  const [days, despesas, receitas] = await Promise.all([
+  const [days, despesas, receitas, agenda] = await Promise.all([
     getJson<Record<string, unknown>[]>(`/api/trips/${tripId}/days`),
     getJson<Record<string, unknown>[]>(`/api/trips/${tripId}/despesas`),
     getJson<Record<string, unknown>[]>(`/api/trips/${tripId}/receitas`),
+    getJson<Record<string, unknown>[]>(`/api/trips/${tripId}/agenda`),
   ]);
-  if (days) await putAll("tripDays", days as never);
-  if (despesas) await putAll("despesas", despesas as never);
-  if (receitas) await putAll("receitas", receitas as never);
+  if (days) await putAllReplacing("tripDays", days as never, tripId);
+  if (despesas) {
+    const protectedIds = await pendingCreateIds("createDespesa", tripId);
+    await putAllReplacing("despesas", despesas as never, tripId, protectedIds);
+  }
+  if (receitas) {
+    const protectedIds = await pendingCreateIds("createReceita", tripId);
+    await putAllReplacing("receitas", receitas as never, tripId, protectedIds);
+  }
+  if (agenda) {
+    const protectedIds = await pendingCreateIds("createAgenda", tripId);
+    await putAllReplacing("agenda", agenda as never, tripId, protectedIds);
+  }
   notifyChange();
 }
 
@@ -224,6 +261,25 @@ export async function setTripOffline(tripId: string, enabled: boolean): Promise<
   }
 }
 
+/** O que o botão "Atualizar" (visível em qualquer página do app, ver `RefreshButton`) dispara:
+ * envia mutações pendentes e repuxa a lista de viagens — e, se `tripId` for informado (usuário
+ * está dentro de uma viagem), também os dados e a lista de anexos dela — reconciliando qualquer
+ * exclusão feita por outro aparelho/sessão (ver `putAllReplacing`). Diferente de
+ * `downloadOfflineTripsNow`, não baixa arquivos de anexo nem aquece páginas — é uma sincronização
+ * rápida de dados, não a preparação pra ficar sem sinal. */
+export async function refreshNow(
+  tripId?: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!isOnline()) return { ok: false, error: "Sem conexão" };
+  await pushOutbox();
+  await pullTrips();
+  if (tripId) {
+    await pullTripDetail(tripId);
+    await pullAnexosList(tripId);
+  }
+  return { ok: true };
+}
+
 /** Baixa (ou atualiza) de uma vez os DADOS de todas as viagens marcadas "Dados offline".
  * Chamado pelo ciclo automático (ao voltar online, a cada 60s) — de propósito não aquece as
  * páginas, que é um custo bem maior e só faz sentido sob ação explícita do usuário. */
@@ -348,6 +404,48 @@ async function sendOutboxEntry(entry: OutboxEntry): Promise<"ok" | "network-erro
           body: JSON.stringify(entry.payload),
         });
         break;
+      case "createAgenda": {
+        const { file, ...fields } = entry.payload as AgendaPayload & { file?: File };
+        if (file) {
+          // O File fica gravado no próprio IndexedDB (o algoritmo de clone estruturado suporta
+          // Blob/File nativamente), então mesmo enfileirado offline ele sobrevive até a
+          // sincronização — não precisa reabrir o seletor de arquivo depois de voltar o sinal.
+          const form = new FormData();
+          for (const [key, value] of Object.entries(fields)) form.set(key, String(value));
+          form.set("file", file);
+          res = await fetch(`/api/trips/${entry.tripId}/agenda`, { method: "POST", body: form });
+        } else {
+          res = await fetch(`/api/trips/${entry.tripId}/agenda`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(fields),
+          });
+        }
+        break;
+      }
+      case "deleteAgenda": {
+        const { agendaId } = entry.payload as { agendaId: string };
+        res = await fetch(`/api/trips/${entry.tripId}/agenda/${agendaId}`, { method: "DELETE" });
+        break;
+      }
+      case "updateDespesaStatus": {
+        const { despesaId, status } = entry.payload as { despesaId: string; status: string };
+        res = await fetch(`/api/trips/${entry.tripId}/despesas/${despesaId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status }),
+        });
+        break;
+      }
+      case "updateReceitaStatus": {
+        const { receitaId, status } = entry.payload as { receitaId: string; status: string };
+        res = await fetch(`/api/trips/${entry.tripId}/receitas/${receitaId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status }),
+        });
+        break;
+      }
       default:
         return "Ação desconhecida na fila";
     }
@@ -444,6 +542,7 @@ export async function deleteTripOffline(
   await deleteByTrip("receitas", tripId);
   await deleteByTrip("anexos", tripId);
   await deleteByTrip("anexoFiles", tripId);
+  await deleteByTrip("agenda", tripId);
   await removeOutboxByTrip(tripId);
 
   const ids = new Set(await listOfflineTripIds());
@@ -469,7 +568,14 @@ export async function createDespesaOffline(
   }
 ): Promise<void> {
   const id = uuid();
-  await putOne("despesas", { id, trip_id: tripId, lancado_por: "", ...input, valor: String(input.valor) });
+  await putOne("despesas", {
+    id,
+    trip_id: tripId,
+    lancado_por: "",
+    status: "a_pagar",
+    ...input,
+    valor: String(input.valor),
+  });
   await enqueueOutbox({
     localId: uuid(),
     kind: "createDespesa",
@@ -480,17 +586,62 @@ export async function createDespesaOffline(
   void pushOutbox();
 }
 
+/** Marca uma despesa como paga/a pagar. Diferente da criação, é um PATCH direto (sem outbox
+ * dedicado além do próprio `updateDespesaStatus` na fila) — o registro já existe no servidor,
+ * então não há necessidade de reconciliar ids como em `createTripOffline`. */
+export async function updateDespesaStatusOffline(
+  tripId: string,
+  despesaId: string,
+  status: "pago" | "a_pagar"
+): Promise<void> {
+  const existing = await getOne("despesas", despesaId);
+  if (existing) await putOne("despesas", { ...existing, status });
+  await enqueueOutbox({
+    localId: uuid(),
+    kind: "updateDespesaStatus",
+    tripId,
+    payload: { despesaId, status },
+  });
+  notifyChange();
+  void pushOutbox();
+}
+
 export async function createReceitaOffline(
   tripId: string,
   input: { valor: number; data: string; descricao: string; credor_id: string }
 ): Promise<void> {
   const id = uuid();
-  await putOne("receitas", { id, trip_id: tripId, user_id: "", ...input, valor: String(input.valor) });
+  await putOne("receitas", {
+    id,
+    trip_id: tripId,
+    user_id: "",
+    status: "a_receber",
+    ...input,
+    valor: String(input.valor),
+  });
   await enqueueOutbox({
     localId: uuid(),
     kind: "createReceita",
     tripId,
     payload: { id, ...input },
+  });
+  notifyChange();
+  void pushOutbox();
+}
+
+/** Ver `updateDespesaStatusOffline` — mesma lógica, para receitas. */
+export async function updateReceitaStatusOffline(
+  tripId: string,
+  receitaId: string,
+  status: "recebido" | "a_receber"
+): Promise<void> {
+  const existing = await getOne("receitas", receitaId);
+  if (existing) await putOne("receitas", { ...existing, status });
+  await enqueueOutbox({
+    localId: uuid(),
+    kind: "updateReceitaStatus",
+    tripId,
+    payload: { receitaId, status },
   });
   notifyChange();
   void pushOutbox();
@@ -513,6 +664,52 @@ export async function saveDaysOffline(tripId: string, days: DayPatch[]): Promise
   );
   await putAll("tripDays", merged);
   await enqueueOutbox({ localId: uuid(), kind: "saveDays", tripId, payload: { days } });
+  notifyChange();
+  void pushOutbox();
+}
+
+export async function createAgendaOffline(
+  tripId: string,
+  input: { data: string; horario: string; descricao: string; url: string; file?: File | null }
+): Promise<void> {
+  const id = uuid();
+  await putOne("agenda", {
+    id,
+    trip_id: tripId,
+    data: input.data,
+    horario: input.horario,
+    descricao: input.descricao,
+    url: input.url,
+    // Anexo ainda não existe no Drive enquanto a mutação está só na fila — a linha local nasce
+    // sem ele; quando a sincronização de fato enviar o arquivo, `pullTripDetail` traz de volta
+    // a linha completa (com anexo_file_id/nome/url) do servidor.
+    anexo_file_id: "",
+    anexo_nome: input.file?.name ?? "",
+    anexo_url: "",
+    criado_por: "",
+    criado_em: new Date().toISOString(),
+  });
+  const payload: AgendaPayload & { file?: File } = {
+    id,
+    data: input.data,
+    horario: input.horario,
+    descricao: input.descricao,
+    url: input.url,
+  };
+  if (input.file) payload.file = input.file;
+  await enqueueOutbox({ localId: uuid(), kind: "createAgenda", tripId, payload });
+  notifyChange();
+  void pushOutbox();
+}
+
+export async function deleteAgendaOffline(tripId: string, agendaId: string): Promise<void> {
+  await deleteOne("agenda", agendaId);
+  await enqueueOutbox({
+    localId: uuid(),
+    kind: "deleteAgenda",
+    tripId,
+    payload: { agendaId },
+  });
   notifyChange();
   void pushOutbox();
 }

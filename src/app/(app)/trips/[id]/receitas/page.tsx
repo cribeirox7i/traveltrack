@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useCollaborators, useOfflineCollection } from "@/lib/offline/useOfflineData";
-import { createReceitaOffline } from "@/lib/offline/sync";
+import { createReceitaOffline, updateReceitaStatusOffline } from "@/lib/offline/sync";
 
 interface Receita {
   id: string;
@@ -12,6 +12,17 @@ interface Receita {
   data: string;
   descricao: string;
   credor_id: string;
+  status: string;
+}
+
+const STATUS_OPTIONS: { value: "recebido" | "a_receber"; label: string }[] = [
+  { value: "a_receber", label: "A receber" },
+  { value: "recebido", label: "Recebido" },
+];
+
+/** Mesma lógica de `normalizeStatus` em Despesas — linhas antigas sem a coluna viram "a receber". */
+function normalizeStatus(status: string): "recebido" | "a_receber" {
+  return status === "recebido" ? "recebido" : "a_receber";
 }
 
 export default function ReceitasPage() {
@@ -41,6 +52,10 @@ export default function ReceitasPage() {
 
   const total = receitas.reduce((sum, r) => sum + (Number(r.valor) || 0), 0);
   const nomePorCredor = Object.fromEntries(collaborators.map((c) => [c.id, c.nome]));
+
+  async function handleStatusChange(receitaId: string, status: "recebido" | "a_receber") {
+    await updateReceitaStatusOffline(tripId, receitaId, status);
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -114,31 +129,54 @@ export default function ReceitasPage() {
               <th className="px-3 py-2">Valor</th>
               <th className="px-3 py-2">Credor</th>
               <th className="px-3 py-2">Descrição</th>
+              <th className="px-3 py-2">Status</th>
             </tr>
           </thead>
           <tbody>
             {loading && (
               <tr>
-                <td className="px-3 py-3 text-slate-500" colSpan={4}>
+                <td className="px-3 py-3 text-slate-500" colSpan={5}>
                   Carregando...
                 </td>
               </tr>
             )}
             {!loading && receitas.length === 0 && (
               <tr>
-                <td className="px-3 py-3 text-slate-500" colSpan={4}>
+                <td className="px-3 py-3 text-slate-500" colSpan={5}>
                   Nenhum aporte lançado.
                 </td>
               </tr>
             )}
-            {receitas.map((r) => (
-              <tr key={r.id} className="border-t border-slate-100">
-                <td className="px-3 py-2">{r.data}</td>
-                <td className="px-3 py-2">R$ {Number(r.valor).toFixed(2)}</td>
-                <td className="px-3 py-2">{nomePorCredor[r.credor_id] ?? "—"}</td>
-                <td className="px-3 py-2 text-slate-500">{r.descricao}</td>
-              </tr>
-            ))}
+            {receitas.map((r) => {
+              const status = normalizeStatus(r.status);
+              return (
+                <tr key={r.id} className="border-t border-slate-100">
+                  <td className="px-3 py-2">{r.data}</td>
+                  <td className="px-3 py-2">R$ {Number(r.valor).toFixed(2)}</td>
+                  <td className="px-3 py-2">{nomePorCredor[r.credor_id] ?? "—"}</td>
+                  <td className="px-3 py-2 text-slate-500">{r.descricao}</td>
+                  <td className="px-3 py-2">
+                    <select
+                      value={status}
+                      onChange={(e) =>
+                        handleStatusChange(r.id, e.target.value as "recebido" | "a_receber")
+                      }
+                      className={`rounded-full border-0 px-2 py-1 text-xs font-medium ${
+                        status === "recebido"
+                          ? "bg-emerald-100 text-emerald-700"
+                          : "bg-amber-100 text-amber-700"
+                      }`}
+                    >
+                      {STATUS_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

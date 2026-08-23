@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
+import { RefreshButton } from "./RefreshButton";
 
 const links = [
   { href: "/trips", label: "Viagens", icon: "🧳" },
@@ -27,6 +28,7 @@ export function NavBar() {
           <p className="font-semibold text-slate-800">Viagens</p>
           <p className="text-xs text-slate-500 truncate">{session.user.name}</p>
         </div>
+        <RefreshButton variant="desktop" />
         {visibleLinks.map((link) => (
           <Link
             key={link.href}
@@ -61,6 +63,7 @@ export function NavBar() {
             {link.label}
           </Link>
         ))}
+        <RefreshButton variant="mobile" />
         <button
           onClick={() => signOut({ callbackUrl: "/login" })}
           className="flex flex-1 flex-col items-center gap-0.5 py-2 text-xs text-slate-500"

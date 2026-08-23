@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useCollaborators, useMeiosPagamento, useOfflineCollection } from "@/lib/offline/useOfflineData";
-import { createDespesaOffline } from "@/lib/offline/sync";
+import { createDespesaOffline, updateDespesaStatusOffline } from "@/lib/offline/sync";
 
 interface Despesa {
   id: string;
@@ -14,6 +14,18 @@ interface Despesa {
   descricao: string;
   pagador_id: string;
   meio_pagamento_id: string;
+  status: string;
+}
+
+const STATUS_OPTIONS: { value: "pago" | "a_pagar"; label: string }[] = [
+  { value: "a_pagar", label: "A pagar" },
+  { value: "pago", label: "Pago" },
+];
+
+/** Linhas gravadas antes da coluna existir vêm com a célula vazia — tratadas como "a pagar",
+ * nunca como um terceiro estado. */
+function normalizeStatus(status: string): "pago" | "a_pagar" {
+  return status === "pago" ? "pago" : "a_pagar";
 }
 
 const CATEGORIAS = [
@@ -67,6 +79,10 @@ export default function DespesasPage() {
   const total = despesas.reduce((sum, d) => sum + (Number(d.valor) || 0), 0);
   const nomePorPagador = Object.fromEntries(collaborators.map((c) => [c.id, c.nome]));
   const nomePorMeio = Object.fromEntries(meiosPagamento.map((m) => [m.id, m.nome]));
+
+  async function handleStatusChange(despesaId: string, status: "pago" | "a_pagar") {
+    await updateDespesaStatusOffline(tripId, despesaId, status);
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -173,33 +189,56 @@ export default function DespesasPage() {
               <th className="px-3 py-2">Pagador</th>
               <th className="px-3 py-2">Meio de pagamento</th>
               <th className="px-3 py-2">Descrição</th>
+              <th className="px-3 py-2">Status</th>
             </tr>
           </thead>
           <tbody>
             {loading && (
               <tr>
-                <td className="px-3 py-3 text-slate-500" colSpan={6}>
+                <td className="px-3 py-3 text-slate-500" colSpan={7}>
                   Carregando...
                 </td>
               </tr>
             )}
             {!loading && despesas.length === 0 && (
               <tr>
-                <td className="px-3 py-3 text-slate-500" colSpan={6}>
+                <td className="px-3 py-3 text-slate-500" colSpan={7}>
                   Nenhuma despesa lançada.
                 </td>
               </tr>
             )}
-            {despesas.map((d) => (
-              <tr key={d.id} className="border-t border-slate-100">
-                <td className="px-3 py-2">{d.data}</td>
-                <td className="px-3 py-2 capitalize">{d.categoria}</td>
-                <td className="px-3 py-2">R$ {Number(d.valor).toFixed(2)}</td>
-                <td className="px-3 py-2">{nomePorPagador[d.pagador_id] ?? "—"}</td>
-                <td className="px-3 py-2">{nomePorMeio[d.meio_pagamento_id] ?? "—"}</td>
-                <td className="px-3 py-2 text-slate-500">{d.descricao}</td>
-              </tr>
-            ))}
+            {despesas.map((d) => {
+              const status = normalizeStatus(d.status);
+              return (
+                <tr key={d.id} className="border-t border-slate-100">
+                  <td className="px-3 py-2">{d.data}</td>
+                  <td className="px-3 py-2 capitalize">{d.categoria}</td>
+                  <td className="px-3 py-2">R$ {Number(d.valor).toFixed(2)}</td>
+                  <td className="px-3 py-2">{nomePorPagador[d.pagador_id] ?? "—"}</td>
+                  <td className="px-3 py-2">{nomePorMeio[d.meio_pagamento_id] ?? "—"}</td>
+                  <td className="px-3 py-2 text-slate-500">{d.descricao}</td>
+                  <td className="px-3 py-2">
+                    <select
+                      value={status}
+                      onChange={(e) =>
+                        handleStatusChange(d.id, e.target.value as "pago" | "a_pagar")
+                      }
+                      className={`rounded-full border-0 px-2 py-1 text-xs font-medium ${
+                        status === "pago"
+                          ? "bg-emerald-100 text-emerald-700"
+                          : "bg-amber-100 text-amber-700"
+                      }`}
+                    >
+                      {STATUS_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

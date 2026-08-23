@@ -119,8 +119,9 @@ export interface DeleteTripResult {
 }
 
 /**
- * Exclui a viagem e faz cascade em tudo que depende dela: diárias, despesas, receitas,
- * vínculos de acesso (UserTrip) e a pasta de anexos no Drive.
+ * Exclui a viagem e faz cascade em tudo que depende dela: diárias, despesas, receitas, agenda,
+ * vínculos de acesso (UserTrip) e a pasta de anexos no Drive (que já cobre os anexos avulsos e
+ * os da agenda, todos na mesma pasta da viagem).
  *
  * A ordem aqui importa e não é acidental. A planilha vem primeiro (linhas dependentes, depois a
  * própria viagem) e só no fim, isolada num try/catch, a pasta do Drive. Antes as duas coisas
@@ -141,6 +142,7 @@ export async function deleteTrip(tripId: string): Promise<DeleteTripResult> {
     deleteRowsByField("Despesas", "trip_id", tripId),
     deleteRowsByField("Receitas", "trip_id", tripId),
     deleteRowsByField("UserTrip", "trip_id", tripId),
+    deleteRowsByField("Agenda", "trip_id", tripId),
   ]);
 
   await deleteRow("Trips", tripId);

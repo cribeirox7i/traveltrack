@@ -6,7 +6,8 @@ export type SheetTab =
   | "UserTrip"
   | "Despesas"
   | "Receitas"
-  | "MeiosPagamento";
+  | "MeiosPagamento"
+  | "Agenda";
 
 export const SHEET_HEADERS: Record<SheetTab, string[]> = {
   Users: ["id", "nome", "email", "senha_hash", "role", "ativo"],
@@ -55,9 +56,23 @@ export const SHEET_HEADERS: Record<SheetTab, string[]> = {
     "descricao",
     "pagador_id",
     "meio_pagamento_id",
+    "status",
   ],
-  Receitas: ["id", "trip_id", "user_id", "valor", "data", "descricao", "credor_id"],
+  Receitas: ["id", "trip_id", "user_id", "valor", "data", "descricao", "credor_id", "status"],
   MeiosPagamento: ["id", "nome", "ativo"],
+  Agenda: [
+    "id",
+    "trip_id",
+    "data",
+    "horario",
+    "descricao",
+    "url",
+    "anexo_file_id",
+    "anexo_nome",
+    "anexo_url",
+    "criado_por",
+    "criado_em",
+  ],
 };
 
 export type Role = "admin" | "user";
@@ -131,6 +146,14 @@ export type Categoria =
   | "passeio"
   | "hospedagem";
 
+/**
+ * Situação de pagamento de uma despesa/receita. Linhas antigas (criadas antes da coluna
+ * existir) vêm com a célula vazia — por isso todo lugar que lê o status trata "" como o estado
+ * pendente (`a_pagar`/`a_receber`) em vez de assumir que a coluna sempre está preenchida.
+ */
+export type StatusDespesa = "pago" | "a_pagar";
+export type StatusReceita = "recebido" | "a_receber";
+
 export interface DespesaRow {
   [key: string]: string;
   id: string;
@@ -142,6 +165,7 @@ export interface DespesaRow {
   descricao: string;
   pagador_id: string;
   meio_pagamento_id: string;
+  status: StatusDespesa | "";
 }
 
 export interface MeioPagamentoRow {
@@ -160,4 +184,21 @@ export interface ReceitaRow {
   data: string;
   descricao: string;
   credor_id: string;
+  status: StatusReceita | "";
+}
+
+/** Um compromisso do roteiro, ancorado numa das datas da grade de diárias da viagem. */
+export interface AgendaRow {
+  [key: string]: string;
+  id: string;
+  trip_id: string;
+  data: string;
+  horario: string;
+  descricao: string;
+  url: string;
+  anexo_file_id: string;
+  anexo_nome: string;
+  anexo_url: string;
+  criado_por: string;
+  criado_em: string;
 }
