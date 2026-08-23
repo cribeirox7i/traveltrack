@@ -148,7 +148,7 @@ export type Categoria =
 
 /**
  * Situação de pagamento de uma despesa/receita. Linhas antigas (criadas antes da coluna
- * existir) vêm com a célula vazia — por isso todo lugar que lê o status trata "" como o estado
+ * existir) vêm com a célula vazia - por isso todo lugar que lê o status trata "" como o estado
  * pendente (`a_pagar`/`a_receber`) em vez de assumir que a coluna sempre está preenchida.
  */
 export type StatusDespesa = "pago" | "a_pagar";

@@ -40,10 +40,10 @@ export default function UsuariosAdminPage() {
         setLoadError("Erro ao carregar usuários");
       }
     } catch {
-      // Gerenciamento de usuários exige conexão — sem isso a tela ficava presa em
+      // Gerenciamento de usuários exige conexão - sem isso a tela ficava presa em
       // "Carregando..." pra sempre quando aberta offline (o fetch rejeita e ninguém chamava
       // setLoading(false)).
-      setLoadError("Sem conexão — esta tela exige internet");
+      setLoadError("Sem conexão - esta tela exige internet");
     }
     setLoading(false);
   }

@@ -117,7 +117,7 @@ export default function TripsPage() {
           </button>
           <span className="text-xs text-slate-500">
             {!online
-              ? "Sem conexão — conecte-se para atualizar os dados offline"
+              ? "Sem conexão - conecte-se para atualizar os dados offline"
               : downloadedAt
                 ? `Atualizado às ${downloadedAt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`
                 : "Baixa de novo os dados das viagens marcadas \"Dados offline\" abaixo"}
@@ -157,7 +157,7 @@ export default function TripsPage() {
                 <Link href={`/trips/${t.id}/orcamento`} className="min-w-0 flex-1">
                   <p className="font-semibold text-slate-900">{t.nome}</p>
                   <p className="mt-1 text-xs text-slate-500">
-                    {t.data_inicio} — {t.data_fim}
+                    {t.data_inicio} - {t.data_fim}
                   </p>
                   <p className="mt-2 text-xs text-slate-500">{t.qtd_pessoas} pessoa(s)</p>
                 </Link>

@@ -19,7 +19,7 @@ const serwist = new Serwist({
     // As telas de viagem são rotas DINÂMICAS (/trips/{id}/{aba}): o JS de cada aba já vem no
     // precache do build, mas o documento de cada URL concreta só existe no cache se aquela URL
     // exata tiver sido pedida com internet antes. Sem uma regra própria, essas navegações caem
-    // no cache genérico "others" do defaultCache — limitado a 32 entradas e compartilhado com
+    // no cache genérico "others" do defaultCache - limitado a 32 entradas e compartilhado com
     // todo o resto do mesmo domínio, então as páginas de viagem eram despejadas facilmente e a
     // abertura offline caía no fallback /offline. Aqui elas ganham um cache dedicado e grande,
     // que `warmTripPages` (src/lib/offline/sync.ts) preenche na hora em que o usuário marca a
@@ -37,7 +37,7 @@ const serwist = new Serwist({
         plugins: [
           {
             // Só guarda a página de verdade. Com a sessão expirada, o servidor responde
-            // /trips/... com um redirect pro /login — sem esta checagem, o HTML da tela de
+            // /trips/... com um redirect pro /login - sem esta checagem, o HTML da tela de
             // login ficaria salvo sob a URL da viagem e seria servido no lugar dela offline,
             // por até 30 dias. Confirmado na prática: um "Baixar offline" deslogado gravava
             // a tela de login no cache da viagem.

@@ -13,7 +13,7 @@ export interface RoutePoint {
   lon: number;
 }
 
-/** Ícone via divIcon (HTML/SVG puro) em vez do ícone padrão do Leaflet — evita o problema clássico
+/** Ícone via divIcon (HTML/SVG puro) em vez do ícone padrão do Leaflet - evita o problema clássico
  * de bundler que quebra o caminho das imagens padrão do pacote. */
 function markerIcon(numero: number) {
   return L.divIcon({

@@ -68,7 +68,7 @@ export default function AnexosPage() {
   const [localUrls, setLocalUrls] = useState<Record<string, string>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Resolve, pra cada anexo já baixado neste aparelho, um object URL local que abre offline —
+  // Resolve, pra cada anexo já baixado neste aparelho, um object URL local que abre offline -
   // os que ainda não foram baixados caem pro link ao vivo do Drive (a.url) na renderização.
   useEffect(() => {
     let cancelled = false;

@@ -27,7 +27,7 @@ export default function TripLayout({ children }: { children: React.ReactNode }) 
   }, [status, router]);
 
   // Garante que o código de TODAS as abas da viagem (não só a que foi clicada) já
-  // esteja em cache assim que a viagem é aberta online — é o que faz Despesas/Anexos/
+  // esteja em cache assim que a viagem é aberta online - é o que faz Despesas/Anexos/
   // etc. abrirem offline depois, mesmo sem ter passado por elas antes manualmente.
   useEffect(() => {
     if (!isOnline()) return;
@@ -37,7 +37,7 @@ export default function TripLayout({ children }: { children: React.ReactNode }) 
   }, [id, router]);
 
   // Sem dado local nenhum e sem conexão: não dá pra saber se a viagem existe/o usuário tem acesso
-  // (a lista de viagens já vem filtrada por acesso do servidor — se não está no cache, ou é uma
+  // (a lista de viagens já vem filtrada por acesso do servidor - se não está no cache, ou é uma
   // viagem inexistente/sem acesso, ou o app ainda não sincronizou nenhuma vez online).
   useEffect(() => {
     if (!loading && !trip) router.replace("/trips");
@@ -54,7 +54,7 @@ export default function TripLayout({ children }: { children: React.ReactNode }) 
       <div>
         <h1 className="text-xl font-semibold text-slate-900">{trip.nome}</h1>
         <p className="text-xs text-slate-500">
-          {trip.data_inicio} — {trip.data_fim} · {trip.qtd_pessoas} pessoa(s)
+          {trip.data_inicio} - {trip.data_fim} · {trip.qtd_pessoas} pessoa(s)
         </p>
       </div>
       <TripTabs tripId={id} />

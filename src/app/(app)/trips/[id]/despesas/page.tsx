@@ -22,7 +22,7 @@ const STATUS_OPTIONS: { value: "pago" | "a_pagar"; label: string }[] = [
   { value: "pago", label: "Pago" },
 ];
 
-/** Linhas gravadas antes da coluna existir vêm com a célula vazia — tratadas como "a pagar",
+/** Linhas gravadas antes da coluna existir vêm com a célula vazia - tratadas como "a pagar",
  * nunca como um terceiro estado. */
 function normalizeStatus(status: string): "pago" | "a_pagar" {
   return status === "pago" ? "pago" : "a_pagar";
@@ -214,8 +214,8 @@ export default function DespesasPage() {
                   <td className="px-3 py-2">{d.data}</td>
                   <td className="px-3 py-2 capitalize">{d.categoria}</td>
                   <td className="px-3 py-2">R$ {Number(d.valor).toFixed(2)}</td>
-                  <td className="px-3 py-2">{nomePorPagador[d.pagador_id] ?? "—"}</td>
-                  <td className="px-3 py-2">{nomePorMeio[d.meio_pagamento_id] ?? "—"}</td>
+                  <td className="px-3 py-2">{nomePorPagador[d.pagador_id] ?? "-"}</td>
+                  <td className="px-3 py-2">{nomePorMeio[d.meio_pagamento_id] ?? "-"}</td>
                   <td className="px-3 py-2 text-slate-500">{d.descricao}</td>
                   <td className="px-3 py-2">
                     <select

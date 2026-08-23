@@ -63,7 +63,7 @@ export async function DELETE(
     return NextResponse.json({ ok: true, ...result });
   } catch (err) {
     // Sem isso, uma falha aqui (ex.: ação nova do Codigo.gs ainda não publicada numa nova
-    // versão do Web App) vira um 500 sem corpo — o cliente só via "Erro ao excluir viagem"
+    // versão do Web App) vira um 500 sem corpo - o cliente só via "Erro ao excluir viagem"
     // genérico, sem pista nenhuma do motivo real.
     return errorResponse(err instanceof Error ? err.message : "Erro ao excluir viagem", 500);
   }

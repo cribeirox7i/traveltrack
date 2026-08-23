@@ -2,7 +2,7 @@ import { v4 as uuid } from "uuid";
 import { appendRows, deleteRow, readSheet, updateRow } from "./repository";
 import { AgendaRow } from "./types";
 
-/** Ordena por data e, dentro do dia, por horário — é assim que a tela monta cada acordeão. */
+/** Ordena por data e, dentro do dia, por horário - é assim que a tela monta cada acordeão. */
 function ordenar(rows: AgendaRow[]): AgendaRow[] {
   return rows.sort(
     (a, b) => a.data.localeCompare(b.data) || (a.horario ?? "").localeCompare(b.horario ?? "")
@@ -45,7 +45,12 @@ export async function createAgenda(input: {
 
 export async function updateAgenda(
   id: string,
-  patch: Partial<Pick<AgendaRow, "data" | "horario" | "descricao" | "url">>
+  patch: Partial<
+    Pick<
+      AgendaRow,
+      "data" | "horario" | "descricao" | "url" | "anexo_file_id" | "anexo_nome" | "anexo_url"
+    >
+  >
 ): Promise<void> {
   await updateRow("Agenda", id, patch as Record<string, string>);
 }

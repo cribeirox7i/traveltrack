@@ -55,7 +55,7 @@ export async function createTrip(input: {
   cidade_origem?: string;
   cidade_origem_lat?: string;
   cidade_origem_lon?: string;
-  /** Ids dos dias já gerados no cliente (modo offline) — reaproveitados aqui em vez de gerar
+  /** Ids dos dias já gerados no cliente (modo offline) - reaproveitados aqui em vez de gerar
    * ids novos, senão o cliente e o servidor acabam criando duas linhas por dia (uma com o id
    * local, outra com o id gerado agora), duplicando a grade de diárias quando a sincronização
    * puxa os dias do servidor de volta pro IndexedDB. */
@@ -112,7 +112,7 @@ export async function updateTrip(
 }
 
 export interface DeleteTripResult {
-  /** false quando a pasta de anexos no Drive não pôde ser removida — a viagem em si foi
+  /** false quando a pasta de anexos no Drive não pôde ser removida - a viagem em si foi
    * excluída de qualquer forma; ver o porquê da ordem em `deleteTrip`. */
   anexosRemovidos: boolean;
   avisoAnexos?: string;
@@ -126,7 +126,7 @@ export interface DeleteTripResult {
  * A ordem aqui importa e não é acidental. A planilha vem primeiro (linhas dependentes, depois a
  * própria viagem) e só no fim, isolada num try/catch, a pasta do Drive. Antes as duas coisas
  * saíam juntas num `Promise.all` com a exclusão da viagem depois: quando a chamada do Drive
- * falhava — o que acontece se o Apps Script não tiver o escopo de autorização do Drive —, a
+ * falhava - o que acontece se o Apps Script não tiver o escopo de autorização do Drive -, a
  * rejeição pulava o `deleteRow("Trips")` **depois** de as diárias/despesas/receitas já terem
  * sido apagadas, deixando a viagem meio-excluída (ainda na lista, porém vazia).
  *
@@ -186,13 +186,13 @@ export const DAY_EDITABLE_FIELDS = [...DAY_COST_FIELDS, ...DAY_TEXT_FIELDS] as c
 export type DayEditableField = (typeof DAY_EDITABLE_FIELDS)[number];
 
 /** Campos preenchidos automaticamente pelo app (busca de temperatura), não pelo usuário digitando
- * na grade — mas gravados pelo mesmo endpoint de "salvar dias", por isso entram na whitelist de
+ * na grade - mas gravados pelo mesmo endpoint de "salvar dias", por isso entram na whitelist de
  * patch abaixo junto com os campos editáveis de verdade. */
 export const DAY_AUTO_FIELDS = ["temp_min", "temp_max"] as const;
 
 export type DayAutoField = (typeof DAY_AUTO_FIELDS)[number];
 
-/** Coordenadas dos campos de cidade (origem/destino/pernoite) — preenchidas junto quando o
+/** Coordenadas dos campos de cidade (origem/destino/pernoite) - preenchidas junto quando o
  * autocomplete de cidade grava uma escolha, não digitadas diretamente pelo usuário. */
 export const DAY_GEO_FIELDS = [
   "origem_lat",
@@ -214,7 +214,7 @@ export const DAY_PATCHABLE_FIELDS = [
 export type DayPatchableField = (typeof DAY_PATCHABLE_FIELDS)[number];
 
 /**
- * Grava de uma vez só (uma única chamada ao Apps Script) os campos de vários dias — usado tanto
+ * Grava de uma vez só (uma única chamada ao Apps Script) os campos de vários dias - usado tanto
  * pelo botão "Salvar" da tela de diárias (campos editáveis) quanto pela busca de temperatura, que
  * grava sozinha assim que a busca termina, sem esperar o usuário clicar em "Salvar".
  * Ignora silenciosamente ids que não pertencem à viagem informada.
@@ -263,7 +263,7 @@ export async function listTripCollaborators(tripId: string): Promise<UserTripRow
 }
 
 /**
- * Usuários com acesso à viagem, com nome (pro dropdown de "Pagador" em Despesas) — sempre inclui
+ * Usuários com acesso à viagem, com nome (pro dropdown de "Pagador" em Despesas) - sempre inclui
  * `currentUserId`, mesmo sem vínculo explícito em UserTrip: cobre o caso comum do admin/criador
  * da viagem nunca ter se auto-vinculado, o que deixaria o dropdown vazio pra quem mais usa.
  */

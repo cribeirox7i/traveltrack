@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useOnlineStatus } from "@/lib/offline/useOfflineData";
 import { refreshNow } from "@/lib/offline/sync";
 
-/** Extrai o id da viagem da URL atual (`/trips/{id}/...`), se houver — assim o refresh também
+/** Extrai o id da viagem da URL atual (`/trips/{id}/...`), se houver - assim o refresh também
  * repuxa os dados da viagem aberta, não só a lista em `/trips`. */
 function currentTripId(pathname: string): string | undefined {
   const match = pathname.match(/^\/trips\/([^/]+)\//);

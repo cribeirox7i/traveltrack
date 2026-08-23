@@ -20,7 +20,7 @@ const STATUS_OPTIONS: { value: "recebido" | "a_receber"; label: string }[] = [
   { value: "recebido", label: "Recebido" },
 ];
 
-/** Mesma lógica de `normalizeStatus` em Despesas — linhas antigas sem a coluna viram "a receber". */
+/** Mesma lógica de `normalizeStatus` em Despesas - linhas antigas sem a coluna viram "a receber". */
 function normalizeStatus(status: string): "recebido" | "a_receber" {
   return status === "recebido" ? "recebido" : "a_receber";
 }
@@ -153,7 +153,7 @@ export default function ReceitasPage() {
                 <tr key={r.id} className="border-t border-slate-100">
                   <td className="px-3 py-2">{r.data}</td>
                   <td className="px-3 py-2">R$ {Number(r.valor).toFixed(2)}</td>
-                  <td className="px-3 py-2">{nomePorCredor[r.credor_id] ?? "—"}</td>
+                  <td className="px-3 py-2">{nomePorCredor[r.credor_id] ?? "-"}</td>
                   <td className="px-3 py-2 text-slate-500">{r.descricao}</td>
                   <td className="px-3 py-2">
                     <select

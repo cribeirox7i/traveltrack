@@ -129,7 +129,7 @@ export default function OrcamentoPage() {
 
   /** Ao escolher uma cidade da busca, aplica nome + coordenadas na célula clicada e em qualquer
    * outra célula de cidade (mesmo campo ou não, qualquer dia) que já tenha o mesmo texto digitado
-   * — evita ter que reclicar a sugestão toda vez que a mesma cidade se repete na grade. */
+   * - evita ter que reclicar a sugestão toda vez que a mesma cidade se repete na grade. */
   function applyCitySelection(
     dayId: string,
     field: (typeof TEXT_FIELD_KEYS)[number],
@@ -170,7 +170,7 @@ export default function OrcamentoPage() {
     const isCost = COST_FIELDS.some((f) => f.key === field);
     const isCity = TEXT_FIELD_KEYS.includes(field as (typeof TEXT_FIELD_KEYS)[number]);
     const value = isCost ? String(parseDecimal(sourceDay[field])) : sourceDay[field];
-    // Cidade replicada leva a coordenada junto — senão a linha copiada ficaria com o nome mas
+    // Cidade replicada leva a coordenada junto - senão a linha copiada ficaria com o nome mas
     // sem ponto no mapa.
     const geoLat = isCity ? sourceDay[latKey(field as (typeof TEXT_FIELD_KEYS)[number])] : null;
     const geoLon = isCity ? sourceDay[lonKey(field as (typeof TEXT_FIELD_KEYS)[number])] : null;
@@ -194,7 +194,7 @@ export default function OrcamentoPage() {
     setIsDirty(true);
   }
 
-  /** Busca a temperatura e já grava (não depende do botão "Salvar" — a busca por si só persiste
+  /** Busca a temperatura e já grava (não depende do botão "Salvar" - a busca por si só persiste
    * o resultado, senão ele se perderia ao recarregar a página). */
   async function fetchWeather() {
     setLoadingWeather(true);
@@ -233,7 +233,7 @@ export default function OrcamentoPage() {
     setIsSaving(true);
 
     // Só manda pra fila de sincronização os dias/campos que realmente mudaram desde o último
-    // carregamento — reduz o risco de uma edição antiga (ex.: feita offline há horas) sobrescrever
+    // carregamento - reduz o risco de uma edição antiga (ex.: feita offline há horas) sobrescrever
     // um campo que outra pessoa alterou nesse meio-tempo em outro dispositivo.
     const changed = days
       .map((day) => {
@@ -360,14 +360,14 @@ export default function OrcamentoPage() {
                       onSelect={(city) => applyCitySelection(day.id, f.key, city)}
                       onFocus={() => setFocusedCell({ dayId: day.id, field: f.key })}
                       disabled={isSaving}
-                      // Mesmo motivo do min-w dos campos de valor abaixo — aqui o piso só
+                      // Mesmo motivo do min-w dos campos de valor abaixo - aqui o piso só
                       // devolve a largura que a coluna tinha antes de virar `w-full`.
                       className="w-full min-w-24 rounded-md border border-slate-300 py-0.5 pl-1.5 pr-3.5 text-xs"
                     />
                   </td>
                 ))}
                 <td className="px-1 py-1 text-right text-slate-500">
-                  {day.temp_min && day.temp_max ? `${day.temp_min}° / ${day.temp_max}°` : "—"}
+                  {day.temp_min && day.temp_max ? `${day.temp_min}° / ${day.temp_max}°` : "-"}
                 </td>
                 {COST_FIELDS.map((f) => {
                   const isEditingHere = editingKey === `${day.id}:${f.key}`;

@@ -31,7 +31,7 @@ export function SyncStatusBar() {
     >
       <span>
         {tone === "offline" &&
-          "🔌 Offline — suas alterações ficam salvas neste aparelho e sincronizam quando o sinal voltar"}
+          "🔌 Offline - suas alterações ficam salvas neste aparelho e sincronizam quando o sinal voltar"}
         {tone === "error" &&
           `⚠️ ${errored} alteraç${errored === 1 ? "ão" : "ões"} não sincronizou${
             errored === 1 ? "" : "ram"

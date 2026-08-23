@@ -10,6 +10,7 @@ export interface OutboxEntry {
     | "createReceita"
     | "saveDays"
     | "createAgenda"
+    | "updateAgenda"
     | "deleteAgenda"
     | "updateDespesaStatus"
     | "updateReceitaStatus";
@@ -105,7 +106,7 @@ export async function putAll(tab: DataTab, rows: RowBase[]): Promise<void> {
 
 /**
  * Como `putAll`, mas também apaga do IndexedDB qualquer linha local que não veio na resposta do
- * servidor. `putAll` sozinho só sabe adicionar/atualizar — uma viagem (ou despesa, dia, item de
+ * servidor. `putAll` sozinho só sabe adicionar/atualizar - uma viagem (ou despesa, dia, item de
  * agenda...) excluída no servidor por outro aparelho, ou numa sessão anterior, nunca sumia do
  * cache local, só era possível limpando o IndexedDB manualmente. Passe `tripId` para reconciliar
  * só a fatia de uma viagem numa store compartilhada (tripDays/despesas/receitas/agenda); omita
@@ -115,7 +116,7 @@ export async function putAllReplacing(
   tab: "trips" | "tripDays" | "despesas" | "receitas" | "agenda",
   rows: RowBase[],
   tripId?: string,
-  // Ids que nunca devem ser apagados mesmo se ausentes de `rows` — a linha criada offline há
+  // Ids que nunca devem ser apagados mesmo se ausentes de `rows` - a linha criada offline há
   // poucos instantes e ainda não sincronizada não existe no servidor ainda, então uma
   // reconciliação que rodasse nesse intervalo (ex.: sync periódico de 60s, ou outra aba abrindo
   // a mesma viagem) a apagaria antes mesmo de ela ter a chance de subir. Ver `pendingCreateIds`
@@ -127,7 +128,7 @@ export async function putAllReplacing(
 
   // Duas transações tipadas em vez de uma genérica: "trips" não tem índice `trip_id` (é a store
   // de topo, sem escopo por viagem), então o tipo de `tx.store` teria que valer pros dois casos
-  // ao mesmo tempo — o `idb` não permite `.index("trip_id")` num union que inclui uma store sem
+  // ao mesmo tempo - o `idb` não permite `.index("trip_id")` num union que inclui uma store sem
   // esse índice.
   if (tripId) {
     const tx = db.transaction(tab as "tripDays" | "despesas" | "receitas" | "agenda", "readwrite");
@@ -240,7 +241,7 @@ export async function removeOutboxEntry(localId: string) {
   await db.delete("outbox", localId);
 }
 
-/** Descarta mutações pendentes de uma viagem que acabou de ser excluída — evita a fila de
+/** Descarta mutações pendentes de uma viagem que acabou de ser excluída - evita a fila de
  * sincronização ficar tentando repetidamente salvar dados de uma viagem que não existe mais. */
 export async function removeOutboxByTrip(tripId: string): Promise<void> {
   const db = await getDB();

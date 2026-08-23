@@ -1,6 +1,6 @@
 /**
  * ===========================================================
- *  Viagens App — Codigo.gs
+ *  Viagens App - Codigo.gs
  *  Camada de acesso à planilha, publicada como Web App.
  *  Mesmo padrão usado no AromaLab: sem service account do Google
  *  Cloud, o script roda com a identidade de quem publicou o
@@ -9,7 +9,7 @@
  */
 
 // ---------- CONFIGURAÇÃO ----------
-// SPREADSHEET_ID, SHARED_SECRET e DRIVE_ROOT_FOLDER_ID ficam em Config.gs —
+// SPREADSHEET_ID, SHARED_SECRET e DRIVE_ROOT_FOLDER_ID ficam em Config.gs -
 // arquivo separado para você não perder os valores reais toda vez que colar
 // uma versão nova deste Codigo.gs (veja README, seção 1).
 
@@ -29,7 +29,7 @@ const ESTRUTURA = {
 // ---------- PONTO DE ENTRADA DO WEB APP ----------
 /**
  * Chamado servidor-a-servidor pelo Next.js, nunca direto pelo navegador do
- * usuário final — por isso pode ser um único POST simples, sem se preocupar
+ * usuário final - por isso pode ser um único POST simples, sem se preocupar
  * com CORS. Corpo esperado: {"secret": "...", "action": "...", "payload": {...}}.
  */
 function doPost(e) {
@@ -272,7 +272,7 @@ function excluirPorId(nome, id) {
 
 /**
  * Remove, numa única passada, todas as linhas cujo valor na coluna `campo` seja igual a
- * `valor` (ex.: todas as TripDays de uma viagem excluída) — muito mais rápido que excluirPorId
+ * `valor` (ex.: todas as TripDays de uma viagem excluída) - muito mais rápido que excluirPorId
  * repetido linha a linha, e evita que os índices de linha mudem no meio do processo.
  */
 function excluirPorCampo(nome, campo, valor) {
@@ -338,7 +338,7 @@ function ensureStructure() {
 
 /**
  * Acrescenta ao final do cabeçalho as colunas de `colunasEsperadas` que ainda não existem na
- * aba — não mexe em colunas/linhas já existentes, só estende a estrutura pra campos novos (ex.:
+ * aba - não mexe em colunas/linhas já existentes, só estende a estrutura pra campos novos (ex.:
  * quando o app ganha um campo novo depois que a planilha já tinha dados). Linhas já existentes
  * ficam com a célula vazia nas colunas novas.
  */
@@ -354,7 +354,7 @@ function adicionarColunasFaltantes(sh, colunasEsperadas) {
 // ---------- ANEXOS (GOOGLE DRIVE) ----------
 // Mesmo padrão do resto do arquivo: sem service account, usa DriveApp com a
 // identidade de quem publicou o Web App (mesma autorização já usada para a
-// planilha). Estrutura no Drive: {DRIVE_ROOT_FOLDER_ID}/{nome da viagem} —
+// planilha). Estrutura no Drive: {DRIVE_ROOT_FOLDER_ID}/{nome da viagem} -
 // {tripId}/{categoria}/arquivo. As subpastas de categoria só são criadas na
 // hora do primeiro upload daquela categoria, para não deixar pasta vazia.
 
@@ -376,7 +376,7 @@ function getTripFolder(tripId, tripName) {
     throw new Error('DRIVE_ROOT_FOLDER_ID não configurado em Config.gs');
   }
   const raiz = DriveApp.getFolderById(DRIVE_ROOT_FOLDER_ID);
-  const nomePasta = tripName + ' — ' + tripId;
+  const nomePasta = tripName + ' - ' + tripId;
   return getOrCreateSubfolder(raiz, nomePasta);
 }
 
@@ -436,19 +436,19 @@ function driveDeleteFile(payload) {
 }
 
 /** Move a pasta inteira de anexos da viagem (todas as categorias) para a lixeira do Drive de
- * uma vez, em vez de listar e apagar arquivo por arquivo — usado ao excluir uma viagem.
+ * uma vez, em vez de listar e apagar arquivo por arquivo - usado ao excluir uma viagem.
  * Sem DRIVE_ROOT_FOLDER_ID configurado ou sem a pasta (viagem nunca teve anexo), não há nada a
  * fazer. */
 function driveDeleteTripFolder(payload) {
   if (!DRIVE_ROOT_FOLDER_ID) return null;
   const raiz = DriveApp.getFolderById(DRIVE_ROOT_FOLDER_ID);
-  const nomePasta = payload.tripName + ' — ' + payload.tripId;
+  const nomePasta = payload.tripName + ' - ' + payload.tripId;
   const pastas = raiz.getFoldersByName(nomePasta);
   if (pastas.hasNext()) pastas.next().setTrashed(true);
   return null;
 }
 
-/** Devolve os bytes (base64) de um anexo já enviado — usado pelo download para uso offline. */
+/** Devolve os bytes (base64) de um anexo já enviado - usado pelo download para uso offline. */
 function driveDownloadFile(payload) {
   const file = DriveApp.getFileById(payload.fileId);
   const blob = file.getBlob();

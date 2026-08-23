@@ -41,7 +41,7 @@ export function useOfflineTrips<T extends { id: string }>() {
   return { trips, loading };
 }
 
-/** Dados de uma única viagem (nome, datas) para o cabeçalho — usado pelo shell client-side da rota da viagem. */
+/** Dados de uma única viagem (nome, datas) para o cabeçalho - usado pelo shell client-side da rota da viagem. */
 export function useOfflineTrip<T extends { id: string }>(tripId: string | undefined) {
   const [trip, setTrip] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
@@ -87,7 +87,7 @@ export function useOfflineCollection<T extends { id: string }>(
   return { items, loading, refresh };
 }
 
-/** Lista de anexos (metadados) de uma viagem — funciona offline se a viagem estiver marcada
+/** Lista de anexos (metadados) de uma viagem - funciona offline se a viagem estiver marcada
  * "Dados offline" (os arquivos já baixados ficam em anexoFiles, ver getLocalAnexoUrl). */
 export function useOfflineAnexos<T extends { fileId: string }>(tripId: string | undefined) {
   const [items, setItems] = useState<T[]>([]);
@@ -111,14 +111,14 @@ export function useOfflineAnexos<T extends { fileId: string }>(tripId: string | 
 }
 
 /** Object URL (blob local) de um anexo já baixado, ou null se ainda não foi baixado neste
- * aparelho — nesse caso a tela deve cair para o link ao vivo do Drive. */
+ * aparelho - nesse caso a tela deve cair para o link ao vivo do Drive. */
 export async function getLocalAnexoUrl(fileId: string): Promise<string | null> {
   const file = await getAnexoFile(fileId);
   if (!file) return null;
   return URL.createObjectURL(file.blob);
 }
 
-/** Usuários com acesso à viagem (pro select de "Pagador" em Despesas) — cacheado localmente,
+/** Usuários com acesso à viagem (pro select de "Pagador" em Despesas) - cacheado localmente,
  * atualizado em segundo plano quando online. */
 export function useCollaborators(tripId: string | undefined) {
   const [people, setPeople] = useState<PersonOption[]>([]);
@@ -139,7 +139,7 @@ export function useCollaborators(tripId: string | undefined) {
   return people;
 }
 
-/** Meios de pagamento cadastrados (pro select em Despesas) — mesma lógica de cache local. */
+/** Meios de pagamento cadastrados (pro select em Despesas) - mesma lógica de cache local. */
 export function useMeiosPagamento() {
   const [meios, setMeios] = useState<{ id: string; nome: string; ativo: string }[]>([]);
 
@@ -183,7 +183,7 @@ export interface OutboxSummary {
 }
 
 /** Estado da fila de sincronização: quantas mutações estão pendentes e se alguma já falhou de
- * verdade contra o servidor (erro de validação/acesso — não só falta de sinal). */
+ * verdade contra o servidor (erro de validação/acesso - não só falta de sinal). */
 export function useOutboxSummary(): OutboxSummary {
   const [summary, setSummary] = useState<OutboxSummary>({
     pending: 0,

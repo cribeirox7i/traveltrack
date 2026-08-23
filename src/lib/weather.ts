@@ -1,7 +1,7 @@
 /**
  * Temperatura histórica (mín/máx) por cidade, via Open-Meteo (API pública, sem chave/credencial).
  * Como as viagens costumam ser planejadas com meses de antecedência, não dá pra usar previsão
- * (só cobre ~16 dias à frente) — em vez disso, faz a média da temperatura do mesmo dia/mês nos
+ * (só cobre ~16 dias à frente) - em vez disso, faz a média da temperatura do mesmo dia/mês nos
  * últimos anos (clima histórico), como aproximação de "época do ano". Não é a previsão de "agora".
  */
 
@@ -39,7 +39,7 @@ function stripAccents(s: string): string {
 /** Variações do texto da cidade a tentar, da mais específica pra mais genérica, até achar geocoding. */
 function cityVariants(city: string): string[] {
   const trimmed = city.trim();
-  const beforeComma = trimmed.split(/[,\-–]/)[0].trim();
+  const beforeComma = trimmed.split(/[,\--]/)[0].trim();
   const noAccents = stripAccents(trimmed);
   const firstWords = trimmed.split(/\s+/).slice(0, 2).join(" ");
 

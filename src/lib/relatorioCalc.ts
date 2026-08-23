@@ -26,7 +26,7 @@ export interface Relatorio {
 
 /**
  * Puro (sem I/O) pra poder ser calculado tanto no servidor (a partir da planilha) quanto no
- * cliente, offline, a partir do cache local em IndexedDB — mesma lógica dos dois lados.
+ * cliente, offline, a partir do cache local em IndexedDB - mesma lógica dos dois lados.
  */
 export function computeRelatorio(
   tripId: string,

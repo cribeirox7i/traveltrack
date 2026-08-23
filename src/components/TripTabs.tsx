@@ -14,7 +14,7 @@ export function TripTabs({ tripId }: { tripId: string }) {
       <div className="flex gap-1 overflow-x-auto border-b border-slate-200">
         {TRIP_TAB_GROUPS.map((group) => {
           const active = group.key === activeGroup.key;
-          // O grupo em si não é uma rota — leva pra primeira aba dele, que é a página que já
+          // O grupo em si não é uma rota - leva pra primeira aba dele, que é a página que já
           // existia como entrada natural daquele assunto (Orçamento pro Financeiro, Agenda pro
           // Roteiro, o próprio Anexos pro grupo de um item só).
           const href = `/trips/${tripId}/${group.tabs[0].slug}`;

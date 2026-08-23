@@ -34,15 +34,15 @@ const MIN_CHARS = 2;
 
 function labelFor(r: GeoResult): string {
   const partes = [r.admin1, r.country].filter(Boolean);
-  return partes.length ? `${r.name} — ${partes.join(", ")}` : r.name;
+  return partes.length ? `${r.name} - ${partes.join(", ")}` : r.name;
 }
 
 /**
  * Autocomplete de cidade, buscando direto no navegador na API de geocoding da
- * Open-Meteo (gratuita, sem chave, CORS aberto) — mesma API já usada pra temperatura.
+ * Open-Meteo (gratuita, sem chave, CORS aberto) - mesma API já usada pra temperatura.
  * Componente "burro": não sabe de TripDay/Trip, só devolve texto livre (onTextChange)
  * ou uma cidade escolhida com coordenadas (onSelect). Quem usa decide o que fazer com
- * cada um — normalmente limpar lat/lon ao digitar livre e gravar os três ao selecionar.
+ * cada um - normalmente limpar lat/lon ao digitar livre e gravar os três ao selecionar.
  */
 export function CityAutocomplete({
   value,
@@ -90,7 +90,7 @@ export function CityAutocomplete({
         setOpen(true);
         setHighlighted(0);
       } catch {
-        // busca cancelada (digitou de novo) ou falhou — sem sinal, por exemplo. Sem problema,
+        // busca cancelada (digitou de novo) ou falhou - sem sinal, por exemplo. Sem problema,
         // o campo continua funcionando como texto livre.
       }
     }, DEBOUNCE_MS);
@@ -149,7 +149,7 @@ export function CityAutocomplete({
           title={
             hasCoordinates
               ? "Cidade confirmada na busca (com coordenadas)"
-              : "Texto livre — não selecionado da busca, sem coordenadas"
+              : "Texto livre - não selecionado da busca, sem coordenadas"
           }
           className={`pointer-events-none absolute right-1 top-1/2 h-1.5 w-1.5 -translate-y-1/2 rounded-full ${
             hasCoordinates ? "bg-green-500" : "bg-amber-400"

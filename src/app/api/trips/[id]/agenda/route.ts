@@ -37,7 +37,7 @@ const createSchema = z.object({
 
 /**
  * Aceita `multipart/form-data` (quando vem anexo) ou JSON puro. O anexo é enviado ao Drive
- * antes de gravar a linha, para que o compromisso já nasça com o arquivo vinculado — se o
+ * antes de gravar a linha, para que o compromisso já nasça com o arquivo vinculado - se o
  * upload falhar, nada é gravado, em vez de deixar uma agenda apontando para um anexo que não
  * existe.
  */
@@ -80,7 +80,7 @@ export async function POST(
   const parsed = createSchema.safeParse(raw);
   if (!parsed.success) return errorResponse(parsed.error.issues[0].message);
 
-  // A data precisa ser uma das diárias da viagem — é o que amarra o compromisso a um acordeão
+  // A data precisa ser uma das diárias da viagem - é o que amarra o compromisso a um acordeão
   // existente na tela. Sem essa checagem, uma data fora do período criaria uma linha órfã,
   // invisível na Agenda.
   const days = await listTripDays(id);

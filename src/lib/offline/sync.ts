@@ -29,7 +29,7 @@ function notifyChange() {
   syncEvents.dispatchEvent(new Event("change"));
 }
 
-/** Campos de texto de um compromisso da Agenda — o `file` (quando existe) fica fora, guardado à
+/** Campos de texto de um compromisso da Agenda - o `file` (quando existe) fica fora, guardado à
  * parte no payload do outbox (ver `createAgendaOffline`), porque aqui ele vira `String(value)`
  * ao montar o FormData de reenvio. */
 interface AgendaPayload {
@@ -64,7 +64,7 @@ async function getBlob(url: string): Promise<Blob | null> {
   }
 }
 
-/** Ids de linhas ainda não sincronizadas — protege `putAllReplacing` de apagar uma criação que
+/** Ids de linhas ainda não sincronizadas - protege `putAllReplacing` de apagar uma criação que
  * está na fila mas o servidor ainda não viu. */
 async function pendingCreateIds(
   kind: OutboxEntry["kind"],
@@ -88,7 +88,7 @@ export async function pullTrips(): Promise<void> {
   }
 }
 
-/** Atualiza dias/despesas/receitas/agenda de UMA viagem no cache local — chamado ao abrir a viagem. */
+/** Atualiza dias/despesas/receitas/agenda de UMA viagem no cache local - chamado ao abrir a viagem. */
 export async function pullTripDetail(tripId: string): Promise<void> {
   if (!isOnline()) return;
   const [days, despesas, receitas, agenda] = await Promise.all([
@@ -115,7 +115,7 @@ export async function pullTripDetail(tripId: string): Promise<void> {
 
 // ---------- Listas de referência (colaboradores da viagem, meios de pagamento) ----------
 // Cacheadas em `meta` pra alimentar os selects de Pagador/Meio de pagamento em Despesas mesmo
-// offline — atualizadas sempre que a tela de Despesas abre com sinal.
+// offline - atualizadas sempre que a tela de Despesas abre com sinal.
 
 export interface PersonOption {
   id: string;
@@ -140,7 +140,7 @@ export async function pullMeiosPagamento(): Promise<void> {
   }
 }
 
-// ---------- "Dados offline" — download completo por viagem, incluindo anexos ----------
+// ---------- "Dados offline" - download completo por viagem, incluindo anexos ----------
 
 const OFFLINE_TRIPS_KEY = "offlineTripIds";
 
@@ -165,7 +165,7 @@ interface AnexoInfoLike {
 
 const downloading = new Set<string>();
 
-/** Atualiza só os metadados da lista de anexos (sem baixar os arquivos) — usado pela tela de
+/** Atualiza só os metadados da lista de anexos (sem baixar os arquivos) - usado pela tela de
  * Anexos pra qualquer viagem, marcada offline ou não. O download dos arquivos em si só acontece
  * via `downloadTripFull`, quando a viagem está marcada. */
 export async function pullAnexosList(tripId: string): Promise<void> {
@@ -179,8 +179,8 @@ export async function pullAnexosList(tripId: string): Promise<void> {
   notifyChange();
 }
 
-/** Baixa por completo uma viagem — dias/despesas/receitas + os ARQUIVOS dos anexos (não só o
- * link do Drive) — pro cache local. Chamado ao marcar "Dados offline" e, depois, sempre que algo
+/** Baixa por completo uma viagem - dias/despesas/receitas + os ARQUIVOS dos anexos (não só o
+ * link do Drive) - pro cache local. Chamado ao marcar "Dados offline" e, depois, sempre que algo
  * daquela viagem muda (edição local, sincronização, ou no ciclo periódico/ao voltar o sinal). */
 export async function downloadTripFull(tripId: string): Promise<void> {
   if (!isOnline() || downloading.has(tripId)) return;
@@ -250,7 +250,7 @@ export async function setTripOffline(tripId: string, enabled: boolean): Promise<
     }
     await downloadTripFull(tripId);
     // Sem isso a viagem fica com todos os dados salvos e mesmo assim cai no fallback /offline
-    // quando aberta sem sinal — ver warmTripPages.
+    // quando aberta sem sinal - ver warmTripPages.
     await warmTripPages(tripId);
   } else {
     ids.delete(tripId);
@@ -262,10 +262,10 @@ export async function setTripOffline(tripId: string, enabled: boolean): Promise<
 }
 
 /** O que o botão "Atualizar" (visível em qualquer página do app, ver `RefreshButton`) dispara:
- * envia mutações pendentes e repuxa a lista de viagens — e, se `tripId` for informado (usuário
- * está dentro de uma viagem), também os dados e a lista de anexos dela — reconciliando qualquer
+ * envia mutações pendentes e repuxa a lista de viagens - e, se `tripId` for informado (usuário
+ * está dentro de uma viagem), também os dados e a lista de anexos dela - reconciliando qualquer
  * exclusão feita por outro aparelho/sessão (ver `putAllReplacing`). Diferente de
- * `downloadOfflineTripsNow`, não baixa arquivos de anexo nem aquece páginas — é uma sincronização
+ * `downloadOfflineTripsNow`, não baixa arquivos de anexo nem aquece páginas - é uma sincronização
  * rápida de dados, não a preparação pra ficar sem sinal. */
 export async function refreshNow(
   tripId?: string
@@ -281,7 +281,7 @@ export async function refreshNow(
 }
 
 /** Baixa (ou atualiza) de uma vez os DADOS de todas as viagens marcadas "Dados offline".
- * Chamado pelo ciclo automático (ao voltar online, a cada 60s) — de propósito não aquece as
+ * Chamado pelo ciclo automático (ao voltar online, a cada 60s) - de propósito não aquece as
  * páginas, que é um custo bem maior e só faz sentido sob ação explícita do usuário. */
 export async function refreshAllOfflineTrips(): Promise<void> {
   for (const tripId of await listOfflineTripIds()) {
@@ -296,7 +296,7 @@ export async function refreshAllOfflineTrips(): Promise<void> {
  * são rotas dinâmicas, e o documento de `/trips/{id}/{aba}` só entra em cache quando aquela URL
  * exata é buscada com internet. O JS das abas em si já vem no precache do build.
  *
- * Silencioso por design: é um "melhor esforço" de pré-carregamento — se uma aba falhar, o resto
+ * Silencioso por design: é um "melhor esforço" de pré-carregamento - se uma aba falhar, o resto
  * continua, e a única consequência é aquela aba específica não abrir offline.
  */
 async function warmTripPages(tripId: string): Promise<void> {
@@ -320,7 +320,7 @@ export async function downloadOfflineTripsNow(): Promise<void> {
   notifyChange();
 }
 
-// ---------- Anexos (upload/exclusão continuam exigindo internet — só o cache é offline) ----------
+// ---------- Anexos (upload/exclusão continuam exigindo internet - só o cache é offline) ----------
 
 export async function uploadAnexoAndRefresh(
   tripId: string,
@@ -354,7 +354,7 @@ export async function pushOutbox(): Promise<void> {
     const entries = await listOutbox();
     for (const entry of entries) {
       const result = await sendOutboxEntry(entry);
-      if (result === "network-error") break; // provavelmente caiu a conexão de novo — para e tenta depois
+      if (result === "network-error") break; // provavelmente caiu a conexão de novo - para e tenta depois
       if (result === "ok") {
         await removeOutboxEntry(entry.localId);
         if (entry.tripId) await refreshIfOffline(entry.tripId);
@@ -409,7 +409,7 @@ async function sendOutboxEntry(entry: OutboxEntry): Promise<"ok" | "network-erro
         if (file) {
           // O File fica gravado no próprio IndexedDB (o algoritmo de clone estruturado suporta
           // Blob/File nativamente), então mesmo enfileirado offline ele sobrevive até a
-          // sincronização — não precisa reabrir o seletor de arquivo depois de voltar o sinal.
+          // sincronização - não precisa reabrir o seletor de arquivo depois de voltar o sinal.
           const form = new FormData();
           for (const [key, value] of Object.entries(fields)) form.set(key, String(value));
           form.set("file", file);
@@ -417,6 +417,28 @@ async function sendOutboxEntry(entry: OutboxEntry): Promise<"ok" | "network-erro
         } else {
           res = await fetch(`/api/trips/${entry.tripId}/agenda`, {
             method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(fields),
+          });
+        }
+        break;
+      }
+      case "updateAgenda": {
+        const { agendaId, file, ...fields } = entry.payload as Omit<AgendaPayload, "id"> & {
+          agendaId: string;
+          file?: File;
+        };
+        if (file) {
+          const form = new FormData();
+          for (const [key, value] of Object.entries(fields)) form.set(key, String(value));
+          form.set("file", file);
+          res = await fetch(`/api/trips/${entry.tripId}/agenda/${agendaId}`, {
+            method: "PATCH",
+            body: form,
+          });
+        } else {
+          res = await fetch(`/api/trips/${entry.tripId}/agenda/${agendaId}`, {
+            method: "PATCH",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(fields),
           });
@@ -451,7 +473,7 @@ async function sendOutboxEntry(entry: OutboxEntry): Promise<"ok" | "network-erro
     }
 
     if (res.ok) return "ok";
-    // Erro real do servidor (validação, acesso, etc.) — não é falta de sinal, não trava a fila.
+    // Erro real do servidor (validação, acesso, etc.) - não é falta de sinal, não trava a fila.
     const data = await res.json().catch(() => ({}));
     return data.error ?? `Erro ${res.status}`;
   } catch {
@@ -508,7 +530,7 @@ export async function createTripOffline(input: {
   }));
   await putAll("tripDays", days);
 
-  // Manda os mesmos ids dos dias já gravados localmente — o servidor reaproveita em vez de
+  // Manda os mesmos ids dos dias já gravados localmente - o servidor reaproveita em vez de
   // gerar novos, senão a sincronização puxaria de volta um segundo conjunto de dias (ids
   // diferentes, mesmas datas) e duplicaria a grade de diárias.
   await enqueueOutbox({
@@ -523,12 +545,12 @@ export async function createTripOffline(input: {
 
 /** Exclui a viagem no servidor (cascade de diárias/despesas/receitas/acessos/anexos, ver
  * `deleteTrip` em trips.ts) e limpa todo o cache local dela. Diferente das outras mutações,
- * exige conexão — é destrutivo e admin-only, não faz sentido enfileirar pra tentar mais tarde
+ * exige conexão - é destrutivo e admin-only, não faz sentido enfileirar pra tentar mais tarde
  * enquanto o usuário já vê a viagem sumir da lista. */
 export async function deleteTripOffline(
   tripId: string
 ): Promise<{ ok: true; avisoAnexos?: string } | { ok: false; error: string }> {
-  if (!isOnline()) return { ok: false, error: "Sem conexão — conecte-se para excluir a viagem" };
+  if (!isOnline()) return { ok: false, error: "Sem conexão - conecte-se para excluir a viagem" };
 
   const res = await fetch(`/api/trips/${tripId}`, { method: "DELETE" });
   const body = await res.json().catch(() => ({}));
@@ -587,7 +609,7 @@ export async function createDespesaOffline(
 }
 
 /** Marca uma despesa como paga/a pagar. Diferente da criação, é um PATCH direto (sem outbox
- * dedicado além do próprio `updateDespesaStatus` na fila) — o registro já existe no servidor,
+ * dedicado além do próprio `updateDespesaStatus` na fila) - o registro já existe no servidor,
  * então não há necessidade de reconciliar ids como em `createTripOffline`. */
 export async function updateDespesaStatusOffline(
   tripId: string,
@@ -629,7 +651,7 @@ export async function createReceitaOffline(
   void pushOutbox();
 }
 
-/** Ver `updateDespesaStatusOffline` — mesma lógica, para receitas. */
+/** Ver `updateDespesaStatusOffline` - mesma lógica, para receitas. */
 export async function updateReceitaStatusOffline(
   tripId: string,
   receitaId: string,
@@ -653,7 +675,7 @@ export interface DayPatch {
 }
 
 export async function saveDaysOffline(tripId: string, days: DayPatch[]): Promise<void> {
-  // `putAll` substitui o registro inteiro pela chave — como `days` aqui traz só os campos que
+  // `putAll` substitui o registro inteiro pela chave - como `days` aqui traz só os campos que
   // mudaram, gravar o patch puro apagaria os campos não editados (ex.: `data` do dia), quebrando
   // a ordenação da tela. Mescla com o que já está salvo localmente antes de gravar.
   const merged = await Promise.all(
@@ -680,7 +702,7 @@ export async function createAgendaOffline(
     horario: input.horario,
     descricao: input.descricao,
     url: input.url,
-    // Anexo ainda não existe no Drive enquanto a mutação está só na fila — a linha local nasce
+    // Anexo ainda não existe no Drive enquanto a mutação está só na fila - a linha local nasce
     // sem ele; quando a sincronização de fato enviar o arquivo, `pullTripDetail` traz de volta
     // a linha completa (com anexo_file_id/nome/url) do servidor.
     anexo_file_id: "",
@@ -698,6 +720,37 @@ export async function createAgendaOffline(
   };
   if (input.file) payload.file = input.file;
   await enqueueOutbox({ localId: uuid(), kind: "createAgenda", tripId, payload });
+  notifyChange();
+  void pushOutbox();
+}
+
+export async function updateAgendaOffline(
+  tripId: string,
+  agendaId: string,
+  input: { data: string; horario: string; descricao: string; url: string; file?: File | null }
+): Promise<void> {
+  const existing = await getOne("agenda", agendaId);
+  await putOne("agenda", {
+    ...(existing ?? { trip_id: tripId }),
+    id: agendaId,
+    data: input.data,
+    horario: input.horario,
+    descricao: input.descricao,
+    url: input.url,
+    // Se um arquivo novo foi anexado agora, o nome já reflete isso na tela mesmo antes de
+    // sincronizar; o `anexo_file_id`/`anexo_url` de fato só chegam depois do upload, via
+    // `pullTripDetail` - mesma lógica de `createAgendaOffline`.
+    ...(input.file ? { anexo_nome: input.file.name } : {}),
+  });
+  const payload: Omit<AgendaPayload, "id"> & { agendaId: string; file?: File } = {
+    agendaId,
+    data: input.data,
+    horario: input.horario,
+    descricao: input.descricao,
+    url: input.url,
+  };
+  if (input.file) payload.file = input.file;
+  await enqueueOutbox({ localId: uuid(), kind: "updateAgenda", tripId, payload });
   notifyChange();
   void pushOutbox();
 }

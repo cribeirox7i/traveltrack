@@ -4,7 +4,7 @@ import { CATEGORIAS_ANEXO, listAnexos, uploadAnexo } from "@/lib/sheets/anexos";
 import { getTrip, userCanAccessTrip } from "@/lib/sheets/trips";
 
 // Margem de segurança abaixo do limite de corpo de requisição das funções
-// serverless da Vercel (~4.5MB) — arquivos maiores devem ser comprimidos no
+// serverless da Vercel (~4.5MB) - arquivos maiores devem ser comprimidos no
 // cliente antes do upload (feito para imagens na página de anexos).
 const MAX_FILE_BYTES = 4 * 1024 * 1024;
 

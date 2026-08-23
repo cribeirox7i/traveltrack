@@ -1,9 +1,9 @@
 /**
  * ===========================================================
- *  Viagens App — Config.gs
+ *  Viagens App - Config.gs
  *  Valores específicos desta implantação (planilha, segredo,
  *  pasta do Drive). Criado UMA VEZ com os valores reais e
- *  deixado intocado dali em diante — as atualizações de código
+ *  deixado intocado dali em diante - as atualizações de código
  *  mexem só em Codigo.gs, nunca neste arquivo.
  * ===========================================================
  */
