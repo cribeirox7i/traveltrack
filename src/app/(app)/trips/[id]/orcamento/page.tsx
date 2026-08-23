@@ -360,7 +360,9 @@ export default function OrcamentoPage() {
                       onSelect={(city) => applyCitySelection(day.id, f.key, city)}
                       onFocus={() => setFocusedCell({ dayId: day.id, field: f.key })}
                       disabled={isSaving}
-                      className="w-full rounded-md border border-slate-300 py-0.5 pl-1.5 pr-3.5 text-xs"
+                      // Mesmo motivo do min-w dos campos de valor abaixo — aqui o piso só
+                      // devolve a largura que a coluna tinha antes de virar `w-full`.
+                      className="w-full min-w-24 rounded-md border border-slate-300 py-0.5 pl-1.5 pr-3.5 text-xs"
                     />
                   </td>
                 ))}
@@ -384,7 +386,10 @@ export default function OrcamentoPage() {
                         }}
                         onBlur={(e) => normalizeCostOnBlur(day.id, f.key, e.target.value)}
                         disabled={isSaving}
-                        className="w-full rounded-md border border-slate-300 px-1.5 py-0.5 text-right text-xs"
+                        // `w-full` mantém o input preenchendo a coluna (é o que alinha cabeçalho,
+                        // dados e totais); o `min-w` é o que impede a coluna de encolher até o
+                        // tamanho do rótulo curto do cabeçalho ("TRAS.") num viewport estreito.
+                        className="w-full min-w-24 rounded-md border border-slate-300 px-1.5 py-0.5 text-right text-xs"
                       />
                     </td>
                   );
