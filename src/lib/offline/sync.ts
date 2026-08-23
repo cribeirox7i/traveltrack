@@ -1,5 +1,6 @@
 import { v4 as uuid } from "uuid";
 import { enumerateDates } from "../dateRange";
+import { TRIP_TAB_SLUGS } from "../tripTabs";
 import {
   OutboxEntry,
   deleteByTrip,
@@ -211,6 +212,9 @@ export async function setTripOffline(tripId: string, enabled: boolean): Promise<
       navigator.storage?.persist?.().catch(() => {});
     }
     await downloadTripFull(tripId);
+    // Sem isso a viagem fica com todos os dados salvos e mesmo assim cai no fallback /offline
+    // quando aberta sem sinal — ver warmTripPages.
+    await warmTripPages(tripId);
   } else {
     ids.delete(tripId);
     await setMeta(OFFLINE_TRIPS_KEY, Array.from(ids));
@@ -220,14 +224,44 @@ export async function setTripOffline(tripId: string, enabled: boolean): Promise<
   }
 }
 
-/** Baixa (ou atualiza) de uma vez todas as viagens marcadas "Dados offline" — usado tanto pelo
- * ciclo automático (ao voltar online, periodicamente) quanto pelo botão "Baixar offline" da
- * tela inicial, pra forçar uma atualização na hora antes de perder o sinal (ex.: saindo de
- * casa pro aeroporto). */
+/** Baixa (ou atualiza) de uma vez os DADOS de todas as viagens marcadas "Dados offline".
+ * Chamado pelo ciclo automático (ao voltar online, a cada 60s) — de propósito não aquece as
+ * páginas, que é um custo bem maior e só faz sentido sob ação explícita do usuário. */
 export async function refreshAllOfflineTrips(): Promise<void> {
   for (const tripId of await listOfflineTripIds()) {
     await downloadTripFull(tripId);
   }
+}
+
+/**
+ * Pede ao servidor o HTML de cada aba da viagem só pra que o service worker guarde essas URLs
+ * no cache `trip-pages` (ver src/app/sw.ts). Sem isso, uma viagem podia ter todos os dados no
+ * IndexedDB e ainda assim cair no fallback /offline ao ser aberta sem sinal: as telas de viagem
+ * são rotas dinâmicas, e o documento de `/trips/{id}/{aba}` só entra em cache quando aquela URL
+ * exata é buscada com internet. O JS das abas em si já vem no precache do build.
+ *
+ * Silencioso por design: é um "melhor esforço" de pré-carregamento — se uma aba falhar, o resto
+ * continua, e a única consequência é aquela aba específica não abrir offline.
+ */
+async function warmTripPages(tripId: string): Promise<void> {
+  if (!isOnline()) return;
+  await Promise.all(
+    TRIP_TAB_SLUGS.map((slug) =>
+      fetch(`/trips/${tripId}/${slug}`, { credentials: "same-origin" }).catch(() => {})
+    )
+  );
+}
+
+/** O que o botão "Baixar offline" da tela de viagens dispara: atualiza os dados E deixa as
+ * telas de todas as viagens marcadas prontas pra abrir sem sinal. */
+export async function downloadOfflineTripsNow(): Promise<void> {
+  if (!isOnline()) return;
+  await fetch("/trips", { credentials: "same-origin" }).catch(() => {});
+  for (const tripId of await listOfflineTripIds()) {
+    await downloadTripFull(tripId);
+    await warmTripPages(tripId);
+  }
+  notifyChange();
 }
 
 // ---------- Anexos (upload/exclusão continuam exigindo internet — só o cache é offline) ----------

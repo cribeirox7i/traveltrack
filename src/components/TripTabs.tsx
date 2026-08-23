@@ -2,31 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-
-export const TRIP_TAB_SLUGS = [
-  "orcamento",
-  "despesas",
-  "receitas",
-  "anexos",
-  "mapa",
-  "relatorio",
-] as const;
-
-const TABS = [
-  { slug: "orcamento", label: "Orçamento" },
-  { slug: "despesas", label: "Despesas" },
-  { slug: "receitas", label: "Receitas" },
-  { slug: "anexos", label: "Anexos" },
-  { slug: "mapa", label: "Mapa" },
-  { slug: "relatorio", label: "Relatório" },
-];
+import { TRIP_TABS } from "@/lib/tripTabs";
 
 export function TripTabs({ tripId }: { tripId: string }) {
   const pathname = usePathname();
 
   return (
     <div className="flex gap-1 overflow-x-auto border-b border-slate-200">
-      {TABS.map((tab) => {
+      {TRIP_TABS.map((tab) => {
         const href = `/trips/${tripId}/${tab.slug}`;
         const active = pathname === href;
         return (

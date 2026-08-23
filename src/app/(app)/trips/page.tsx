@@ -6,8 +6,8 @@ import { useSession } from "next-auth/react";
 import { useOfflineTrips, useOnlineStatus } from "@/lib/offline/useOfflineData";
 import {
   deleteTripOffline,
+  downloadOfflineTripsNow,
   listOfflineTripIds,
-  refreshAllOfflineTrips,
   setTripOffline,
   syncEvents,
 } from "@/lib/offline/sync";
@@ -78,7 +78,7 @@ export default function TripsPage() {
 
   async function handleDownloadAll() {
     setDownloadingAll(true);
-    await refreshAllOfflineTrips();
+    await downloadOfflineTripsNow();
     setDownloadingAll(false);
     setDownloadedAt(new Date());
   }

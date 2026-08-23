@@ -3,7 +3,8 @@
 import { useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { TRIP_TAB_SLUGS, TripTabs } from "@/components/TripTabs";
+import { TripTabs } from "@/components/TripTabs";
+import { TRIP_TAB_SLUGS } from "@/lib/tripTabs";
 import { useOfflineTrip } from "@/lib/offline/useOfflineData";
 import { isOnline } from "@/lib/offline/sync";
 
