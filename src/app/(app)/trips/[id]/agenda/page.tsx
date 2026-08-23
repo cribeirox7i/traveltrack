@@ -3,7 +3,13 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { getLocalAnexoUrl, useOfflineCollection } from "@/lib/offline/useOfflineData";
-import { createAgendaOffline, deleteAgendaOffline, updateAgendaOffline } from "@/lib/offline/sync";
+import {
+  createAgendaOffline,
+  deleteAgendaOffline,
+  saveDaysOffline,
+  updateAgendaOffline,
+} from "@/lib/offline/sync";
+import { CityAutocomplete } from "@/components/CityAutocomplete";
 
 interface TripDay {
   id: string;
@@ -13,6 +19,37 @@ interface TripDay {
   pernoite: string;
   temp_min: string;
   temp_max: string;
+  origem_lat: string;
+  origem_lon: string;
+  destino_lat: string;
+  destino_lon: string;
+  pernoite_lat: string;
+  pernoite_lon: string;
+}
+
+const ROUTE_FIELDS: { key: "origem" | "destino" | "pernoite"; label: string }[] = [
+  { key: "origem", label: "Origem" },
+  { key: "destino", label: "Destino" },
+  { key: "pernoite", label: "Pernoite" },
+];
+
+function latKey(field: (typeof ROUTE_FIELDS)[number]["key"]): keyof TripDay {
+  return `${field}_lat` as keyof TripDay;
+}
+
+function lonKey(field: (typeof ROUTE_FIELDS)[number]["key"]): keyof TripDay {
+  return `${field}_lon` as keyof TripDay;
+}
+
+const ROUTE_EDITABLE_FIELDS = ROUTE_FIELDS.flatMap((f) => [
+  f.key,
+  latKey(f.key),
+  lonKey(f.key),
+]);
+
+function monthDay(iso: string): { month: number; day: number } {
+  const d = new Date(`${iso.slice(0, 10)}T00:00:00`);
+  return { month: d.getMonth() + 1, day: d.getDate() };
 }
 
 interface AgendaItem {
@@ -42,11 +79,21 @@ const emptyForm = { data: "", horario: "", descricao: "", url: "" };
 
 export default function AgendaPage() {
   const { id: tripId } = useParams<{ id: string }>();
-  const { items: days, loading: loadingDays } = useOfflineCollection<TripDay>("tripDays", tripId);
+  const { items, loading: loadingDays } = useOfflineCollection<TripDay>("tripDays", tripId);
   const { items: agenda, loading: loadingAgenda } = useOfflineCollection<AgendaItem>(
     "agenda",
     tripId
   );
+
+  // Rascunho local de origem/destino/pernoite (+ coordenadas) - mesmo padrão de
+  // snapshot/isDirty do Orçamento, só que aqui restrito aos campos de rota: os custos por
+  // categoria continuam só no Orçamento, e a temperatura se autossalva assim que é buscada (não
+  // fica pendente de "Salvar roteiro").
+  const [days, setDays] = useState<TripDay[]>([]);
+  const [isDirty, setIsDirty] = useState(false);
+  const [isSavingRoute, setIsSavingRoute] = useState(false);
+  const [loadingWeather, setLoadingWeather] = useState(false);
+  const snapshotRef = useRef<Record<string, TripDay>>({});
 
   const [openDay, setOpenDay] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);
@@ -58,6 +105,23 @@ export default function AgendaPage() {
   const [error, setError] = useState<string | null>(null);
   const [localUrls, setLocalUrls] = useState<Record<string, string>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isDirty) return; // não pisa em edição em andamento com uma atualização em segundo plano
+    const sorted = [...items].sort((a, b) => a.data.localeCompare(b.data));
+    setDays(sorted);
+    snapshotRef.current = Object.fromEntries(sorted.map((d) => [d.id, d]));
+  }, [items, isDirty]);
+
+  useEffect(() => {
+    function warnBeforeUnload(e: BeforeUnloadEvent) {
+      if (!isDirty) return;
+      e.preventDefault();
+      e.returnValue = "";
+    }
+    window.addEventListener("beforeunload", warnBeforeUnload);
+    return () => window.removeEventListener("beforeunload", warnBeforeUnload);
+  }, [isDirty]);
 
   // Mesmo padrão da tela de Anexos: resolve, pra cada anexo de compromisso já baixado neste
   // aparelho, um object URL que abre offline - os que ainda não foram baixados caem pro link ao
@@ -145,21 +209,132 @@ export default function AgendaPage() {
     await deleteAgendaOffline(tripId, agendaId);
   }
 
+  function updateRouteField(dayId: string, field: keyof TripDay, value: string) {
+    setDays((prev) => prev.map((d) => (d.id === dayId ? { ...d, [field]: value } : d)));
+    setIsDirty(true);
+  }
+
+  /** Ao escolher uma cidade da busca, aplica nome + coordenadas na célula clicada e em qualquer
+   * outra célula de rota (mesmo campo ou não, qualquer dia) que já tenha o mesmo texto digitado
+   * - evita ter que reclicar a sugestão toda vez que a mesma cidade se repete no roteiro. */
+  function applyCitySelection(
+    dayId: string,
+    field: (typeof ROUTE_FIELDS)[number]["key"],
+    city: { nome: string; lat: string; lon: string }
+  ) {
+    const normalized = city.nome.trim().toLowerCase();
+    setDays((prev) =>
+      prev.map((d) => {
+        let next: TripDay | null = null;
+        for (const f of ROUTE_FIELDS.map((r) => r.key)) {
+          const isTarget = d.id === dayId && f === field;
+          const text = (d[f] ?? "").trim().toLowerCase();
+          if (isTarget || (text && text === normalized)) {
+            if (!next) next = { ...d };
+            next[f] = city.nome;
+            next[latKey(f)] = city.lat;
+            next[lonKey(f)] = city.lon;
+          }
+        }
+        return next ?? d;
+      })
+    );
+    setIsDirty(true);
+  }
+
+  async function saveRoute() {
+    setIsSavingRoute(true);
+    const changed = days
+      .map((day) => {
+        const before = snapshotRef.current[day.id];
+        const patch: Record<string, string> = {};
+        for (const field of ROUTE_EDITABLE_FIELDS) {
+          if (!before || before[field] !== day[field]) patch[field] = day[field] as string;
+        }
+        return Object.keys(patch).length ? { id: day.id, ...patch } : null;
+      })
+      .filter((d): d is { id: string } & Record<string, string> => d !== null);
+
+    if (changed.length) await saveDaysOffline(tripId, changed);
+    snapshotRef.current = Object.fromEntries(days.map((d) => [d.id, d]));
+    setIsDirty(false);
+    setIsSavingRoute(false);
+  }
+
+  /** Busca a temperatura e já grava (não depende do botão "Salvar roteiro" - a busca por si só
+   * persiste o resultado, senão ele se perderia ao recarregar a página). */
+  async function fetchWeather() {
+    setLoadingWeather(true);
+    const cache: Record<string, { min: number; max: number } | null> = {};
+    const updates: { id: string; temp_min: string; temp_max: string }[] = [];
+
+    for (const day of days) {
+      const city = day.pernoite?.trim();
+      if (!city) continue;
+      const { month, day: dayOfMonth } = monthDay(day.data);
+      const cacheKey = `${city.toLowerCase()}|${month}-${dayOfMonth}`;
+      if (!(cacheKey in cache)) {
+        try {
+          const res = await fetch(
+            `/api/weather?city=${encodeURIComponent(city)}&month=${month}&day=${dayOfMonth}`
+          );
+          const data = res.ok ? await res.json() : { temp: null };
+          cache[cacheKey] = data.temp;
+        } catch {
+          cache[cacheKey] = null;
+        }
+      }
+      const result = cache[cacheKey];
+      if (!result) continue;
+      const temp_min = result.min.toFixed(1);
+      const temp_max = result.max.toFixed(1);
+      setDays((prev) => prev.map((d) => (d.id === day.id ? { ...d, temp_min, temp_max } : d)));
+      updates.push({ id: day.id, temp_min, temp_max });
+    }
+
+    if (updates.length) await saveDaysOffline(tripId, updates);
+    setLoadingWeather(false);
+  }
+
   const loading = loadingDays || loadingAgenda;
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-slate-500">
-          Compromissos do roteiro, organizados por data. Toque numa data pra ver/adicionar itens.
+          Origem/destino/pernoite, temperatura e compromissos do roteiro, por data. Toque numa
+          data pra abrir.
         </p>
-        <button
-          type="button"
-          onClick={() => (formOpen ? closeForm() : openNewForm())}
-          className="shrink-0 rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800"
-        >
-          {formOpen ? "Cancelar" : "+ Nova agenda"}
-        </button>
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={fetchWeather}
+            disabled={loadingWeather}
+            className="flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:border-blue-300 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {loadingWeather ? "Buscando e salvando..." : "Buscar temperaturas"}
+          </button>
+          {isDirty && (
+            <>
+              <span className="text-xs text-slate-500">Rota não salva</span>
+              <button
+                type="button"
+                onClick={saveRoute}
+                disabled={isSavingRoute}
+                className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+              >
+                {isSavingRoute ? "Salvando..." : "Salvar roteiro"}
+              </button>
+            </>
+          )}
+          <button
+            type="button"
+            onClick={() => (formOpen ? closeForm() : openNewForm())}
+            className="rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800"
+          >
+            {formOpen ? "Cancelar" : "+ Nova agenda"}
+          </button>
+        </div>
       </div>
 
       {formOpen && (
@@ -282,9 +457,27 @@ export default function AgendaPage() {
 
               {isOpen && (
                 <div className="border-t border-slate-100 px-4 py-3">
-                  <p className="mb-3 text-xs text-slate-500">
-                    {day.origem || "-"} → {day.destino || "-"} · Pernoite: {day.pernoite || "-"}
-                  </p>
+                  <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                    {ROUTE_FIELDS.map((f) => (
+                      <div key={f.key}>
+                        <label className="mb-1 block text-xs font-medium text-slate-600">
+                          {f.label}
+                        </label>
+                        <CityAutocomplete
+                          value={day[f.key] ?? ""}
+                          hasCoordinates={Boolean(day[latKey(f.key)] && day[lonKey(f.key)])}
+                          onTextChange={(text) => {
+                            updateRouteField(day.id, f.key, text);
+                            updateRouteField(day.id, latKey(f.key), "");
+                            updateRouteField(day.id, lonKey(f.key), "");
+                          }}
+                          onSelect={(city) => applyCitySelection(day.id, f.key, city)}
+                          disabled={isSavingRoute}
+                          className="w-full rounded-md border border-slate-300 py-1 pl-2 pr-4 text-xs"
+                        />
+                      </div>
+                    ))}
+                  </div>
 
                   {itens.length === 0 && (
                     <p className="text-sm text-slate-400">Nenhum compromisso nesta data ainda.</p>

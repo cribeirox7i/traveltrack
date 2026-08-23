@@ -4,36 +4,18 @@ import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { useOfflineCollection } from "@/lib/offline/useOfflineData";
 import { saveDaysOffline } from "@/lib/offline/sync";
-import { CityAutocomplete } from "@/components/CityAutocomplete";
 
 interface TripDay {
   id: string;
   data: string;
-  origem: string;
-  destino: string;
-  pernoite: string;
   traslado_pp: string;
   passagem_pp: string;
   alimentacao_pp: string;
   passeio_pp: string;
   hospedagem_pp: string;
-  temp_min: string;
-  temp_max: string;
-  origem_lat: string;
-  origem_lon: string;
-  destino_lat: string;
-  destino_lon: string;
-  pernoite_lat: string;
-  pernoite_lon: string;
 }
 
 type FocusedCell = { dayId: string; field: keyof TripDay };
-
-const TEXT_FIELDS: { key: keyof TripDay; label: string }[] = [
-  { key: "origem", label: "Origem" },
-  { key: "destino", label: "Destino" },
-  { key: "pernoite", label: "Pernoite" },
-];
 
 const COST_FIELDS: { key: keyof TripDay; label: string; fullLabel: string }[] = [
   { key: "traslado_pp", label: "TRAS.", fullLabel: "Traslado" },
@@ -43,24 +25,11 @@ const COST_FIELDS: { key: keyof TripDay; label: string; fullLabel: string }[] = 
   { key: "hospedagem_pp", label: "HOSP.", fullLabel: "Hospedagem" },
 ];
 
-const TEXT_FIELD_KEYS = TEXT_FIELDS.map((f) => f.key);
+const EDITABLE_FIELDS = COST_FIELDS.map((f) => f.key);
 
-function latKey(field: (typeof TEXT_FIELD_KEYS)[number]): keyof TripDay {
-  return `${field}_lat` as keyof TripDay;
-}
-
-function lonKey(field: (typeof TEXT_FIELD_KEYS)[number]): keyof TripDay {
-  return `${field}_lon` as keyof TripDay;
-}
-
-const GEO_FIELDS = TEXT_FIELD_KEYS.flatMap((k) => [latKey(k), lonKey(k)]);
-
-const EDITABLE_FIELDS = [...TEXT_FIELD_KEYS, ...COST_FIELDS.map((f) => f.key), ...GEO_FIELDS];
-
-const FIELD_LABELS: Record<string, string> = Object.fromEntries([
-  ...TEXT_FIELDS.map((f) => [f.key, f.label]),
-  ...COST_FIELDS.map((f) => [f.key, f.fullLabel]),
-]);
+const FIELD_LABELS: Record<string, string> = Object.fromEntries(
+  COST_FIELDS.map((f) => [f.key, f.fullLabel])
+);
 
 function parseDecimal(raw: string): number {
   const cleaned = raw.trim();
@@ -87,11 +56,6 @@ function formatDateBR(iso: string): string {
   return d && m && y ? `${d}/${m}/${y}` : iso;
 }
 
-function monthDay(iso: string): { month: number; day: number } {
-  const d = new Date(`${iso.slice(0, 10)}T00:00:00`);
-  return { month: d.getMonth() + 1, day: d.getDate() };
-}
-
 export default function OrcamentoPage() {
   const { id: tripId } = useParams<{ id: string }>();
   const { items, loading } = useOfflineCollection<TripDay>("tripDays", tripId);
@@ -100,7 +64,6 @@ export default function OrcamentoPage() {
   const [isDirty, setIsDirty] = useState(false);
   const [focusedCell, setFocusedCell] = useState<FocusedCell | null>(null);
   const [editingKey, setEditingKey] = useState<string | null>(null);
-  const [loadingWeather, setLoadingWeather] = useState(false);
 
   // Snapshot do que já está sincronizado, pra "Salvar" enviar só os campos que mudaram de fato.
   const snapshotRef = useRef<Record<string, TripDay>>({});
@@ -127,34 +90,6 @@ export default function OrcamentoPage() {
     setIsDirty(true);
   }
 
-  /** Ao escolher uma cidade da busca, aplica nome + coordenadas na célula clicada e em qualquer
-   * outra célula de cidade (mesmo campo ou não, qualquer dia) que já tenha o mesmo texto digitado
-   * - evita ter que reclicar a sugestão toda vez que a mesma cidade se repete na grade. */
-  function applyCitySelection(
-    dayId: string,
-    field: (typeof TEXT_FIELD_KEYS)[number],
-    city: { nome: string; lat: string; lon: string }
-  ) {
-    const normalized = city.nome.trim().toLowerCase();
-    setDays((prev) =>
-      prev.map((d) => {
-        let next: TripDay | null = null;
-        for (const f of TEXT_FIELD_KEYS) {
-          const isTarget = d.id === dayId && f === field;
-          const text = (d[f] ?? "").trim().toLowerCase();
-          if (isTarget || (text && text === normalized)) {
-            if (!next) next = { ...d };
-            next[f] = city.nome;
-            next[latKey(f)] = city.lat;
-            next[lonKey(f)] = city.lon;
-          }
-        }
-        return next ?? d;
-      })
-    );
-    setIsDirty(true);
-  }
-
   function normalizeCostOnBlur(dayId: string, field: keyof TripDay, rawValue: string) {
     const num = parseDecimal(rawValue);
     updateLocal(dayId, field, String(num));
@@ -167,21 +102,10 @@ export default function OrcamentoPage() {
     const { dayId, field } = focusedCell;
     const sourceDay = days.find((d) => d.id === dayId);
     if (!sourceDay) return;
-    const isCost = COST_FIELDS.some((f) => f.key === field);
-    const isCity = TEXT_FIELD_KEYS.includes(field as (typeof TEXT_FIELD_KEYS)[number]);
-    const value = isCost ? String(parseDecimal(sourceDay[field])) : sourceDay[field];
-    // Cidade replicada leva a coordenada junto - senão a linha copiada ficaria com o nome mas
-    // sem ponto no mapa.
-    const geoLat = isCity ? sourceDay[latKey(field as (typeof TEXT_FIELD_KEYS)[number])] : null;
-    const geoLon = isCity ? sourceDay[lonKey(field as (typeof TEXT_FIELD_KEYS)[number])] : null;
+    const value = String(parseDecimal(sourceDay[field]));
 
     function apply(d: TripDay): TripDay {
-      const next = { ...d, [field]: value };
-      if (isCity) {
-        next[latKey(field as (typeof TEXT_FIELD_KEYS)[number])] = geoLat ?? "";
-        next[lonKey(field as (typeof TEXT_FIELD_KEYS)[number])] = geoLon ?? "";
-      }
-      return next;
+      return { ...d, [field]: value };
     }
 
     setDays((prev) => {
@@ -192,41 +116,6 @@ export default function OrcamentoPage() {
       return prev.map(apply);
     });
     setIsDirty(true);
-  }
-
-  /** Busca a temperatura e já grava (não depende do botão "Salvar" - a busca por si só persiste
-   * o resultado, senão ele se perderia ao recarregar a página). */
-  async function fetchWeather() {
-    setLoadingWeather(true);
-    const cache: Record<string, { min: number; max: number } | null> = {};
-    const updates: { id: string; temp_min: string; temp_max: string }[] = [];
-
-    for (const day of days) {
-      const city = day.pernoite?.trim();
-      if (!city) continue;
-      const { month, day: dayOfMonth } = monthDay(day.data);
-      const cacheKey = `${city.toLowerCase()}|${month}-${dayOfMonth}`;
-      if (!(cacheKey in cache)) {
-        try {
-          const res = await fetch(
-            `/api/weather?city=${encodeURIComponent(city)}&month=${month}&day=${dayOfMonth}`
-          );
-          const data = res.ok ? await res.json() : { temp: null };
-          cache[cacheKey] = data.temp;
-        } catch {
-          cache[cacheKey] = null;
-        }
-      }
-      const result = cache[cacheKey];
-      if (!result) continue;
-      const temp_min = result.min.toFixed(1);
-      const temp_max = result.max.toFixed(1);
-      setDays((prev) => prev.map((d) => (d.id === day.id ? { ...d, temp_min, temp_max } : d)));
-      updates.push({ id: day.id, temp_min, temp_max });
-    }
-
-    if (updates.length) await saveDaysOffline(tripId, updates);
-    setLoadingWeather(false);
   }
 
   async function saveAll() {
@@ -266,7 +155,7 @@ export default function OrcamentoPage() {
     <div className="flex flex-col gap-3">
       <p className="text-sm text-slate-500">
         Valores por pessoa, por dia. As edições ficam só nesta tela até você clicar em{" "}
-        <strong>Salvar</strong>.
+        <strong>Salvar</strong>. Origem/destino/pernoite e temperatura ficam na aba Roteiro.
       </p>
 
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -301,14 +190,6 @@ export default function OrcamentoPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={fetchWeather}
-            disabled={loadingWeather}
-            className="flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:border-blue-300 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {loadingWeather ? "Buscando e salvando..." : "Buscar temperaturas"}
-          </button>
           <span className="text-xs text-slate-500">
             {isDirty ? "Alterações não salvas" : "Tudo salvo"}
           </span>
@@ -329,12 +210,6 @@ export default function OrcamentoPage() {
             <tr>
               <th className="px-2 py-1">Data</th>
               <th className="px-1 py-1">Dia</th>
-              {TEXT_FIELDS.map((f) => (
-                <th key={f.key} className="px-1 py-1">
-                  {f.label}
-                </th>
-              ))}
-              <th className="px-1 py-1 text-right">Min/Máx</th>
               {COST_FIELDS.map((f) => (
                 <th key={f.key} className="px-1 py-1 text-right">
                   {f.label}
@@ -347,28 +222,6 @@ export default function OrcamentoPage() {
               <tr key={day.id} className="border-t border-slate-100">
                 <td className="px-2 py-1 text-slate-600">{formatDateBR(day.data)}</td>
                 <td className="px-1 py-1 text-slate-500">{weekdayLabel(day.data)}</td>
-                {TEXT_FIELDS.map((f) => (
-                  <td key={f.key} className="px-1 py-1">
-                    <CityAutocomplete
-                      value={day[f.key] ?? ""}
-                      hasCoordinates={Boolean(day[latKey(f.key)] && day[lonKey(f.key)])}
-                      onTextChange={(text) => {
-                        updateLocal(day.id, f.key, text);
-                        updateLocal(day.id, latKey(f.key), "");
-                        updateLocal(day.id, lonKey(f.key), "");
-                      }}
-                      onSelect={(city) => applyCitySelection(day.id, f.key, city)}
-                      onFocus={() => setFocusedCell({ dayId: day.id, field: f.key })}
-                      disabled={isSaving}
-                      // Mesmo motivo do min-w dos campos de valor abaixo - aqui o piso só
-                      // devolve a largura que a coluna tinha antes de virar `w-full`.
-                      className="w-full min-w-24 rounded-md border border-slate-300 py-0.5 pl-1.5 pr-3.5 text-xs"
-                    />
-                  </td>
-                ))}
-                <td className="px-1 py-1 text-right text-slate-500">
-                  {day.temp_min && day.temp_max ? `${day.temp_min}° / ${day.temp_max}°` : "-"}
-                </td>
                 {COST_FIELDS.map((f) => {
                   const isEditingHere = editingKey === `${day.id}:${f.key}`;
                   return (
@@ -400,10 +253,6 @@ export default function OrcamentoPage() {
           <tfoot>
             <tr className="border-t border-slate-200 bg-slate-50 font-bold">
               <td className="px-2 py-1">Total por pessoa</td>
-              <td className="px-1 py-1" />
-              {TEXT_FIELDS.map((f) => (
-                <td key={f.key} className="px-1 py-1" />
-              ))}
               <td className="px-1 py-1" />
               {COST_FIELDS.map((f) => (
                 <td key={f.key} className="px-1 py-1 text-right">
