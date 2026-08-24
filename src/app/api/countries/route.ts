@@ -7,7 +7,11 @@ export async function GET() {
   const auth = await requireSession();
   if ("error" in auth) return auth.error;
 
-  return NextResponse.json(await listCountries());
+  try {
+    return NextResponse.json(await listCountries());
+  } catch (err) {
+    return errorResponse(err instanceof Error ? err.message : String(err), 500);
+  }
 }
 
 const upsertSchema = z.object({
@@ -36,6 +40,10 @@ export async function POST(req: NextRequest) {
   const parsed = upsertSchema.safeParse(await req.json());
   if (!parsed.success) return errorResponse(parsed.error.issues[0].message);
 
-  await upsertCountry(parsed.data.country, parsed.data.fields);
-  return NextResponse.json({ ok: true });
+  try {
+    await upsertCountry(parsed.data.country, parsed.data.fields);
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    return errorResponse(err instanceof Error ? err.message : String(err), 500);
+  }
 }

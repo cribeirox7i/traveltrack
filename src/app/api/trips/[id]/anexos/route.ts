@@ -24,8 +24,12 @@ export async function GET(
   const trip = await getTrip(id);
   if (!trip) return errorResponse("Viagem não encontrada", 404);
 
-  const anexos = await listAnexos(trip.id, trip.nome);
-  return NextResponse.json(anexos);
+  try {
+    const anexos = await listAnexos(trip.id, trip.nome);
+    return NextResponse.json(anexos);
+  } catch (err) {
+    return errorResponse(err instanceof Error ? err.message : String(err), 500);
+  }
 }
 
 export async function POST(
@@ -59,14 +63,17 @@ export async function POST(
   }
 
   const buffer = Buffer.from(await file.arrayBuffer());
-  const anexo = await uploadAnexo({
-    tripId: trip.id,
-    tripName: trip.nome,
-    categoria: categoria as (typeof CATEGORIAS_ANEXO)[number],
-    filename: file.name,
-    mimeType: file.type || "application/octet-stream",
-    base64Data: buffer.toString("base64"),
-  });
-
-  return NextResponse.json(anexo, { status: 201 });
+  try {
+    const anexo = await uploadAnexo({
+      tripId: trip.id,
+      tripName: trip.nome,
+      categoria: categoria as (typeof CATEGORIAS_ANEXO)[number],
+      filename: file.name,
+      mimeType: file.type || "application/octet-stream",
+      base64Data: buffer.toString("base64"),
+    });
+    return NextResponse.json(anexo, { status: 201 });
+  } catch (err) {
+    return errorResponse(err instanceof Error ? err.message : String(err), 500);
+  }
 }

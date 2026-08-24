@@ -184,13 +184,18 @@ export async function upsertCountryInfo(
 ): Promise<void> {
   if (!isOnline()) return;
   try {
-    await fetch("/api/countries", {
+    const res = await fetch("/api/countries", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ country, fields }),
     });
-  } catch {
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      console.error(`upsertCountryInfo(${country}) falhou:`, body.error ?? res.status);
+    }
+  } catch (err) {
     // sem sinal no meio da chamada, ou o servidor caiu - próxima tentativa de "Atualizar" cobre.
+    console.error(`upsertCountryInfo(${country}) falhou:`, err);
   }
 }
 
