@@ -101,7 +101,16 @@ export function AnexoUpload({
       // texto de bilhete legível pro OCR.
       const texto = await extrairTexto(toSend, setProgresso);
       setProgresso(null);
-      if (texto.trim()) setSugestao({ extraido: parseDocumento(texto), nome: file.name });
+      if (texto.trim()) {
+        // O tipo vem da categoria escolhida no upload - não precisa ser adivinhado pelo texto, e
+        // muda bastante o que faz sentido extrair (passagem não tem "nome", ver `montarVoo`). O
+        // nome do arquivo original entra junto: costuma trazer o trecho já limpo ("GRU - CMX").
+        const extraido = parseDocumento(texto, {
+          tipo: categoria as "passagem" | "hospedagem",
+          nomeArquivo: file.name,
+        });
+        setSugestao({ extraido, nome: file.name });
+      }
     } finally {
       setUploading(false);
       setProgresso(null);

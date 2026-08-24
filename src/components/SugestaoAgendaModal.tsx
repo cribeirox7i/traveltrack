@@ -33,7 +33,7 @@ export function SugestaoAgendaModal({
     titulo: extraido.titulos[0] ?? "",
     data: datasSugeridas[0] ?? datasDaViagem[0] ?? "",
     horario: extraido.horarios[0] ?? "",
-    descricao: "",
+    descricao: extraido.descricaoSugerida,
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -56,8 +56,9 @@ export function SugestaoAgendaModal({
     onClose();
   }
 
-  const naoAchouNada =
-    extraido.titulos.length === 0 && extraido.datas.length === 0 && extraido.horarios.length === 0;
+  // Em passagem sempre há título (é montado, não garimpado - ver `montarVoo`), então o que decide
+  // se a leitura "deu em nada" é não ter achado data nem horário no documento.
+  const naoAchouNada = extraido.datas.length === 0 && extraido.horarios.length === 0;
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-3 sm:items-center">
@@ -118,6 +119,10 @@ export function SugestaoAgendaModal({
                 <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">
                   Data
                 </label>
+                {/* Só a data no select - marcar a opção com um " (do documento)" colado deixava
+                    o campo com cara de texto solto em vez de data. Quais vieram do documento é
+                    informação de sugestão, e sugestão neste modal se mostra em chip (igual aos
+                    horários logo abaixo), não dentro do valor do campo. */}
                 <select
                   value={form.data}
                   onChange={(e) => setForm({ ...form, data: e.target.value })}
@@ -128,7 +133,6 @@ export function SugestaoAgendaModal({
                     return (
                       <option key={d} value={d}>
                         {`${dd}/${m}/${y}`}
-                        {datasSugeridas.includes(d) ? " (do documento)" : ""}
                       </option>
                     );
                   })}
@@ -147,8 +151,36 @@ export function SugestaoAgendaModal({
               </div>
             </div>
 
+            {datasSugeridas.length > 0 && (
+              <div className="-mt-1 flex flex-wrap items-center gap-1.5">
+                <span className="text-[11px] text-slate-400 dark:text-slate-500">
+                  Datas no documento:
+                </span>
+                {datasSugeridas.map((d) => {
+                  const [y, m, dd] = d.split("-");
+                  return (
+                    <button
+                      key={d}
+                      type="button"
+                      onClick={() => setForm({ ...form, data: d })}
+                      className={`rounded-full border px-2 py-1 text-[11px] ${
+                        form.data === d
+                          ? "border-blue-500 bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300"
+                          : "border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-slate-400"
+                      }`}
+                    >
+                      {`${dd}/${m}/${y}`}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
             {extraido.horarios.length > 1 && (
-              <div className="-mt-1 flex flex-wrap gap-1.5">
+              <div className="-mt-1 flex flex-wrap items-center gap-1.5">
+                <span className="text-[11px] text-slate-400 dark:text-slate-500">
+                  Horários no documento:
+                </span>
                 {extraido.horarios.map((h) => (
                   <button
                     key={h}

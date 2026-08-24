@@ -11,13 +11,19 @@
  * Puro (sem I/O, sem DOM) de propósito - dá pra rodar num script Node de validação sem subir o app.
  */
 
+/** O que o usuário escolheu no upload - evita ter que adivinhar o tipo do documento pelo texto. */
+export type TipoDocumento = "passagem" | "hospedagem";
+
 export interface DocumentoExtraido {
   /** Datas encontradas (yyyy-MM-dd), sem repetição, na ordem em que aparecem no texto. */
   datas: string[];
   /** Horários encontrados (HH:MM), sem repetição, na ordem em que aparecem. */
   horarios: string[];
-  /** Palpites de título, do mais provável pro menos - ver `pontuarLinha`. */
+  /** Palpites de título, do mais provável pro menos. */
   titulos: string[];
+  /** Descrição pronta pro compromisso - em passagem é o trecho (origem/destino), que é o dado
+   * que interessa e não cabe no título. Vazio quando não há nada útil a sugerir. */
+  descricaoSugerida: string;
 }
 
 const MESES_PT: Record<string, number> = {
@@ -31,15 +37,32 @@ const MESES_EN: Record<string, number> = {
 };
 
 /**
- * Palavras que indicam que a linha CARREGA um nome (de hospedagem ou de voo). Só entram aqui
- * palavras que aparecem coladas no nome ("Hotel Riu Palace", "Voo LA 3420"), nunca palavras de
- * rótulo tipo "reserva"/"check-in"/"embarque" - essas encabeçam linha de DADO, não de nome, e
- * quando estavam nesta lista faziam "Reservation Confirmation" ganhar do nome real do hotel.
+ * Palavras que indicam que a linha CARREGA um nome de hospedagem ("Hotel Riu Palace"). Nunca
+ * palavras de rótulo tipo "reserva"/"check-in" - essas encabeçam linha de DADO, não de nome, e
+ * quando estavam aqui faziam "Reservation Confirmation" ganhar do nome real do hotel.
+ *
+ * Passagem não usa esta lista: um bilhete aéreo simplesmente NÃO TEM um nome pra achar - o que
+ * existe é número do voo e trecho, e caçar "a linha do nome" ali só produzia lixo (cabeçalho de
+ * tabela, texto de multa de remarcação, número de cartão). Ver `montarVoo`.
  */
 const PALAVRAS_TITULO = [
   "hotel", "pousada", "resort", "hostel", "inn", "flat", "apart", "lodge",
-  "voo", "flight", "trecho",
 ];
+
+/**
+ * Rótulos de coluna/campo. Duas ou mais na mesma linha = é o cabeçalho de uma tabela ("N° de voo
+ * Origem Destino Data"), que o pdf.js entrega como uma linha só, separada dos valores. Era
+ * justamente o que vinha ganhando como título em bilhete da LATAM.
+ */
+const PALAVRAS_ROTULO = [
+  "n°", "no.", "num.", "numero", "número", "origem", "destino", "data", "horario",
+  "horário", "hora", "assento", "portao", "portão", "terminal", "classe", "status",
+  "saida", "saída", "chegada", "duracao", "duração",
+];
+
+/** Preço, moeda ou cartão mascarado - linha de dado financeiro, nunca título. */
+const TEM_DINHEIRO_OU_CARTAO =
+  /\b(?:BRL|USD|EUR|MXN|GBP|ARS|CLP|R\$|US\$)\b|X{4,}\d|\d+[.,]\d{3}[.,]\d{2}\b/i;
 
 /** Linhas que são rótulo/dado/rodapé, não nome de nada - descartadas como candidato. */
 const RUIDO = [
@@ -52,6 +75,10 @@ const RUIDO = [
   "confirmacao", "confirmação", "confirmation", "reserva", "reservation", "booking",
   "boarding", "embarque", "check-in", "checkin", "check in", "check-out", "checkout",
   "check out", "hospede", "hóspede", "passageiro", "passenger", "bagagem", "baggage",
+  // Texto jurídico/informativo de bilhete - vinha aparecendo como candidato a título ("São
+  // permitidas remarcações antes do voo com uma multa de ...").
+  "permitida", "permitidas", "remarcac", "remarcaç", "reembolso", "multa", "sujeito",
+  "consulte", "informacao sobre", "informação sobre", "regras",
 ];
 
 /**
@@ -137,6 +164,9 @@ function pontuarLinha(linha: string): number {
   if (limpa.length < 4 || limpa.length > 70) return -1;
   if (RUIDO.some((r) => norm.includes(normalizar(r)))) return -1;
   if (TEM_DATA_OU_HORA.test(limpa)) return -1;
+  if (TEM_DINHEIRO_OU_CARTAO.test(limpa)) return -1;
+  // Cabeçalho de tabela (2+ rótulos de coluna na mesma linha) - ver PALAVRAS_ROTULO.
+  if (PALAVRAS_ROTULO.filter((r) => norm.includes(normalizar(r))).length >= 2) return -1;
   // Linha que é só número/data/hora/símbolo não é nome de nada.
   if (!/[a-zA-ZÀ-ÿ]{3}/.test(limpa)) return -1;
   // Mais dígito que letra: é linha de valor/código, não de nome.
@@ -146,8 +176,6 @@ function pontuarLinha(linha: string): number {
 
   let score = 0;
   if (PALAVRAS_TITULO.some((p) => norm.includes(p))) score += 10;
-  // Trecho de voo: "GRU → CUN", "GRU - CUN", "GRU/CUN" (códigos IATA de 3 letras).
-  if (/\b[A-Z]{3}\s*(?:->|→|-|\/|\s)\s*[A-Z]{3}\b/.test(limpa)) score += 12;
   // CAIXA ALTA costuma ser o destaque do documento (nome do hotel, nome do passageiro...).
   if (limpa === limpa.toUpperCase() && letras >= 6) score += 4;
   // Linha de tamanho "de nome" (nem sigla solta, nem parágrafo).
@@ -179,12 +207,60 @@ function extrairTitulos(texto: string): string[] {
   return resultado;
 }
 
-export function parseDocumento(texto: string): DocumentoExtraido {
-  return {
-    datas: extrairDatas(texto),
-    horarios: extrairHorarios(texto),
-    titulos: extrairTitulos(texto),
-  };
+/** Códigos IATA (3 letras maiúsculas) do nome do arquivo - "GRU - CMX - GRU.pdf" vira
+ * ["GRU","CMX","GRU"]. O nome do arquivo costuma ser a fonte MAIS limpa do trecho: quem baixou
+ * o bilhete recebeu (ou deu) um nome já resumindo a viagem, sem o ruído da tabela do PDF. */
+function rotaDoNomeArquivo(nomeArquivo: string): string[] {
+  const semExtensao = nomeArquivo.replace(/\.[a-z0-9]+$/i, "");
+  return semExtensao.match(/\b[A-Z]{3}\b/g) ?? [];
+}
+
+/** "GRU → CMX" escrito explicitamente no texto, com separador - exigir o separador evita casar
+ * com qualquer trio de maiúsculas solto ("TAM", "BRL", "S.A."), que num bilhete tem de sobra. */
+function rotaDoTexto(texto: string): string[] {
+  const m = texto.match(/\b([A-Z]{3})\s*(?:->|→|—|-|\/)\s*([A-Z]{3})\b/);
+  return m ? [m[1], m[2]] : [];
+}
+
+/** Número do voo, procurado PERTO da palavra voo/flight - solto, o padrão "2 letras + dígitos"
+ * casaria com meio bilhete (código de tarifa, sigla de terminal, etc.). */
+function numeroDoVoo(texto: string): string {
+  const m = texto.match(/(?:voo|flight|vôo)\s*(?:n[°º.]?)?\s*:?\s*([A-Z]{2}\s?\d{2,4})\b/i);
+  return m ? m[1].replace(/\s+/g, "") : "";
+}
+
+/**
+ * Passagem aérea não tem "nome" pra extrair - tem número de voo e trecho. Tentar achar a linha do
+ * nome ali só rendia lixo (cabeçalho de tabela, texto de multa, número de cartão mascarado). Então
+ * pra esse tipo o título é montado, não garimpado: "Voo LA3420", e o trecho (origem/destino) vai
+ * pra descrição, que é onde ele é útil sem espremer o título.
+ */
+function montarVoo(texto: string, nomeArquivo: string): { titulos: string[]; descricao: string } {
+  const numero = numeroDoVoo(texto);
+  const codigos = rotaDoNomeArquivo(nomeArquivo);
+  const rota = (codigos.length >= 2 ? codigos : rotaDoTexto(texto)).join(" → ");
+
+  const titulos = [
+    numero ? `Voo ${numero}` : "",
+    rota ? `Voo ${rota}` : "",
+    "Voo",
+  ].filter(Boolean);
+
+  return { titulos: Array.from(new Set(titulos)), descricao: rota };
+}
+
+export function parseDocumento(
+  texto: string,
+  opcoes: { tipo?: TipoDocumento; nomeArquivo?: string } = {}
+): DocumentoExtraido {
+  const base = { datas: extrairDatas(texto), horarios: extrairHorarios(texto) };
+
+  if (opcoes.tipo === "passagem") {
+    const { titulos, descricao } = montarVoo(texto, opcoes.nomeArquivo ?? "");
+    return { ...base, titulos, descricaoSugerida: descricao };
+  }
+
+  return { ...base, titulos: extrairTitulos(texto), descricaoSugerida: "" };
 }
 
 /**
