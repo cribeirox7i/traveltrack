@@ -36,57 +36,57 @@ export default function NovaViagemPage() {
 
   return (
     <div className="mx-auto flex max-w-md flex-col gap-6">
-      <h1 className="text-xl font-semibold text-slate-900">Nova viagem</h1>
+      <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">Nova viagem</h1>
 
       <form
         onSubmit={handleSubmit}
-        className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4"
+        className="flex flex-col gap-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4"
       >
         <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">Nome</label>
+          <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Nome</label>
           <input
             required
             value={form.nome}
             onChange={(e) => setForm({ ...form, nome: e.target.value })}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            className="w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
           />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Início</label>
+            <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Início</label>
             <input
               type="date"
               required
               value={form.data_inicio}
               onChange={(e) => setForm({ ...form, data_inicio: e.target.value })}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              className="w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Término</label>
+            <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Término</label>
             <input
               type="date"
               required
               value={form.data_fim}
               onChange={(e) => setForm({ ...form, data_fim: e.target.value })}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              className="w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
             />
           </div>
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">Qtd. de pessoas</label>
+          <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Qtd. de pessoas</label>
           <input
             type="number"
             min={1}
             required
             value={form.qtd_pessoas}
             onChange={(e) => setForm({ ...form, qtd_pessoas: Number(e.target.value) })}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            className="w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
           />
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">
-            Cidade de origem <span className="font-normal text-slate-400">(opcional)</span>
+          <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
+            Cidade de origem <span className="font-normal text-slate-400 dark:text-slate-500">(opcional)</span>
           </label>
           <CityAutocomplete
             value={form.cidade_origem}
@@ -103,12 +103,12 @@ export default function NovaViagemPage() {
                 cidade_origem_lon: city.lon,
               })
             }
-            className="w-full rounded-lg border border-slate-300 py-2 pl-3 pr-5 text-sm"
+            className="w-full rounded-lg border border-slate-300 dark:border-slate-700 py-2 pl-3 pr-5 text-sm"
           />
-          <p className="mt-1 text-xs text-slate-400">Usada como ponto de partida do roteiro na aba Mapa.</p>
+          <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">Usada como ponto de partida do roteiro na aba Mapa.</p>
         </div>
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
         <button
           type="submit"

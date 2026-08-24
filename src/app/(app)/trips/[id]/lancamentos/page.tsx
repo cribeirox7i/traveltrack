@@ -186,10 +186,10 @@ export default function LancamentosPage() {
     <div className="flex flex-col gap-4">
       <form
         onSubmit={handleSubmit}
-        className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 sm:flex-row sm:flex-wrap sm:items-end"
+        className="flex flex-col gap-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:flex-row sm:flex-wrap sm:items-end"
       >
         <div className="min-w-[130px]">
-          <label className="mb-1 block text-xs font-medium text-slate-600">Natureza</label>
+          <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">Natureza</label>
           <select
             value={form.natureza}
             onChange={(e) => {
@@ -200,18 +200,18 @@ export default function LancamentosPage() {
                 categoria: natureza === "credito" ? "aporte" : "traslado",
               });
             }}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            className="w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
           >
             <option value="debito">Débito</option>
             <option value="credito">Crédito</option>
           </select>
         </div>
         <div className="min-w-[140px]">
-          <label className="mb-1 block text-xs font-medium text-slate-600">Categoria</label>
+          <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">Categoria</label>
           <select
             value={form.categoria}
             onChange={(e) => setForm({ ...form, categoria: e.target.value })}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            className="w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
           >
             {CATEGORIAS.map((c) => (
               <option key={c.value} value={c.value}>
@@ -221,7 +221,7 @@ export default function LancamentosPage() {
           </select>
         </div>
         <div className="min-w-[120px]">
-          <label className="mb-1 block text-xs font-medium text-slate-600">Valor</label>
+          <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">Valor</label>
           <input
             type="number"
             min={0}
@@ -229,28 +229,28 @@ export default function LancamentosPage() {
             required
             value={form.valor}
             onChange={(e) => setForm({ ...form, valor: e.target.value })}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            className="w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
           />
         </div>
         <div className="min-w-[140px]">
-          <label className="mb-1 block text-xs font-medium text-slate-600">Data</label>
+          <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">Data</label>
           <input
             type="date"
             required
             value={form.data}
             onChange={(e) => setForm({ ...form, data: e.target.value })}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            className="w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
           />
         </div>
         <div className="min-w-[160px]">
-          <label className="mb-1 block text-xs font-medium text-slate-600">
+          <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">
             {form.natureza === "credito" ? "Quem contribuiu" : "Quem pagou"}
           </label>
           <select
             required
             value={form.pessoa_id}
             onChange={(e) => setForm({ ...form, pessoa_id: e.target.value })}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            className="w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
           >
             <option value="" disabled>
               Selecione...
@@ -263,12 +263,12 @@ export default function LancamentosPage() {
           </select>
         </div>
         <div className="min-w-[160px]">
-          <label className="mb-1 block text-xs font-medium text-slate-600">Meio de pagamento</label>
+          <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">Meio de pagamento</label>
           <select
             required
             value={form.meio_pagamento_id}
             onChange={(e) => setForm({ ...form, meio_pagamento_id: e.target.value })}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            className="w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
           >
             <option value="" disabled>
               Selecione...
@@ -281,11 +281,11 @@ export default function LancamentosPage() {
           </select>
         </div>
         <div className="flex-1 min-w-[160px]">
-          <label className="mb-1 block text-xs font-medium text-slate-600">Descrição</label>
+          <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">Descrição</label>
           <input
             value={form.descricao}
             onChange={(e) => setForm({ ...form, descricao: e.target.value })}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            className="w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
           />
         </div>
         <button
@@ -297,9 +297,9 @@ export default function LancamentosPage() {
         </button>
       </form>
 
-      <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
+      <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
+          <thead className="bg-slate-50 dark:bg-slate-950 text-left text-xs uppercase text-slate-500 dark:text-slate-400">
             <tr>
               <th className="px-3 py-2">Data</th>
               <th className="px-3 py-2">Natureza</th>
@@ -314,14 +314,14 @@ export default function LancamentosPage() {
           <tbody>
             {loading && (
               <tr>
-                <td className="px-3 py-3 text-slate-500" colSpan={8}>
+                <td className="px-3 py-3 text-slate-500 dark:text-slate-400" colSpan={8}>
                   Carregando...
                 </td>
               </tr>
             )}
             {!loading && lancamentos.length === 0 && (
               <tr>
-                <td className="px-3 py-3 text-slate-500" colSpan={8}>
+                <td className="px-3 py-3 text-slate-500 dark:text-slate-400" colSpan={8}>
                   Nenhum lançamento ainda.
                 </td>
               </tr>
@@ -329,14 +329,14 @@ export default function LancamentosPage() {
             {lancamentos.map((l) => {
               const concluido = isConcluido(l.natureza, l.statusBruto);
               return (
-                <tr key={`${l.origin}-${l.id}`} className="border-t border-slate-100">
+                <tr key={`${l.origin}-${l.id}`} className="border-t border-slate-100 dark:border-slate-800">
                   <td className="px-3 py-2">{l.data}</td>
                   <td className="px-3 py-2">
                     <span
                       className={`rounded-full px-2 py-0.5 text-xs font-medium ${
                         l.natureza === "credito"
-                          ? "bg-blue-100 text-blue-700"
-                          : "bg-slate-100 text-slate-600"
+                          ? "bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-400"
+                          : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
                       }`}
                     >
                       {l.natureza === "credito" ? "Crédito" : "Débito"}
@@ -348,7 +348,7 @@ export default function LancamentosPage() {
                   <td className="px-3 py-2">R$ {Number(l.valor).toFixed(2)}</td>
                   <td className="px-3 py-2">{nomePorPessoa[l.pessoaId] ?? "-"}</td>
                   <td className="px-3 py-2">{nomePorMeio[l.meioPagamentoId] ?? "-"}</td>
-                  <td className="px-3 py-2 text-slate-500">{l.descricao}</td>
+                  <td className="px-3 py-2 text-slate-500 dark:text-slate-400">{l.descricao}</td>
                   <td className="px-3 py-2">
                     {l.origin === "despesas" ? (
                       <select
@@ -356,8 +356,8 @@ export default function LancamentosPage() {
                         onChange={(e) => handleStatusChange(l, e.target.value === "concluido")}
                         className={`rounded-full border-0 px-2 py-1 text-xs font-medium ${
                           concluido
-                            ? "bg-emerald-100 text-emerald-700"
-                            : "bg-amber-100 text-amber-700"
+                            ? "bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400"
+                            : "bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-400"
                         }`}
                       >
                         <option value="pendente">{statusLabel(l.natureza, false)}</option>
@@ -367,8 +367,8 @@ export default function LancamentosPage() {
                       <span
                         className={`rounded-full px-2 py-1 text-xs font-medium ${
                           concluido
-                            ? "bg-emerald-100 text-emerald-700"
-                            : "bg-amber-100 text-amber-700"
+                            ? "bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400"
+                            : "bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-400"
                         }`}
                         title="Lançamento antigo (aba Receitas descontinuada) - status não editável aqui"
                       >
@@ -383,7 +383,7 @@ export default function LancamentosPage() {
         </table>
       </div>
 
-      <div className="flex flex-wrap gap-4 text-sm text-slate-600">
+      <div className="flex flex-wrap gap-4 text-sm text-slate-600 dark:text-slate-400">
         <p>
           Total débito: <span className="font-semibold">R$ {totalDebito.toFixed(2)}</span>
         </p>
@@ -393,7 +393,7 @@ export default function LancamentosPage() {
         <p>
           Saldo:{" "}
           <span
-            className={`font-semibold ${totalCredito - totalDebito < 0 ? "text-red-600" : "text-emerald-600"}`}
+            className={`font-semibold ${totalCredito - totalDebito < 0 ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"}`}
           >
             R$ {(totalCredito - totalDebito).toFixed(2)}
           </span>

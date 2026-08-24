@@ -11,7 +11,7 @@ import type { RoutePoint } from "@/components/TripMap";
 // Leaflet precisa de `window`, que não existe durante a renderização no servidor.
 const TripMap = dynamic(() => import("@/components/TripMap"), {
   ssr: false,
-  loading: () => <p className="text-sm text-slate-500">Carregando mapa...</p>,
+  loading: () => <p className="text-sm text-slate-500 dark:text-slate-400">Carregando mapa...</p>,
 });
 
 interface TripMeta {
@@ -57,7 +57,7 @@ export default function MapaPage() {
     setSavingOrigem(false);
   }
 
-  if (loadingTrip || loadingDays) return <p className="text-sm text-slate-500">Carregando...</p>;
+  if (loadingTrip || loadingDays) return <p className="text-sm text-slate-500 dark:text-slate-400">Carregando...</p>;
   if (!trip) return null;
 
   const points: RoutePoint[] = [];
@@ -86,9 +86,9 @@ export default function MapaPage() {
   return (
     <div className="flex flex-col gap-3">
       {!trip.cidade_origem_lat && (
-        <div className="flex flex-col gap-2 rounded-2xl border border-amber-200 bg-amber-50 p-4 sm:flex-row sm:items-end">
+        <div className="flex flex-col gap-2 rounded-2xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950 p-4 sm:flex-row sm:items-end">
           <div className="flex-1">
-            <label className="mb-1 block text-xs font-medium text-amber-800">
+            <label className="mb-1 block text-xs font-medium text-amber-800 dark:text-amber-300">
               Defina a cidade de origem da viagem, pra o roteiro começar de onde o grupo parte
             </label>
             <CityAutocomplete
@@ -96,7 +96,7 @@ export default function MapaPage() {
               placeholder="De onde o grupo parte"
               onTextChange={(text) => setOrigemForm({ nome: text, lat: "", lon: "" })}
               onSelect={(city) => setOrigemForm({ nome: city.nome, lat: city.lat, lon: city.lon })}
-              className="w-full rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm"
+              className="w-full rounded-lg border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
             />
           </div>
           <button
@@ -111,17 +111,17 @@ export default function MapaPage() {
       )}
 
       {points.length === 0 ? (
-        <p className="text-sm text-slate-500">
+        <p className="text-sm text-slate-500 dark:text-slate-400">
           Nenhuma cidade com coordenada ainda. Escolha uma sugestão do autocomplete no campo
           Pernoite (aba Orçamento) pra começar a desenhar o roteiro.
         </p>
       ) : (
-        <div className="h-[70vh] overflow-hidden rounded-2xl border border-slate-200">
+        <div className="h-[70vh] overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800">
           <TripMap points={points} />
         </div>
       )}
 
-      <p className="text-xs text-slate-400">
+      <p className="text-xs text-slate-400 dark:text-slate-500">
         Os pontos do roteiro funcionam offline como o resto do app; as imagens do mapa em si só
         ficam disponíveis offline se essa área já tiver sido vista com sinal antes.
       </p>

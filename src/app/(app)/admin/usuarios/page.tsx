@@ -157,47 +157,47 @@ export default function UsuariosAdminPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-xl font-semibold text-slate-900">Usuários</h1>
+      <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">Usuários</h1>
 
       <form
         onSubmit={handleCreate}
-        className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 sm:flex-row sm:flex-wrap sm:items-end"
+        className="flex flex-col gap-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:flex-row sm:flex-wrap sm:items-end"
       >
         <div className="flex-1 min-w-[140px]">
-          <label className="mb-1 block text-xs font-medium text-slate-600">Nome</label>
+          <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">Nome</label>
           <input
             required
             value={form.nome}
             onChange={(e) => setForm({ ...form, nome: e.target.value })}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            className="w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
           />
         </div>
         <div className="flex-1 min-w-[180px]">
-          <label className="mb-1 block text-xs font-medium text-slate-600">Email</label>
+          <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">Email</label>
           <input
             type="email"
             required
             value={form.email}
             onChange={(e) => setForm({ ...form, email: e.target.value })}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            className="w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
           />
         </div>
         <div className="flex-1 min-w-[140px]">
-          <label className="mb-1 block text-xs font-medium text-slate-600">Senha</label>
+          <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">Senha</label>
           <PasswordInput
             required
             minLength={6}
             value={form.senha}
             onChange={(e) => setForm({ ...form, senha: e.target.value })}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            className="w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
           />
         </div>
         <div className="min-w-[120px]">
-          <label className="mb-1 block text-xs font-medium text-slate-600">Papel</label>
+          <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">Papel</label>
           <select
             value={form.role}
             onChange={(e) => setForm({ ...form, role: e.target.value as "admin" | "user" })}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            className="w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
           >
             <option value="user">Usuário</option>
             <option value="admin">Admin</option>
@@ -212,11 +212,11 @@ export default function UsuariosAdminPage() {
         </button>
       </form>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
-      <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
+      <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
+          <thead className="bg-slate-50 dark:bg-slate-950 text-left text-xs uppercase text-slate-500 dark:text-slate-400">
             <tr>
               <th className="px-4 py-2">Nome</th>
               <th className="px-4 py-2">Email</th>
@@ -228,35 +228,35 @@ export default function UsuariosAdminPage() {
           <tbody>
             {loading && (
               <tr>
-                <td className="px-4 py-3 text-slate-500" colSpan={5}>
+                <td className="px-4 py-3 text-slate-500 dark:text-slate-400" colSpan={5}>
                   Carregando...
                 </td>
               </tr>
             )}
             {!loading && loadError && (
               <tr>
-                <td className="px-4 py-3 text-red-600" colSpan={5}>
+                <td className="px-4 py-3 text-red-600 dark:text-red-400" colSpan={5}>
                   {loadError}
                 </td>
               </tr>
             )}
             {!loading && !loadError && users.length === 0 && (
               <tr>
-                <td className="px-4 py-3 text-slate-500" colSpan={5}>
+                <td className="px-4 py-3 text-slate-500 dark:text-slate-400" colSpan={5}>
                   Nenhum usuário cadastrado.
                 </td>
               </tr>
             )}
             {users.map((u) => (
               <Fragment key={u.id}>
-                <tr className="border-t border-slate-100">
+                <tr className="border-t border-slate-100 dark:border-slate-800">
                   {editingId === u.id ? (
                     <>
                       <td className="px-4 py-2">
                         <input
                           value={editForm.nome}
                           onChange={(e) => setEditForm({ ...editForm, nome: e.target.value })}
-                          className="w-full rounded-lg border border-slate-300 px-2 py-1 text-sm"
+                          className="w-full rounded-lg border border-slate-300 dark:border-slate-700 px-2 py-1 text-sm"
                         />
                       </td>
                       <td className="px-4 py-2">
@@ -264,7 +264,7 @@ export default function UsuariosAdminPage() {
                           type="email"
                           value={editForm.email}
                           onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
-                          className="w-full rounded-lg border border-slate-300 px-2 py-1 text-sm"
+                          className="w-full rounded-lg border border-slate-300 dark:border-slate-700 px-2 py-1 text-sm"
                         />
                       </td>
                       <td className="px-4 py-2">
@@ -273,7 +273,7 @@ export default function UsuariosAdminPage() {
                           onChange={(e) =>
                             setEditForm({ ...editForm, role: e.target.value as "admin" | "user" })
                           }
-                          className="w-full rounded-lg border border-slate-300 px-2 py-1 text-sm"
+                          className="w-full rounded-lg border border-slate-300 dark:border-slate-700 px-2 py-1 text-sm"
                         >
                           <option value="user">Usuário</option>
                           <option value="admin">Admin</option>
@@ -283,8 +283,8 @@ export default function UsuariosAdminPage() {
                         <span
                           className={`rounded-full px-2 py-0.5 text-xs ${
                             u.ativo === "true"
-                              ? "bg-emerald-100 text-emerald-700"
-                              : "bg-slate-100 text-slate-500"
+                              ? "bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400"
+                              : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
                           }`}
                         >
                           {u.ativo === "true" ? "Ativo" : "Inativo"}
@@ -295,13 +295,13 @@ export default function UsuariosAdminPage() {
                           <button
                             onClick={() => saveEdit(u.id)}
                             disabled={editSaving}
-                            className="text-xs font-medium text-blue-600 hover:text-blue-800 disabled:opacity-50"
+                            className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 disabled:opacity-50"
                           >
                             {editSaving ? "Salvando..." : "Salvar"}
                           </button>
                           <button
                             onClick={cancelEdit}
-                            className="text-xs font-medium text-slate-500 hover:text-slate-900"
+                            className="text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900"
                           >
                             Cancelar
                           </button>
@@ -317,8 +317,8 @@ export default function UsuariosAdminPage() {
                         <span
                           className={`rounded-full px-2 py-0.5 text-xs ${
                             u.ativo === "true"
-                              ? "bg-emerald-100 text-emerald-700"
-                              : "bg-slate-100 text-slate-500"
+                              ? "bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400"
+                              : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
                           }`}
                         >
                           {u.ativo === "true" ? "Ativo" : "Inativo"}
@@ -328,19 +328,19 @@ export default function UsuariosAdminPage() {
                         <div className="flex justify-end gap-3">
                           <button
                             onClick={() => startEdit(u)}
-                            className="text-xs font-medium text-slate-500 hover:text-slate-900"
+                            className="text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900"
                           >
                             Editar
                           </button>
                           <button
                             onClick={() => startReset(u)}
-                            className="text-xs font-medium text-slate-500 hover:text-slate-900"
+                            className="text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900"
                           >
                             Redefinir senha
                           </button>
                           <button
                             onClick={() => toggleActive(u)}
-                            className="text-xs font-medium text-slate-500 hover:text-slate-900"
+                            className="text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900"
                           >
                             {u.ativo === "true" ? "Desativar" : "Ativar"}
                           </button>
@@ -350,25 +350,25 @@ export default function UsuariosAdminPage() {
                   )}
                 </tr>
                 {editingId === u.id && editError && (
-                  <tr key={`${u.id}-edit-error`} className="border-t border-slate-100 bg-red-50">
-                    <td className="px-4 py-2 text-xs text-red-600" colSpan={5}>
+                  <tr key={`${u.id}-edit-error`} className="border-t border-slate-100 dark:border-slate-800 bg-red-50 dark:bg-red-950">
+                    <td className="px-4 py-2 text-xs text-red-600 dark:text-red-400" colSpan={5}>
                       {editError}
                     </td>
                   </tr>
                 )}
                 {resettingId === u.id && (
-                  <tr key={`${u.id}-reset`} className="border-t border-slate-100 bg-slate-50">
+                  <tr key={`${u.id}-reset`} className="border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950">
                     <td className="px-4 py-3" colSpan={5}>
                       <div className="flex flex-wrap items-end gap-3">
                         <div className="min-w-[220px]">
-                          <label className="mb-1 block text-xs font-medium text-slate-600">
+                          <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">
                             Nova senha para {u.nome}
                           </label>
                           <PasswordInput
                             minLength={6}
                             value={resetSenha}
                             onChange={(e) => setResetSenha(e.target.value)}
-                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                            className="w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
                           />
                         </div>
                         <button
@@ -380,12 +380,12 @@ export default function UsuariosAdminPage() {
                         </button>
                         <button
                           onClick={cancelReset}
-                          className="text-xs font-medium text-slate-500 hover:text-slate-900"
+                          className="text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900"
                         >
                           Cancelar
                         </button>
                       </div>
-                      {resetError && <p className="mt-2 text-xs text-red-600">{resetError}</p>}
+                      {resetError && <p className="mt-2 text-xs text-red-600 dark:text-red-400">{resetError}</p>}
                     </td>
                   </tr>
                 )}

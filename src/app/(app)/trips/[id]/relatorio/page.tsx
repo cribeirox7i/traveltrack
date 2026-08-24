@@ -23,16 +23,16 @@ export default function RelatorioPage() {
 
   const loading = loadingTrip || loadingDays || loadingDespesas || loadingReceitas;
 
-  if (loading) return <p className="text-sm text-slate-500">Carregando...</p>;
-  if (!trip) return <p className="text-sm text-red-600">Erro ao carregar relatório.</p>;
+  if (loading) return <p className="text-sm text-slate-500 dark:text-slate-400">Carregando...</p>;
+  if (!trip) return <p className="text-sm text-red-600 dark:text-red-400">Erro ao carregar relatório.</p>;
 
   const relatorio = computeRelatorio(tripId, Number(trip.qtd_pessoas) || 0, days, despesas, receitas);
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
+      <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
+          <thead className="bg-slate-50 dark:bg-slate-950 text-left text-xs uppercase text-slate-500 dark:text-slate-400">
             <tr>
               <th className="px-3 py-2">Categoria</th>
               <th className="px-3 py-2">Orçado</th>
@@ -44,11 +44,11 @@ export default function RelatorioPage() {
             {relatorio.categorias.map((c) => {
               const diff = c.orcado - c.realizado;
               return (
-                <tr key={c.categoria} className="border-t border-slate-100">
+                <tr key={c.categoria} className="border-t border-slate-100 dark:border-slate-800">
                   <td className="px-3 py-2 capitalize">{c.categoria}</td>
                   <td className="px-3 py-2">R$ {c.orcado.toFixed(2)}</td>
                   <td className="px-3 py-2">R$ {c.realizado.toFixed(2)}</td>
-                  <td className={`px-3 py-2 ${diff < 0 ? "text-red-600" : "text-emerald-600"}`}>
+                  <td className={`px-3 py-2 ${diff < 0 ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"}`}>
                     R$ {diff.toFixed(2)}
                   </td>
                 </tr>
@@ -56,7 +56,7 @@ export default function RelatorioPage() {
             })}
           </tbody>
           <tfoot>
-            <tr className="border-t border-slate-200 bg-slate-50 font-medium">
+            <tr className="border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 font-medium">
               <td className="px-3 py-2">Total</td>
               <td className="px-3 py-2">R$ {relatorio.totalOrcado.toFixed(2)}</td>
               <td className="px-3 py-2">R$ {relatorio.totalDespesas.toFixed(2)}</td>
@@ -69,23 +69,23 @@ export default function RelatorioPage() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <div className="rounded-2xl border border-slate-200 bg-white p-4">
-          <p className="text-xs uppercase text-slate-500">Orçamento total</p>
-          <p className="mt-1 text-lg font-semibold text-slate-900">
+        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+          <p className="text-xs uppercase text-slate-500 dark:text-slate-400">Orçamento total</p>
+          <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">
             R$ {relatorio.totalOrcado.toFixed(2)}
           </p>
         </div>
-        <div className="rounded-2xl border border-slate-200 bg-white p-4">
-          <p className="text-xs uppercase text-slate-500">Receitas (aportes)</p>
-          <p className="mt-1 text-lg font-semibold text-slate-900">
+        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+          <p className="text-xs uppercase text-slate-500 dark:text-slate-400">Receitas (aportes)</p>
+          <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">
             R$ {relatorio.totalReceitas.toFixed(2)}
           </p>
         </div>
-        <div className="rounded-2xl border border-slate-200 bg-white p-4">
-          <p className="text-xs uppercase text-slate-500">Saldo</p>
+        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+          <p className="text-xs uppercase text-slate-500 dark:text-slate-400">Saldo</p>
           <p
             className={`mt-1 text-lg font-semibold ${
-              relatorio.saldo < 0 ? "text-red-600" : "text-emerald-600"
+              relatorio.saldo < 0 ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"
             }`}
           >
             R$ {relatorio.saldo.toFixed(2)}

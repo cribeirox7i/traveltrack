@@ -3,14 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
-import { useOfflineTrips, useOnlineStatus } from "@/lib/offline/useOfflineData";
-import {
-  deleteTripOffline,
-  downloadOfflineTripsNow,
-  listOfflineTripIds,
-  setTripOffline,
-  syncEvents,
-} from "@/lib/offline/sync";
+import { useOfflineTrips } from "@/lib/offline/useOfflineData";
+import { deleteTripOffline, listOfflineTripIds, setTripOffline, syncEvents } from "@/lib/offline/sync";
 
 interface TripItem {
   id: string;
@@ -28,9 +22,6 @@ export default function TripsPage() {
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleteWarning, setDeleteWarning] = useState<string | null>(null);
-  const online = useOnlineStatus();
-  const [downloadingAll, setDownloadingAll] = useState(false);
-  const [downloadedAt, setDownloadedAt] = useState<Date | null>(null);
 
   const refresh = useCallback(async () => {
     setOfflineIds(new Set(await listOfflineTripIds()));
@@ -84,19 +75,10 @@ export default function TripsPage() {
     }
   }
 
-  async function handleDownloadAll() {
-    setDownloadingAll(true);
-    await downloadOfflineTripsNow();
-    setDownloadingAll(false);
-    setDownloadedAt(new Date());
-  }
-
-  const hasOfflineTrips = offlineIds.size > 0;
-
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-slate-900">Viagens</h1>
+        <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">Viagens</h1>
         <Link
           href="/trips/novo"
           className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
@@ -105,38 +87,18 @@ export default function TripsPage() {
         </Link>
       </div>
 
-      {hasOfflineTrips && (
-        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white p-3">
-          <button
-            type="button"
-            onClick={handleDownloadAll}
-            disabled={!online || downloadingAll}
-            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:border-blue-300 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {downloadingAll ? "Baixando..." : "Baixar offline"}
-          </button>
-          <span className="text-xs text-slate-500">
-            {!online
-              ? "Sem conexão - conecte-se para atualizar os dados offline"
-              : downloadedAt
-                ? `Atualizado às ${downloadedAt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`
-                : "Baixa de novo os dados das viagens marcadas \"Dados offline\" abaixo"}
-          </span>
-        </div>
-      )}
-
-      {deleteError && <p className="text-sm text-red-600">{deleteError}</p>}
+      {deleteError && <p className="text-sm text-red-600 dark:text-red-400">{deleteError}</p>}
 
       {deleteWarning && (
-        <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+        <p className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950 p-3 text-sm text-amber-800 dark:text-amber-300">
           {deleteWarning}
         </p>
       )}
 
-      {loading && <p className="text-sm text-slate-500">Carregando...</p>}
+      {loading && <p className="text-sm text-slate-500 dark:text-slate-400">Carregando...</p>}
 
       {!loading && trips.length === 0 && (
-        <p className="text-sm text-slate-500">
+        <p className="text-sm text-slate-500 dark:text-slate-400">
           {session?.user.role === "admin"
             ? "Nenhuma viagem cadastrada ainda."
             : "Você ainda não tem acesso a nenhuma viagem."}
@@ -151,15 +113,15 @@ export default function TripsPage() {
           return (
             <div
               key={t.id}
-              className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-4 hover:border-slate-400"
+              className="flex flex-col gap-2 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 hover:border-slate-400"
             >
               <div className="flex items-start justify-between gap-2">
                 <Link href={`/trips/${t.id}/orcamento`} className="min-w-0 flex-1">
-                  <p className="font-semibold text-slate-900">{t.nome}</p>
-                  <p className="mt-1 text-xs text-slate-500">
+                  <p className="font-semibold text-slate-900 dark:text-slate-100">{t.nome}</p>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                     {t.data_inicio} - {t.data_fim}
                   </p>
-                  <p className="mt-2 text-xs text-slate-500">{t.qtd_pessoas} pessoa(s)</p>
+                  <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">{t.qtd_pessoas} pessoa(s)</p>
                 </Link>
                 {session?.user.role === "admin" && (
                   <button
@@ -167,7 +129,7 @@ export default function TripsPage() {
                     onClick={() => handleDelete(t.id, t.nome)}
                     disabled={deleting}
                     title="Excluir viagem"
-                    className="shrink-0 rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="shrink-0 rounded-lg p-1.5 text-slate-400 dark:text-slate-500 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {deleting ? (
                       <span className="text-xs">...</span>
@@ -179,17 +141,17 @@ export default function TripsPage() {
                   </button>
                 )}
               </div>
-              <label className="mt-1 flex items-center justify-between gap-2 border-t border-slate-100 pt-2 text-xs text-slate-500">
+              <label className="mt-1 flex items-center justify-between gap-2 border-t border-slate-100 dark:border-slate-800 pt-2 text-xs text-slate-500 dark:text-slate-400">
                 <span>
                   Dados offline
-                  {busy && <span className="ml-1 text-slate-400">({offline ? "apagando" : "baixando"}...)</span>}
+                  {busy && <span className="ml-1 text-slate-400 dark:text-slate-500">({offline ? "apagando" : "baixando"}...)</span>}
                 </span>
                 <input
                   type="checkbox"
                   checked={offline}
                   disabled={busy}
                   onChange={(e) => handleToggleOffline(t.id, e.target.checked)}
-                  className="h-4 w-4 rounded border-slate-300"
+                  className="h-4 w-4 rounded border-slate-300 dark:border-slate-700"
                 />
               </label>
             </div>

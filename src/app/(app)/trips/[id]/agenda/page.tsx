@@ -201,7 +201,7 @@ export default function AgendaPage() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm text-slate-500">
+        <p className="text-sm text-slate-500 dark:text-slate-400">
           Temperatura e compromissos do roteiro, por data. Origem/destino/pernoite ficam na aba
           Itinerário. Toque numa data pra abrir.
         </p>
@@ -210,7 +210,7 @@ export default function AgendaPage() {
             type="button"
             onClick={fetchWeather}
             disabled={loadingWeather}
-            className="flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:border-blue-300 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex items-center gap-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2.5 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 hover:border-blue-300 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {loadingWeather ? "Buscando e salvando..." : "Buscar temperaturas"}
           </button>
@@ -229,20 +229,20 @@ export default function AgendaPage() {
       {formOpen && (
         <form
           onSubmit={handleSubmit}
-          className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 sm:flex-row sm:flex-wrap sm:items-end"
+          className="flex flex-col gap-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:flex-row sm:flex-wrap sm:items-end"
         >
           {editingId && (
-            <p className="w-full text-xs font-medium uppercase text-slate-400">
+            <p className="w-full text-xs font-medium uppercase text-slate-400 dark:text-slate-500">
               Editando compromisso
             </p>
           )}
           <div className="min-w-[160px]">
-            <label className="mb-1 block text-xs font-medium text-slate-600">Data</label>
+            <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">Data</label>
             <select
               required
               value={form.data}
               onChange={(e) => setForm({ ...form, data: e.target.value })}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              className="w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
             >
               {sortedDays.map((d) => (
                 <option key={d.id} value={d.data}>
@@ -252,50 +252,50 @@ export default function AgendaPage() {
             </select>
           </div>
           <div className="min-w-[120px]">
-            <label className="mb-1 block text-xs font-medium text-slate-600">Horário</label>
+            <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">Horário</label>
             <input
               type="time"
               required
               value={form.horario}
               onChange={(e) => setForm({ ...form, horario: e.target.value })}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              className="w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
             />
           </div>
           <div className="flex-1 min-w-[200px]">
-            <label className="mb-1 block text-xs font-medium text-slate-600">Título</label>
+            <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">Título</label>
             <input
               required
               value={form.titulo}
               onChange={(e) => setForm({ ...form, titulo: e.target.value })}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              className="w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
             />
           </div>
           <div className="flex-1 min-w-[200px]">
-            <label className="mb-1 block text-xs font-medium text-slate-600">
-              Descrição <span className="font-normal text-slate-400">(opcional)</span>
+            <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">
+              Descrição <span className="font-normal text-slate-400 dark:text-slate-500">(opcional)</span>
             </label>
             <input
               value={form.descricao}
               onChange={(e) => setForm({ ...form, descricao: e.target.value })}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              className="w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
             />
           </div>
           <div className="flex-1 min-w-[200px]">
-            <label className="mb-1 block text-xs font-medium text-slate-600">
-              URL <span className="font-normal text-slate-400">(opcional)</span>
+            <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">
+              URL <span className="font-normal text-slate-400 dark:text-slate-500">(opcional)</span>
             </label>
             <input
               type="url"
               placeholder="https://..."
               value={form.url}
               onChange={(e) => setForm({ ...form, url: e.target.value })}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              className="w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
             />
           </div>
           <div className="min-w-[200px]">
-            <label className="mb-1 block text-xs font-medium text-slate-600">
+            <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">
               Anexo{" "}
-              <span className="font-normal text-slate-400">
+              <span className="font-normal text-slate-400 dark:text-slate-500">
                 {editingId ? "(opcional - envie um novo pra substituir o atual)" : "(opcional)"}
               </span>
             </label>
@@ -303,7 +303,7 @@ export default function AgendaPage() {
               ref={fileInputRef}
               type="file"
               onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-              className="block w-full text-xs text-slate-600 file:mr-2 file:rounded-lg file:border-0 file:bg-slate-900 file:px-2.5 file:py-1.5 file:text-xs file:font-medium file:text-white hover:file:bg-slate-800"
+              className="block w-full text-xs text-slate-600 dark:text-slate-400 file:mr-2 file:rounded-lg file:border-0 file:bg-slate-900 file:px-2.5 file:py-1.5 file:text-xs file:font-medium file:text-white hover:file:bg-slate-800"
             />
           </div>
           <div className="flex items-center gap-2">
@@ -318,18 +318,18 @@ export default function AgendaPage() {
               type="button"
               onClick={closeForm}
               disabled={saving}
-              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+              className="rounded-lg border border-slate-300 dark:border-slate-700 px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-50 disabled:opacity-50"
             >
               Cancelar
             </button>
           </div>
-          {error && <p className="w-full text-sm text-red-600">{error}</p>}
+          {error && <p className="w-full text-sm text-red-600 dark:text-red-400">{error}</p>}
         </form>
       )}
 
-      {loading && <p className="text-sm text-slate-500">Carregando...</p>}
+      {loading && <p className="text-sm text-slate-500 dark:text-slate-400">Carregando...</p>}
       {!loading && sortedDays.length === 0 && (
-        <p className="text-sm text-slate-500">Esta viagem ainda não tem diárias.</p>
+        <p className="text-sm text-slate-500 dark:text-slate-400">Esta viagem ainda não tem diárias.</p>
       )}
 
       <div className="flex flex-col gap-2">
@@ -337,26 +337,26 @@ export default function AgendaPage() {
           const isOpen = openDay === day.data;
           const itens = agendaPorDia.get(day.data) ?? [];
           return (
-            <div key={day.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+            <div key={day.id} className="overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
               <button
                 type="button"
                 onClick={() => setOpenDay(isOpen ? null : day.data)}
                 className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
               >
                 <div className="flex items-center gap-3">
-                  <span className="text-[14px] font-semibold text-slate-900">
+                  <span className="text-[14px] font-semibold text-slate-900 dark:text-slate-100">
                     {formatDateBR(day.data)}
                   </span>
-                  <span className="text-xs uppercase text-slate-500">
+                  <span className="text-xs uppercase text-slate-500 dark:text-slate-400">
                     {weekdayLabel(day.data)}
                   </span>
                   {itens.length > 0 && (
-                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">
+                    <span className="rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-xs text-slate-500 dark:text-slate-400">
                       {itens.length} {itens.length === 1 ? "item" : "itens"}
                     </span>
                   )}
                 </div>
-                <div className="flex items-center gap-3 text-xs text-slate-500">
+                <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
                   <span>
                     {day.temp_min && day.temp_max ? `${day.temp_min}° / ${day.temp_max}°` : "-"}
                   </span>
@@ -365,27 +365,27 @@ export default function AgendaPage() {
               </button>
 
               {isOpen && (
-                <div className="border-t border-slate-100 px-4 py-3">
-                  <p className="mb-3 text-xs text-slate-500">
+                <div className="border-t border-slate-100 dark:border-slate-800 px-4 py-3">
+                  <p className="mb-3 text-xs text-slate-500 dark:text-slate-400">
                     {day.origem || "-"} → {day.destino || "-"} · Pernoite: {day.pernoite || "-"}
                   </p>
 
                   {itens.length === 0 && (
-                    <p className="text-sm text-slate-400">Nenhum compromisso nesta data ainda.</p>
+                    <p className="text-sm text-slate-400 dark:text-slate-500">Nenhum compromisso nesta data ainda.</p>
                   )}
 
                   <ul className="flex flex-col gap-2">
                     {itens.map((item) => (
                       <li
                         key={item.id}
-                        className="flex items-start justify-between gap-2 rounded-lg border border-slate-100 px-3 py-2 text-sm"
+                        className="flex items-start justify-between gap-2 rounded-lg border border-slate-100 dark:border-slate-800 px-3 py-2 text-sm"
                       >
                         <div className="min-w-0">
-                          <p className="font-semibold uppercase tracking-wide text-slate-800">
+                          <p className="font-semibold uppercase tracking-wide text-slate-800 dark:text-slate-200">
                             {item.horario} · {item.titulo}
                           </p>
                           {item.descricao && (
-                            <p className="mt-0.5 whitespace-pre-wrap text-xs text-slate-500">
+                            <p className="mt-0.5 whitespace-pre-wrap text-xs text-slate-500 dark:text-slate-400">
                               {item.descricao}
                             </p>
                           )}
@@ -395,7 +395,7 @@ export default function AgendaPage() {
                                 href={item.url}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-blue-600 hover:underline"
+                                className="text-blue-600 dark:text-blue-400 hover:underline"
                               >
                                 Link
                               </a>
@@ -405,13 +405,13 @@ export default function AgendaPage() {
                                 href={localUrls[item.anexo_file_id] ?? item.anexo_url}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="truncate text-slate-500 hover:text-blue-600 hover:underline"
+                                className="truncate text-slate-500 dark:text-slate-400 hover:text-blue-600 hover:underline"
                               >
                                 📎 {item.anexo_nome || "anexo"}
                               </a>
                             )}
                             {item.anexo_nome && !item.anexo_file_id && (
-                              <span className="text-slate-400" title="Envia quando voltar o sinal">
+                              <span className="text-slate-400 dark:text-slate-500" title="Envia quando voltar o sinal">
                                 📎 {item.anexo_nome} (pendente de sincronização)
                               </span>
                             )}
@@ -421,14 +421,14 @@ export default function AgendaPage() {
                           <button
                             type="button"
                             onClick={() => openEditForm(item)}
-                            className="text-slate-500 hover:text-slate-800"
+                            className="text-slate-500 dark:text-slate-400 hover:text-slate-800"
                           >
                             Editar
                           </button>
                           <button
                             type="button"
                             onClick={() => handleDelete(item.id)}
-                            className="text-red-500 hover:text-red-700"
+                            className="text-red-500 dark:text-red-400 hover:text-red-700"
                           >
                             Excluir
                           </button>
@@ -440,7 +440,7 @@ export default function AgendaPage() {
                   <button
                     type="button"
                     onClick={() => openNewForm(day.data)}
-                    className="mt-3 text-xs font-medium text-blue-600 hover:text-blue-800"
+                    className="mt-3 text-xs font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800"
                   >
                     + Novo compromisso nesta data
                   </button>

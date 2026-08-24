@@ -157,7 +157,7 @@ export function CityAutocomplete({
         />
       )}
       {open && suggestions.length > 0 && (
-        <ul className="absolute z-20 mt-1 max-h-56 w-max min-w-full overflow-auto rounded-lg border border-slate-200 bg-white text-xs shadow-lg">
+        <ul className="absolute z-20 mt-1 max-h-56 w-max min-w-full overflow-auto rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs shadow-lg">
           {suggestions.map((s, i) => (
             <li key={`${s.name}-${s.latitude}-${s.longitude}`}>
               <button
@@ -165,7 +165,7 @@ export function CityAutocomplete({
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => handlePick(s)}
                 className={`block w-full whitespace-nowrap px-3 py-1.5 text-left ${
-                  i === highlighted ? "bg-slate-100" : "hover:bg-slate-50"
+                  i === highlighted ? "bg-slate-100 dark:bg-slate-800" : "hover:bg-slate-50"
                 }`}
               >
                 {labelFor(s)}

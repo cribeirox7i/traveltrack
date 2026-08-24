@@ -78,21 +78,21 @@ export default function AcessosAdminPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-xl font-semibold text-slate-900">Acesso a viagens</h1>
-      <p className="text-sm text-slate-500">
+      <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">Acesso a viagens</h1>
+      <p className="text-sm text-slate-500 dark:text-slate-400">
         Escolha uma viagem e conceda acesso de visualização a cada usuário.
       </p>
 
       <form
         onSubmit={handleLink}
-        className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 sm:flex-row sm:flex-wrap sm:items-end"
+        className="flex flex-col gap-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:flex-row sm:flex-wrap sm:items-end"
       >
         <div className="min-w-[200px]">
-          <label className="mb-1 block text-xs font-medium text-slate-600">Viagem</label>
+          <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">Viagem</label>
           <select
             value={tripId}
             onChange={(e) => setTripId(e.target.value)}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            className="w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
           >
             {trips.map((t) => (
               <option key={t.id} value={t.id}>
@@ -102,11 +102,11 @@ export default function AcessosAdminPage() {
           </select>
         </div>
         <div className="min-w-[200px]">
-          <label className="mb-1 block text-xs font-medium text-slate-600">Usuário</label>
+          <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">Usuário</label>
           <select
             value={userId}
             onChange={(e) => setUserId(e.target.value)}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            className="w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
           >
             <option value="">Selecione...</option>
             {users.map((u) => (
@@ -125,13 +125,13 @@ export default function AcessosAdminPage() {
         </button>
       </form>
 
-      <div className="rounded-2xl border border-slate-200 bg-white p-4">
-        <p className="mb-2 text-sm font-medium text-slate-700">Quem já tem acesso a esta viagem</p>
+      <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+        <p className="mb-2 text-sm font-medium text-slate-700 dark:text-slate-300">Quem já tem acesso a esta viagem</p>
         <ul className="flex flex-col gap-1 text-sm">
           {users
             .filter((u) => linkedUserIds.has(u.id))
             .map((u) => (
-              <li key={u.id} className="flex items-center justify-between gap-2 text-slate-600">
+              <li key={u.id} className="flex items-center justify-between gap-2 text-slate-600 dark:text-slate-400">
                 <span>
                   {u.nome} ({u.email})
                 </span>
@@ -139,13 +139,13 @@ export default function AcessosAdminPage() {
                   type="button"
                   onClick={() => handleUnlink(u.id)}
                   disabled={removingId === u.id}
-                  className="text-xs font-medium text-red-600 hover:text-red-700 disabled:opacity-50"
+                  className="text-xs font-medium text-red-600 dark:text-red-400 hover:text-red-700 disabled:opacity-50"
                 >
                   {removingId === u.id ? "Removendo..." : "Remover"}
                 </button>
               </li>
             ))}
-          {links.length === 0 && <li className="text-slate-400">Ninguém ainda.</li>}
+          {links.length === 0 && <li className="text-slate-400 dark:text-slate-500">Ninguém ainda.</li>}
         </ul>
       </div>
     </div>

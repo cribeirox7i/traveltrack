@@ -44,7 +44,7 @@ export default function TripLayout({ children }: { children: React.ReactNode }) 
   }, [loading, trip, router]);
 
   if (status === "loading" || loading) {
-    return <p className="text-sm text-slate-500">Carregando...</p>;
+    return <p className="text-sm text-slate-500 dark:text-slate-400">Carregando...</p>;
   }
 
   if (!trip) return null;
@@ -52,8 +52,8 @@ export default function TripLayout({ children }: { children: React.ReactNode }) 
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h1 className="text-xl font-semibold text-slate-900">{trip.nome}</h1>
-        <p className="text-xs text-slate-500">
+        <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">{trip.nome}</h1>
+        <p className="text-xs text-slate-500 dark:text-slate-400">
           {trip.data_inicio} - {trip.data_fim} · {trip.qtd_pessoas} pessoa(s)
         </p>
       </div>

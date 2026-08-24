@@ -125,13 +125,13 @@ export default function AnexosPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 sm:flex-row sm:items-end">
+      <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:flex-row sm:items-end">
         <div className="min-w-[160px]">
-          <label className="mb-1 block text-xs font-medium text-slate-600">Categoria</label>
+          <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">Categoria</label>
           <select
             value={categoria}
             onChange={(e) => setCategoria(e.target.value)}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            className="w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
           >
             {CATEGORIAS.map((c) => (
               <option key={c.value} value={c.value}>
@@ -141,56 +141,56 @@ export default function AnexosPage() {
           </select>
         </div>
         <div className="flex-1">
-          <label className="mb-1 block text-xs font-medium text-slate-600">Arquivo</label>
+          <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">Arquivo</label>
           <input
             ref={fileInputRef}
             type="file"
             onChange={handleUpload}
             disabled={uploading}
             accept="image/*,application/pdf"
-            className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-900 file:px-3 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-slate-800"
+            className="block w-full text-sm text-slate-600 dark:text-slate-400 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-900 file:px-3 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-slate-800"
           />
         </div>
-        {uploading && <span className="text-xs text-slate-500">Enviando...</span>}
+        {uploading && <span className="text-xs text-slate-500 dark:text-slate-400">Enviando...</span>}
       </div>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
-      {loading && <p className="text-sm text-slate-500">Carregando...</p>}
+      {loading && <p className="text-sm text-slate-500 dark:text-slate-400">Carregando...</p>}
       {!loading && anexos.length === 0 && (
-        <p className="text-sm text-slate-500">Nenhum anexo enviado ainda.</p>
+        <p className="text-sm text-slate-500 dark:text-slate-400">Nenhum anexo enviado ainda.</p>
       )}
 
       {porCategoria.map((c) => (
-        <div key={c.value} className="rounded-2xl border border-slate-200 bg-white p-4">
-          <p className="mb-2 text-xs font-semibold uppercase text-slate-500">
+        <div key={c.value} className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+          <p className="mb-2 text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">
             {CATEGORIA_LABEL[c.value]}
           </p>
           <ul className="flex flex-col gap-2">
             {c.itens.map((a) => (
               <li
                 key={a.fileId}
-                className="flex items-center justify-between gap-2 rounded-lg border border-slate-100 px-3 py-2 text-sm"
+                className="flex items-center justify-between gap-2 rounded-lg border border-slate-100 dark:border-slate-800 px-3 py-2 text-sm"
               >
                 <a
                   href={localUrls[a.fileId] ?? a.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="truncate text-slate-700 hover:text-blue-600 hover:underline"
+                  className="truncate text-slate-700 dark:text-slate-300 hover:text-blue-600 hover:underline"
                 >
                   {a.name}
                 </a>
                 <div className="flex shrink-0 items-center gap-3">
                   {localUrls[a.fileId] && (
-                    <span className="text-xs text-emerald-600" title="Baixado neste aparelho">
+                    <span className="text-xs text-emerald-600 dark:text-emerald-400" title="Baixado neste aparelho">
                       ⬇️
                     </span>
                   )}
-                  <span className="text-xs text-slate-400">{formatSize(a.size)}</span>
+                  <span className="text-xs text-slate-400 dark:text-slate-500">{formatSize(a.size)}</span>
                   <button
                     type="button"
                     onClick={() => handleDelete(a.fileId)}
-                    className="text-xs font-medium text-red-500 hover:text-red-700"
+                    className="text-xs font-medium text-red-500 dark:text-red-400 hover:text-red-700"
                   >
                     Excluir
                   </button>

@@ -156,11 +156,11 @@ export default function ItinerarioPage() {
     setIsSaving(false);
   }
 
-  if (loading) return <p className="text-sm text-slate-500">Carregando...</p>;
+  if (loading) return <p className="text-sm text-slate-500 dark:text-slate-400">Carregando...</p>;
 
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-sm text-slate-500">
+      <p className="text-sm text-slate-500 dark:text-slate-400">
         Origem, destino e pernoite de cada dia da viagem. Este é o único lugar onde essas cidades
         podem ser editadas - nas outras abas elas aparecem só como texto.
       </p>
@@ -171,7 +171,7 @@ export default function ItinerarioPage() {
             type="button"
             onClick={() => replicateColumn("all")}
             disabled={!focusedCell}
-            className="flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:border-blue-300 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex items-center gap-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2.5 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 hover:border-blue-300 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-3.5 w-3.5">
               <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2M10 10h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-8a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2Z" />
@@ -182,14 +182,14 @@ export default function ItinerarioPage() {
             type="button"
             onClick={() => replicateColumn("down")}
             disabled={!focusedCell}
-            className="flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:border-blue-300 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex items-center gap-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2.5 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 hover:border-blue-300 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-3.5 w-3.5">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14m0 0-5-5m5 5 5-5" />
             </svg>
             Replicar para baixo
           </button>
-          <span className="text-xs text-slate-400">
+          <span className="text-xs text-slate-400 dark:text-slate-500">
             {focusedCell
               ? `Coluna selecionada: ${ROUTE_FIELDS.find((f) => f.key === focusedCell.field)?.label}`
               : "Clique em um campo para selecionar a coluna a replicar"}
@@ -197,7 +197,7 @@ export default function ItinerarioPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="text-xs text-slate-500">
+          <span className="text-xs text-slate-500 dark:text-slate-400">
             {isDirty ? "Alterações não salvas" : "Tudo salvo"}
           </span>
           <button
@@ -211,9 +211,9 @@ export default function ItinerarioPage() {
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
+      <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
         <table className="w-full whitespace-nowrap text-xs">
-          <thead className="bg-slate-50 text-left uppercase text-slate-500">
+          <thead className="bg-slate-50 dark:bg-slate-950 text-left uppercase text-slate-500 dark:text-slate-400">
             <tr>
               <th className="px-2 py-1">Data</th>
               <th className="px-1 py-1">Dia</th>
@@ -226,9 +226,9 @@ export default function ItinerarioPage() {
           </thead>
           <tbody>
             {days.map((day) => (
-              <tr key={day.id} className="border-t border-slate-100">
-                <td className="px-2 py-1 text-slate-600">{formatDateBR(day.data)}</td>
-                <td className="px-1 py-1 text-slate-500">{weekdayLabel(day.data)}</td>
+              <tr key={day.id} className="border-t border-slate-100 dark:border-slate-800">
+                <td className="px-2 py-1 text-slate-600 dark:text-slate-400">{formatDateBR(day.data)}</td>
+                <td className="px-1 py-1 text-slate-500 dark:text-slate-400">{weekdayLabel(day.data)}</td>
                 {ROUTE_FIELDS.map((f) => (
                   <td key={f.key} className="px-1 py-1">
                     <CityAutocomplete
@@ -242,7 +242,7 @@ export default function ItinerarioPage() {
                       onSelect={(city) => applyCitySelection(day.id, f.key, city)}
                       onFocus={() => setFocusedCell({ dayId: day.id, field: f.key })}
                       disabled={isSaving}
-                      className="w-full min-w-32 rounded-md border border-slate-300 py-0.5 pl-1.5 pr-3.5 text-xs"
+                      className="w-full min-w-32 rounded-md border border-slate-300 dark:border-slate-700 py-0.5 pl-1.5 pr-3.5 text-xs"
                     />
                   </td>
                 ))}
