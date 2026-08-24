@@ -21,6 +21,25 @@ export const CATEGORIAS_UPLOAD = [
  * comprovante de alimentação ou um passaporte não têm compromisso nenhum pra extrair. */
 const CATEGORIAS_COM_LEITURA = new Set(["passagem", "hospedagem"]);
 
+/**
+ * DESLIGADA em 2026-08-24, a pedido do usuário: em documento real a sugestão continuava saindo
+ * errada mesmo depois de várias rodadas de ajuste, e atrapalhava mais que ajudava no uso do dia a
+ * dia. Por ora o upload é simples, sem leitura nenhuma.
+ *
+ * **O código fica todo no lugar de propósito** (`lib/ocr.ts`, `lib/documentoParser.ts`,
+ * `SugestaoAgendaModal.tsx`, e as dependências tesseract.js/pdfjs-dist) - a intenção é retomar. Os
+ * imports da leitura são dinâmicos, então com a flag em `false` nada disso vai pro bundle que o
+ * usuário baixa. Pra religar, basta trocar pra `true`.
+ *
+ * Pendência conhecida ao retomar: a heurística acerta data e horário bem, mas o NOME/título ainda
+ * erra em documento real - ver a seção de leitura de anexo na memória do projeto pro histórico do
+ * que já foi tentado (cabeçalho de tabela do PDF, cortesia/CTA de e-mail, hora cheia).
+ */
+// Tipada como `boolean` (e não inferida como o literal `false`) de propósito: sem isso o
+// TypeScript estreita tudo que depende dela pra código morto, e religar a flag passaria a
+// acusar erro nos trechos que hoje ficam dormentes.
+const LEITURA_AUTOMATICA_ATIVA: boolean = false;
+
 const MAX_IMAGE_DIMENSION = 1600;
 const IMAGE_QUALITY = 0.7;
 
@@ -75,7 +94,10 @@ export function AnexoUpload({
   );
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const vaiLer = CATEGORIAS_COM_LEITURA.has(categoria) && datasDaViagem.length > 0;
+  const vaiLer =
+    LEITURA_AUTOMATICA_ATIVA &&
+    CATEGORIAS_COM_LEITURA.has(categoria) &&
+    datasDaViagem.length > 0;
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
