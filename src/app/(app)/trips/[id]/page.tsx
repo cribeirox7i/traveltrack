@@ -47,6 +47,15 @@ function prazoLabel(dataInicio: string, dataFim: string): string {
   return "Concluída";
 }
 
+/** Bandeira como imagem (Twemoji, sem chave) em vez do emoji cru - no Windows/Chrome desktop o
+ * emoji de bandeira cai pra um fallback de duas letras (regional indicators), sem cor nenhuma;
+ * como imagem fica igual em qualquer SO/navegador, celular ou desktop. */
+function flagImgSrc(flagEmoji: string): string | null {
+  if (!flagEmoji) return null;
+  const codepoints = Array.from(flagEmoji).map((c) => c.codePointAt(0)!.toString(16));
+  return `https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/${codepoints.join("-")}.png`;
+}
+
 function formatRate(rateBrl: string): string | null {
   const num = Number(rateBrl);
   if (!rateBrl || Number.isNaN(num)) return null;
@@ -160,7 +169,12 @@ export default function TripDashboardPage() {
                   className="w-56 shrink-0 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4"
                 >
                   <div className="flex items-center gap-2 text-base font-semibold text-slate-900 dark:text-slate-100">
-                    <span>{info?.flag_emoji || "🌍"}</span>
+                    {info?.flag_emoji ? (
+                      // eslint-disable-next-line @next/next/no-img-element -- Twemoji externo, sem domínio fixo pra next/image, ícone pequeno
+                      <img src={flagImgSrc(info.flag_emoji) ?? undefined} alt="" className="h-4 w-5 shrink-0 object-cover" />
+                    ) : (
+                      <span>🌍</span>
+                    )}
                     <span className="truncate">{pais}</span>
                   </div>
                   <div className="mt-2 flex flex-col gap-1 text-xs text-slate-600 dark:text-slate-400">
@@ -168,9 +182,9 @@ export default function TripDashboardPage() {
                       <p>
                         💰 {info.currency_code}
                         {info.currency_name && ` (${info.currency_name})`}
-                        {rate && ` · R$ ${rate}`}
                       </p>
                     )}
+                    {rate && <p className="pl-[18px]">→ R$ {rate}</p>}
                     {info?.language && <p>🗣️ {info.language}</p>}
                     {info?.ddi && <p>📞 {info.ddi}</p>}
                     {info?.driving_side && (
@@ -240,9 +254,9 @@ export default function TripDashboardPage() {
                         const info = findCountry(countries, pais);
                         const hora = info ? nowInTimezone(info.timezone, now) : null;
                         return (
-                          <li key={cidade} className="flex items-center justify-between gap-3">
-                            <span className="text-slate-700 dark:text-slate-300">{cidade}</span>
-                            <span className="text-slate-500 dark:text-slate-400">
+                          <li key={cidade} className="flex flex-col gap-0.5">
+                            <span className="font-medium text-slate-700 dark:text-slate-300">{cidade}</span>
+                            <span className="text-xs text-slate-500 dark:text-slate-400">
                               {hora ? `${hora} (${info?.timezone})` : "sem dado ainda"}
                             </span>
                           </li>
@@ -262,9 +276,9 @@ export default function TripDashboardPage() {
                         const info = findCountry(countries, pais);
                         const temPlug = info?.plug_type || info?.volts || info?.hertz;
                         return (
-                          <li key={cidade} className="flex items-center justify-between gap-3">
-                            <span className="text-slate-700 dark:text-slate-300">{cidade}</span>
-                            <span className="text-slate-500 dark:text-slate-400">
+                          <li key={cidade} className="flex flex-col gap-0.5">
+                            <span className="font-medium text-slate-700 dark:text-slate-300">{cidade}</span>
+                            <span className="text-xs text-slate-500 dark:text-slate-400">
                               {temPlug
                                 ? `${info?.plug_type || "?"} · ${info?.volts || "?"}V · ${info?.hertz || "?"}Hz`
                                 : "sem dado ainda"}
