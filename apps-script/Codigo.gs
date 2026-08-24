@@ -28,7 +28,7 @@ const ESTRUTURA = {
   // a aba pra "Countries" na planilha (bota direito na aba > Renomear) e o app passa a
   // completá-la sozinho com o resto (moeda, capital, DDI, lado de direção, fuso, cotação) na
   // primeira vez que cada país for necessário.
-  Countries: ['id', 'country', 'plug_type', 'volts', 'hertz', 'currency_code', 'currency_name', 'currency_symbol', 'capital', 'ddi', 'driving_side', 'timezone', 'flag_emoji', 'rate_brl', 'rate_date']
+  Countries: ['id', 'country', 'plug_type', 'volts', 'hertz', 'currency_code', 'currency_name', 'currency_symbol', 'capital', 'ddi', 'driving_side', 'timezone', 'flag_emoji', 'language', 'rate_brl', 'rate_date']
 };
 
 // ---------- PONTO DE ENTRADA DO WEB APP ----------

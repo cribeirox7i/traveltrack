@@ -2,8 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
-import { CountryInfo } from "@/lib/offline/sync";
-import { getLocalAnexoUrl, useCountries, useOfflineCollection } from "@/lib/offline/useOfflineData";
+import { getLocalAnexoUrl, useOfflineCollection } from "@/lib/offline/useOfflineData";
 import { createAgendaOffline, deleteAgendaOffline, updateAgendaOffline } from "@/lib/offline/sync";
 
 interface TripDay {
@@ -12,28 +11,8 @@ interface TripDay {
   origem: string;
   destino: string;
   pernoite: string;
-  origem_pais: string;
-  destino_pais: string;
-  pernoite_pais: string;
   temp_min: string;
   temp_max: string;
-}
-
-/** Normaliza pra comparar nome de país com tolerância a acento/maiúscula/espaço - a Open-Meteo
- * devolve o país em português (ex.: "Estados Unidos", "Japão"), e não há garantia de que a
- * grafia na aba Countries bata 100% com isso, então a comparação ignora acentuação e caixa. */
-function normalizeCountry(s: string): string {
-  return s
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .trim()
-    .toLowerCase();
-}
-
-function findCountry(lista: CountryInfo[], pais: string): CountryInfo | null {
-  if (!pais) return null;
-  const alvo = normalizeCountry(pais);
-  return lista.find((c) => normalizeCountry(c.country) === alvo) ?? null;
 }
 
 interface AgendaItem {
@@ -49,11 +28,6 @@ interface AgendaItem {
 }
 
 const WEEKDAY_LABELS = ["DO", "2A", "3A", "4A", "5A", "6A", "SA"];
-const ROUTE_LABELS: { key: "origem" | "destino" | "pernoite"; label: string }[] = [
-  { key: "origem", label: "Origem" },
-  { key: "destino", label: "Destino" },
-  { key: "pernoite", label: "Pernoite" },
-];
 
 function weekdayLabel(iso: string): string {
   const d = new Date(`${iso.slice(0, 10)}T00:00:00`);
@@ -65,105 +39,6 @@ function formatDateBR(iso: string): string {
   return d && m && y ? `${d}/${m}/${y}` : iso;
 }
 
-function formatRate(rateBrl: string): string | null {
-  const num = Number(rateBrl);
-  if (!rateBrl || Number.isNaN(num)) return null;
-  return num.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 4 });
-}
-
-/** Hora agora no país, calculada a partir do relógio do próprio aparelho + o fuso salvo (nunca
- * uma chamada de API só pra saber a hora) - `null` se não tiver fuso resolvido ainda. */
-function nowInTimezone(timezone: string, now: Date): string | null {
-  if (!timezone) return null;
-  try {
-    return new Intl.DateTimeFormat("pt-BR", {
-      timeZone: timezone,
-      hour: "2-digit",
-      minute: "2-digit",
-    }).format(now);
-  } catch {
-    return null; // fuso salvo não é um IANA válido (não deveria acontecer, mas não trava a tela)
-  }
-}
-
-/** Uma linha de fatos do país (bandeira/tomada/moeda/fuso/DDI/direção/capital) pra uma das três
- * cidades do dia - só aparece se a cidade tiver país capturado (Itinerário) E esse país já ter
- * sido resolvido na aba Countries (via "Atualizar", ver TopBar/refreshNow). Cada fato só some
- * individualmente se faltar (ex.: tomada preenchida mas moeda ainda não). */
-function CountryFactsRow({
-  label,
-  cidade,
-  pais,
-  countries,
-  now,
-}: {
-  label: string;
-  cidade: string;
-  pais: string;
-  countries: CountryInfo[];
-  now: Date;
-}) {
-  if (!cidade) return null;
-  const info = findCountry(countries, pais);
-  const hora = info ? nowInTimezone(info.timezone, now) : null;
-  const rate = info ? formatRate(info.rate_brl) : null;
-
-  const fatos: { icon: string; text: string; title: string }[] = [];
-  if (info?.flag_emoji) fatos.push({ icon: info.flag_emoji, text: pais, title: pais });
-  if (info?.plug_type || info?.volts || info?.hertz) {
-    fatos.push({
-      icon: "⚡",
-      text: `${info.plug_type || "?"} · ${info.volts || "?"}V · ${info.hertz || "?"}Hz`,
-      title: "Tomada / voltagem / frequência",
-    });
-  }
-  if (info?.currency_code) {
-    fatos.push({
-      icon: "💰",
-      text: `${info.currency_code}${info.currency_name ? ` (${info.currency_name})` : ""}${
-        rate ? ` → R$ ${rate}` : ""
-      }`,
-      title: rate ? `1 ${info.currency_code} = R$ ${rate}` : "Cotação ainda não buscada",
-    });
-  }
-  if (hora) {
-    fatos.push({ icon: "🕐", text: `${hora} (${info?.timezone})`, title: "Hora local agora" });
-  }
-  if (info?.ddi) {
-    fatos.push({ icon: "📞", text: info.ddi, title: "Código de discagem internacional" });
-  }
-  if (info?.driving_side) {
-    fatos.push({
-      icon: "🚗",
-      text: info.driving_side === "left" ? "Esquerda" : "Direita",
-      title: "Lado de direção do trânsito",
-    });
-  }
-  if (info?.capital) {
-    fatos.push({ icon: "🗺️", text: info.capital, title: "Capital do país" });
-  }
-
-  if (fatos.length === 0) {
-    return pais ? (
-      <p className="text-[11px] text-slate-400 dark:text-slate-500">
-        {label}: {cidade} - sem dados de {pais} ainda (toque em Atualizar na barra superior)
-      </p>
-    ) : null;
-  }
-
-  return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-600 dark:text-slate-400">
-      <span className="font-medium text-slate-500 dark:text-slate-500">{label}:</span>
-      {fatos.map((f, i) => (
-        <span key={i} title={f.title} className="inline-flex items-center gap-1">
-          <span>{f.icon}</span>
-          {f.text}
-        </span>
-      ))}
-    </div>
-  );
-}
-
 const emptyForm = { data: "", horario: "", titulo: "", descricao: "", url: "" };
 
 export default function AgendaPage() {
@@ -173,7 +48,6 @@ export default function AgendaPage() {
     "agenda",
     tripId
   );
-  const countries = useCountries();
 
   const [openDay, setOpenDay] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);
@@ -187,14 +61,6 @@ export default function AgendaPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const tituloInputRef = useRef<HTMLInputElement>(null);
-
-  // Só pra "hora agora" nos fatos de país - atualiza a cada 30s, não precisa de mais que isso
-  // pra um relógio que só é lido quando o acordeão está aberto na tela.
-  const [now, setNow] = useState(() => new Date());
-  useEffect(() => {
-    const timer = setInterval(() => setNow(new Date()), 30_000);
-    return () => clearInterval(timer);
-  }, []);
 
   // Ao abrir o formulário (novo ou editar), o clique costuma ter sido num botão lá embaixo, num
   // acordeão já aberto - sem isso a tela fica exatamente onde estava, com o formulário
@@ -303,9 +169,9 @@ export default function AgendaPage() {
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-slate-500 dark:text-slate-400">
-          Temperatura, dados de país e compromissos do roteiro, por data. Origem/destino/pernoite
-          ficam na aba Itinerário; &ldquo;Atualizar&rdquo; na barra superior busca temperatura e
-          dados de país. Toque numa data pra abrir.
+          Temperatura e compromissos do roteiro, por data. Origem/destino/pernoite ficam na aba
+          Itinerário; dados de país (moeda, fuso, tomada...) ficam no Dashboard da viagem.
+          &ldquo;Atualizar&rdquo; na barra superior busca a temperatura. Toque numa data pra abrir.
         </p>
         {!formOpen && (
           <button
@@ -460,19 +326,6 @@ export default function AgendaPage() {
 
               {isOpen && (
                 <div className="border-t border-slate-100 dark:border-slate-800 px-4 py-3">
-                  <div className="mb-3 flex flex-col gap-1">
-                    {ROUTE_LABELS.map((f) => (
-                      <CountryFactsRow
-                        key={f.key}
-                        label={f.label}
-                        cidade={day[f.key]}
-                        pais={day[`${f.key}_pais` as "origem_pais" | "destino_pais" | "pernoite_pais"]}
-                        countries={countries}
-                        now={now}
-                      />
-                    ))}
-                  </div>
-
                   {itens.length === 0 && (
                     <p className="text-sm text-slate-400 dark:text-slate-500">Nenhum compromisso nesta data ainda.</p>
                   )}

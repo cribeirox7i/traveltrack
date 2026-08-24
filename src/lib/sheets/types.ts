@@ -98,6 +98,7 @@ export const SHEET_HEADERS: Record<SheetTab, string[]> = {
     "driving_side",
     "timezone",
     "flag_emoji",
+    "language",
     "rate_brl",
     "rate_date",
   ],
@@ -261,6 +262,9 @@ export interface CountryRow {
    * próprio aparelho (`Intl.DateTimeFormat`), nunca por uma chamada de API. */
   timezone: string;
   flag_emoji: string;
+  /** Nome do idioma principal do país (mledoze, em inglês - ex.: "Spanish", "Japanese") - mesmo
+   * padrão de `currency_name`, que também vem em inglês da mesma fonte. */
+  language: string;
   /** Cotação de 1 unidade da moeda do país em Real, na data de `rate_date` (yyyy-MM-dd). */
   rate_brl: string;
   rate_date: string;

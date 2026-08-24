@@ -159,6 +159,7 @@ export interface CountryInfo {
   driving_side: "left" | "right" | "";
   timezone: string;
   flag_emoji: string;
+  language: string;
   rate_brl: string;
   rate_date: string;
 }
@@ -437,7 +438,8 @@ export async function refreshCountriesAndRates(days: CountryableDay[]): Promise<
     const existing = cached.find((c) => c.country.trim().toLowerCase() === pais.toLowerCase());
     let currencyCode = existing?.currency_code || "";
 
-    const faltaEstatico = !existing || !existing.currency_code || !existing.timezone;
+    const faltaEstatico =
+      !existing || !existing.currency_code || !existing.timezone || !existing.language;
     if (faltaEstatico) {
       const resolved = await resolveCountryInfo(pais);
       if (resolved) {
@@ -480,11 +482,12 @@ export async function refreshAllOfflineTrips(): Promise<void> {
  */
 async function warmTripPages(tripId: string): Promise<void> {
   if (!isOnline()) return;
-  await Promise.all(
-    TRIP_TAB_SLUGS.map((slug) =>
+  await Promise.all([
+    fetch(`/trips/${tripId}`, { credentials: "same-origin" }).catch(() => {}),
+    ...TRIP_TAB_SLUGS.map((slug) =>
       fetch(`/trips/${tripId}/${slug}`, { credentials: "same-origin" }).catch(() => {})
-    )
-  );
+    ),
+  ]);
 }
 
 /** O que o botão "Baixar offline" da tela de viagens dispara: atualiza os dados E deixa as

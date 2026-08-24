@@ -6,11 +6,13 @@ import { useOnlineStatus } from "@/lib/offline/useOfflineData";
 import { refreshNow } from "@/lib/offline/sync";
 import { RefreshIcon } from "./icons";
 
-/** Extrai o id da viagem da URL atual (`/trips/{id}/...`), se houver - assim o refresh também
- * repuxa os dados da viagem aberta, não só a lista em `/trips`. */
+/** Extrai o id da viagem da URL atual (`/trips/{id}` - o Dashboard - ou `/trips/{id}/...`), se
+ * houver - assim o refresh também repuxa os dados da viagem aberta, não só a lista em `/trips`.
+ * `/trips/novo` é a única rota de primeiro nível sob `/trips` que não é um id de viagem. */
 function currentTripId(pathname: string): string | undefined {
-  const match = pathname.match(/^\/trips\/([^/]+)\//);
-  return match?.[1];
+  const match = pathname.match(/^\/trips\/([^/]+)(?:\/|$)/);
+  const id = match?.[1];
+  return id && id !== "novo" ? id : undefined;
 }
 
 export function RefreshButton() {

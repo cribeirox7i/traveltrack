@@ -46,6 +46,7 @@ export async function upsertCountry(
       driving_side: "",
       timezone: "",
       flag_emoji: "",
+      language: "",
       rate_brl: "",
       rate_date: "",
       ...fields,

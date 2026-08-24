@@ -57,7 +57,7 @@ function TripCard({
       <TripHeroImage tripId={trip.id} days={days} compact />
       <div className="flex flex-col gap-2 p-4">
         <div className="flex items-start justify-between gap-2">
-          <Link href={`/trips/${trip.id}/agenda`} className="min-w-0 flex-1">
+          <Link href={`/trips/${trip.id}`} className="min-w-0 flex-1">
             <p className="font-semibold text-slate-900 dark:text-slate-100">{trip.nome}</p>
             <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
               {formatDateBR(trip.data_inicio)} - {formatDateBR(trip.data_fim)}

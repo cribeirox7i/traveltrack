@@ -21,6 +21,7 @@ interface MledozeCountry {
   capital?: string[];
   translations?: Record<string, { common: string }>;
   flag?: string;
+  languages?: Record<string, string>;
 }
 
 interface DrivingSideEntry {
@@ -87,6 +88,9 @@ export interface ResolvedCountryInfo {
   driving_side: "left" | "right" | "";
   timezone: string;
   flag_emoji: string;
+  /** Idioma principal do país - só o primeiro quando há vários (ex.: Suíça tem 4), mesma
+   * simplificação já aceita pra fuso horário com múltiplas zonas. */
+  language: string;
 }
 
 /**
@@ -124,6 +128,7 @@ export async function resolveCountryInfo(paisPt: string): Promise<ResolvedCountr
   // simplificação aceita: mostrar "a" hora do país, não todas, já que a tela não sabe em qual
   // região exata da cidade a pessoa está sem uma geolocalização de verdade.
   const timezone = tzMeta.countries[pais.cca2]?.zones?.[0] ?? "";
+  const language = pais.languages ? Object.values(pais.languages)[0] : "";
 
   return {
     currency_code: moeda?.[0] ?? "",
@@ -134,5 +139,6 @@ export async function resolveCountryInfo(paisPt: string): Promise<ResolvedCountr
     driving_side: drivingEntry?.side ?? "",
     timezone,
     flag_emoji: pais.flag ?? "",
+    language: language ?? "",
   };
 }

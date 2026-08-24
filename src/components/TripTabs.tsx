@@ -6,14 +6,17 @@ import { TRIP_TAB_GROUPS, groupOfSlug } from "@/lib/tripTabs";
 
 export function TripTabs({ tripId }: { tripId: string }) {
   const pathname = usePathname();
-  const currentSlug = pathname.split("/").pop() ?? "";
-  const activeGroup = groupOfSlug(currentSlug) ?? TRIP_TAB_GROUPS[0];
+  // Na raiz da viagem (`/trips/{id}`, o Dashboard) não há grupo ativo - nenhuma pill destacada e
+  // sem a linha de sub-abas, já que o Dashboard não pertence a nenhum dos 3 grupos.
+  const isDashboard = pathname === `/trips/${tripId}`;
+  const currentSlug = isDashboard ? "" : (pathname.split("/").pop() ?? "");
+  const activeGroup = groupOfSlug(currentSlug);
 
   return (
     <div className="flex flex-col gap-2">
       <div className="flex gap-1 overflow-x-auto border-b border-slate-200 dark:border-slate-800">
         {TRIP_TAB_GROUPS.map((group) => {
-          const active = group.key === activeGroup.key;
+          const active = group.key === activeGroup?.key;
           // O grupo em si não é uma rota - leva pra primeira aba dele, que é a página que já
           // existia como entrada natural daquele assunto (Orçamento pro Financeiro, Agenda pro
           // Roteiro, o próprio Anexos pro grupo de um item só).
@@ -34,7 +37,7 @@ export function TripTabs({ tripId }: { tripId: string }) {
         })}
       </div>
 
-      {activeGroup.tabs.length > 1 && (
+      {activeGroup && activeGroup.tabs.length > 1 && (
         <div className="flex gap-1 overflow-x-auto">
           {activeGroup.tabs.map((tab) => {
             const href = `/trips/${tripId}/${tab.slug}`;

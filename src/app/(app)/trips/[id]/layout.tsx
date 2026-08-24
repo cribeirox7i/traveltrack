@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { TripTabs } from "@/components/TripTabs";
@@ -31,6 +32,7 @@ export default function TripLayout({ children }: { children: React.ReactNode }) 
   // etc. abrirem offline depois, mesmo sem ter passado por elas antes manualmente.
   useEffect(() => {
     if (!isOnline()) return;
+    router.prefetch(`/trips/${id}`);
     for (const slug of TRIP_TAB_SLUGS) {
       router.prefetch(`/trips/${id}/${slug}`);
     }
@@ -52,7 +54,12 @@ export default function TripLayout({ children }: { children: React.ReactNode }) 
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">{trip.nome}</h1>
+        <Link
+          href={`/trips/${id}`}
+          className="text-xl font-semibold text-slate-900 dark:text-slate-100 hover:underline"
+        >
+          {trip.nome}
+        </Link>
         <p className="text-xs text-slate-500 dark:text-slate-400">
           {trip.data_inicio} - {trip.data_fim} · {trip.qtd_pessoas} pessoa(s)
         </p>

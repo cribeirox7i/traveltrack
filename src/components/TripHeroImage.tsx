@@ -4,37 +4,13 @@ import { useEffect, useRef, useState } from "react";
 import { getLocalTripImage, useOnlineStatus } from "@/lib/offline/useOfflineData";
 import { saveLastTripImage } from "@/lib/offline/sync";
 import { CityImage, findCityImage } from "@/lib/wikipedia";
-
-interface TripDayCities {
-  origem: string;
-  destino: string;
-  pernoite: string;
-  origem_pais: string;
-  destino_pais: string;
-  pernoite_pais: string;
-}
+import { TripDayCities, distinctCities as allDistinctCities } from "@/lib/tripCities";
 
 const ROTATE_MS = 9000;
 
-/** Cidades distintas do roteiro (Origem/Destino/Pernoite de todos os dias), com o país que foi
- * capturado junto na hora da escolha no autocomplete (ver Itinerário) - repetições e campos
- * vazios descartados. Limitado a 10 pra não disparar buscas demais numa viagem muito longa. */
+/** Limitado a 10 pra não disparar buscas demais numa viagem muito longa. */
 function distinctCities(days: TripDayCities[]): { cidade: string; pais: string }[] {
-  const vistos = new Map<string, { cidade: string; pais: string }>();
-  for (const day of days) {
-    const candidatos: [string, string][] = [
-      [day.origem, day.origem_pais],
-      [day.destino, day.destino_pais],
-      [day.pernoite, day.pernoite_pais],
-    ];
-    for (const [cidade, pais] of candidatos) {
-      const nome = cidade?.trim();
-      if (!nome) continue;
-      const chave = nome.toLowerCase();
-      if (!vistos.has(chave)) vistos.set(chave, { cidade: nome, pais: pais?.trim() ?? "" });
-    }
-  }
-  return Array.from(vistos.values()).slice(0, 10);
+  return allDistinctCities(days).slice(0, 10);
 }
 
 /**

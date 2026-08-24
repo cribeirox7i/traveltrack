@@ -25,6 +25,7 @@ const upsertSchema = z.object({
     driving_side: z.enum(["left", "right", ""]).optional(),
     timezone: z.string().optional(),
     flag_emoji: z.string().optional(),
+    language: z.string().optional(),
     rate_brl: z.string().optional(),
     rate_date: z.string().optional(),
   }),
