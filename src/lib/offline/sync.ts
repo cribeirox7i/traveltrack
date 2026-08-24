@@ -6,6 +6,7 @@ import {
   deleteByTrip,
   deleteMany,
   deleteOne,
+  deleteTripImage,
   enqueueOutbox,
   getMeta,
   getOne,
@@ -18,6 +19,7 @@ import {
   putOne,
   removeOutboxByTrip,
   removeOutboxEntry,
+  saveTripImage,
   setMeta,
   updateOutboxEntry,
 } from "./db";
@@ -158,6 +160,22 @@ export async function pullEletric(): Promise<void> {
     await setMeta("eletric", list);
     notifyChange();
   }
+}
+
+/** Baixa a imagem atual do banner giratório da viagem (ver `TripHeroImage.tsx`) e grava como "a
+ * última mostrada", sobrescrevendo a anterior - só uma por viagem é guardada, não o álbum
+ * inteiro, é o que a tela mostra (sem girar) quando abre offline. Silencioso: uma foto
+ * ilustrativa que falha ao baixar não é motivo pra incomodar o usuário com erro nenhum. */
+export async function saveLastTripImage(
+  tripId: string,
+  cidade: string,
+  imageUrl: string,
+  pageUrl: string
+): Promise<void> {
+  if (!isOnline()) return;
+  const blob = await getBlob(imageUrl);
+  if (!blob) return;
+  await saveTripImage({ trip_id: tripId, blob, cidade, pageUrl, savedAt: Date.now() });
 }
 
 // ---------- "Dados offline" - download completo por viagem, incluindo anexos ----------
@@ -606,6 +624,7 @@ export async function deleteTripOffline(
   await deleteByTrip("anexos", tripId);
   await deleteByTrip("anexoFiles", tripId);
   await deleteByTrip("agenda", tripId);
+  await deleteTripImage(tripId);
   await removeOutboxByTrip(tripId);
 
   const ids = new Set(await listOfflineTripIds());

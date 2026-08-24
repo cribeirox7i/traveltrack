@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { getAnexoFile, getMeta, getOne, listAll, listByTrip, listOutbox } from "./db";
+import { getAnexoFile, getMeta, getOne, getTripImage, listAll, listByTrip, listOutbox } from "./db";
 import {
   EletricInfo,
   MAX_OUTBOX_ATTEMPTS,
@@ -119,6 +119,17 @@ export async function getLocalAnexoUrl(fileId: string): Promise<string | null> {
   const file = await getAnexoFile(fileId);
   if (!file) return null;
   return URL.createObjectURL(file.blob);
+}
+
+/** Última imagem ilustrativa da viagem salva pra abrir offline (ver `TripHeroImage.tsx`
+ * /`saveLastTripImage`) - `null` se nunca foi salva uma (viagem nova, ou nenhuma imagem achada
+ * pra nenhuma cidade do roteiro ainda). */
+export async function getLocalTripImage(
+  tripId: string
+): Promise<{ url: string; cidade: string; pageUrl: string } | null> {
+  const row = await getTripImage(tripId);
+  if (!row) return null;
+  return { url: URL.createObjectURL(row.blob), cidade: row.cidade, pageUrl: row.pageUrl };
 }
 
 /** Usuários com acesso à viagem (pro select de "Pagador" em Despesas) - cacheado localmente,

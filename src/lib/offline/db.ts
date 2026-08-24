@@ -35,6 +35,17 @@ export interface AnexoFileRow {
   blob: Blob;
 }
 
+/** Última imagem ilustrativa mostrada no banner giratório da viagem (ver `TripHeroImage.tsx`) -
+ * só a última, não o álbum inteiro, é o que fica salvo pra abrir offline. Uma por viagem
+ * (`trip_id` é a própria chave), sobrescrita a cada troca de imagem enquanto online. */
+export interface TripImageRow {
+  trip_id: string;
+  blob: Blob;
+  cidade: string;
+  pageUrl: string;
+  savedAt: number;
+}
+
 interface TravelTrackDB extends DBSchema {
   trips: { key: string; value: RowBase };
   tripDays: { key: string; value: RowBase; indexes: { trip_id: string } };
@@ -43,14 +54,15 @@ interface TravelTrackDB extends DBSchema {
   anexos: { key: string; value: RowBase; indexes: { trip_id: string } };
   anexoFiles: { key: string; value: AnexoFileRow; indexes: { trip_id: string } };
   agenda: { key: string; value: RowBase; indexes: { trip_id: string } };
+  tripImages: { key: string; value: TripImageRow };
   outbox: { key: string; value: OutboxEntry };
   meta: { key: string; value: { key: string; value: unknown } };
 }
 
 const DB_NAME = "traveltrack-offline";
-// 3: store `agenda`. O `upgrade` abaixo é aditivo (só cria o que falta), então subir a versão
-// não descarta nada já baixado nos aparelhos que estavam na 2.
-const DB_VERSION = 3;
+// 4: store `tripImages`. O `upgrade` abaixo é aditivo (só cria o que falta), então subir a
+// versão não descarta nada já baixado nos aparelhos que estavam na 3.
+const DB_VERSION = 4;
 
 let dbPromise: Promise<IDBPDatabase<TravelTrackDB>> | null = null;
 
@@ -84,6 +96,9 @@ export function getDB(): Promise<IDBPDatabase<TravelTrackDB>> {
         }
         if (!db.objectStoreNames.contains("agenda")) {
           db.createObjectStore("agenda", { keyPath: "id" }).createIndex("trip_id", "trip_id");
+        }
+        if (!db.objectStoreNames.contains("tripImages")) {
+          db.createObjectStore("tripImages", { keyPath: "trip_id" });
         }
         if (!db.objectStoreNames.contains("outbox")) {
           db.createObjectStore("outbox", { keyPath: "localId" });
@@ -256,6 +271,21 @@ export async function removeOutboxByTrip(tripId: string): Promise<void> {
 export async function updateOutboxEntry(entry: OutboxEntry) {
   const db = await getDB();
   await db.put("outbox", entry);
+}
+
+export async function saveTripImage(row: TripImageRow): Promise<void> {
+  const db = await getDB();
+  await db.put("tripImages", row);
+}
+
+export async function getTripImage(tripId: string): Promise<TripImageRow | undefined> {
+  const db = await getDB();
+  return db.get("tripImages", tripId);
+}
+
+export async function deleteTripImage(tripId: string): Promise<void> {
+  const db = await getDB();
+  await db.delete("tripImages", tripId);
 }
 
 export async function getMeta(key: string): Promise<unknown> {
