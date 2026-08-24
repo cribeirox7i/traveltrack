@@ -292,13 +292,17 @@ function dentroDaViagem(datas: string[], datasDaViagem: string[]): string[] {
 }
 
 /**
- * Hora cheia primeiro, pra hospedagem. Check-in/check-out de acomodação é quase sempre em hora
- * cheia (15:00, 12:00); horário com minuto quebrado no meio de um voucher costuma ser outra coisa
- * (horário de atendimento, telefone que casou com o padrão, hora de emissão). Só REORDENA, não
- * descarta - a pessoa continua podendo escolher nos chips.
+ * Só hora cheia, pra hospedagem. Check-in/check-out de acomodação é em hora cheia (15:00, 12:00);
+ * horário com minuto quebrado num voucher é sempre outra coisa - atendimento, hora de emissão, ou
+ * número que casou com o padrão por acaso. Antes isso só reordenava, e os quebrados continuavam
+ * poluindo os chips (11:11, 20:10, 23:59 numa reserva real).
+ *
+ * Se sobrar vazio, devolve a lista original: um voucher fora do padrão ainda é melhor com sugestão
+ * estranha do que sem sugestão nenhuma.
  */
-function horaCheiaPrimeiro(horarios: string[]): string[] {
-  return [...horarios].sort((a, b) => Number(b.endsWith(":00")) - Number(a.endsWith(":00")));
+function apenasHoraCheia(horarios: string[]): string[] {
+  const cheias = horarios.filter((h) => h.endsWith(":00"));
+  return cheias.length > 0 ? cheias : horarios;
 }
 
 export function parseDocumento(
@@ -310,14 +314,14 @@ export function parseDocumento(
 
   if (opcoes.tipo === "passagem") {
     const { titulos, descricao } = montarVoo(texto, opcoes.nomeArquivo ?? "");
-    // Voo tem horário quebrado por natureza (09:05, 14:55) - reordenar por hora cheia aqui só
-    // atrapalharia.
+    // Voo tem horário quebrado por natureza (09:05, 14:55) - filtrar hora cheia aqui jogaria fora
+    // justamente o horário certo. Vale só pra hospedagem.
     return { datas, horarios, titulos, descricaoSugerida: descricao };
   }
 
   return {
     datas,
-    horarios: horaCheiaPrimeiro(horarios),
+    horarios: opcoes.tipo === "hospedagem" ? apenasHoraCheia(horarios) : horarios,
     titulos: extrairTitulos(texto),
     descricaoSugerida: "",
   };
