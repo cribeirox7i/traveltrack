@@ -43,6 +43,20 @@ const serwist = new Serwist({
             // a tela de login no cache da viagem.
             cacheWillUpdate: async ({ response }) =>
               response.status === 200 && !response.redirected ? response : null,
+
+            // Sem isto, uma falha total (rede caiu E a URL não está no cache) faz o NetworkFirst
+            // rejeitar, o que vira "Uncaught (in promise) no-response" + um aviso de FetchEvent
+            // no console. O `fallbacks` global lá embaixo não cobre esse caso: ele só casa com
+            // `destination === "document"`, e `warmTripPages` (sync.ts) aquece as páginas com um
+            // `fetch()` comum, cujo destination é vazio - então justamente o aquecimento em
+            // segundo plano, que falha com naturalidade num sinal ruim, era o que sujava o
+            // console. Aqui a falha vira uma resposta silenciosa: navegação de verdade cai na
+            // tela /offline, e o fetch de aquecimento só recebe um 503 que o `.catch` dele já
+            // ignora.
+            handlerDidError: async ({ request }) =>
+              request.destination === "document"
+                ? await caches.match("/offline", { ignoreSearch: true })
+                : new Response("", { status: 503, statusText: "offline" }),
           },
           new ExpirationPlugin({ maxEntries: 300, maxAgeSeconds: 30 * 24 * 60 * 60 }),
         ],

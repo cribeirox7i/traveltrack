@@ -421,6 +421,22 @@ function getTripFolder(tripId, tripName) {
   return getOrCreateSubfolder(raiz, nomePasta);
 }
 
+/**
+ * Igual a getTripFolder, mas NUNCA cria nada - devolve null se a viagem ainda não tem pasta.
+ * Existe porque listar anexos é uma leitura: usar getTripFolder ali fazia um simples GET criar
+ * pasta no Drive, o que (a) exige permissão de escrita só pra ler - e era exatamente a chamada
+ * que estourava "You do not have permission to call DriveApp.Folder.createFolder" - e (b) enchia
+ * o Drive de pasta vazia pra toda viagem que alguém abrisse na aba Anexos sem nunca anexar nada.
+ */
+function findTripFolder(tripId, tripName) {
+  if (!DRIVE_ROOT_FOLDER_ID) {
+    throw new Error('DRIVE_ROOT_FOLDER_ID não configurado em Config.gs');
+  }
+  const raiz = DriveApp.getFolderById(DRIVE_ROOT_FOLDER_ID);
+  const pastas = raiz.getFoldersByName(tripName + ' - ' + tripId);
+  return pastas.hasNext() ? pastas.next() : null;
+}
+
 /** Recebe o arquivo em base64, salva na subpasta de categoria da viagem. */
 function driveUploadFile(payload) {
   const tripFolder = getTripFolder(payload.tripId, payload.tripName);
@@ -446,7 +462,10 @@ function driveUploadFile(payload) {
 
 /** Varre as subpastas de categoria da viagem e devolve a lista achatada de arquivos. */
 function driveListFiles(payload) {
-  const tripFolder = getTripFolder(payload.tripId, payload.tripName);
+  // Leitura pura: se a viagem nunca teve anexo, a pasta não existe e a resposta é uma lista
+  // vazia - não cria nada (ver findTripFolder).
+  const tripFolder = findTripFolder(payload.tripId, payload.tripName);
+  if (!tripFolder) return [];
   const resultado = [];
 
   const subpastas = tripFolder.getFolders();
