@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useCollaborators, useMeiosPagamento, useOfflineCollection } from "@/lib/offline/useOfflineData";
 import { createDespesaOffline, updateDespesaStatusOffline } from "@/lib/offline/sync";
+import { AnexoUpload } from "@/components/AnexoUpload";
 
 interface Despesa {
   id: string;
@@ -88,9 +89,11 @@ export default function LancamentosPage() {
     "receitas",
     tripId
   );
+  const { items: days } = useOfflineCollection<{ id: string; data: string }>("tripDays", tripId);
   const collaborators = useCollaborators(tripId);
   const meiosPagamento = useMeiosPagamento().filter((m) => m.ativo === "true");
   const [saving, setSaving] = useState(false);
+  const [uploadOpen, setUploadOpen] = useState(false);
   const [form, setForm] = useState({
     natureza: "debito" as Natureza,
     categoria: "traslado",
@@ -168,6 +171,7 @@ export default function LancamentosPage() {
     .filter((l) => l.natureza === "credito")
     .reduce((sum, l) => sum + (Number(l.valor) || 0), 0);
 
+  const datasDaViagem = [...days].map((d) => d.data).sort((a, b) => a.localeCompare(b));
   const nomePorPessoa = Object.fromEntries(collaborators.map((c) => [c.id, c.nome]));
   const nomePorMeio = Object.fromEntries(meiosPagamento.map((m) => [m.id, m.nome]));
 
@@ -296,6 +300,44 @@ export default function LancamentosPage() {
           {saving ? "Lançando..." : "Lançar"}
         </button>
       </form>
+
+      {/* Anexo fica fora do <form> de propósito: não é campo do lançamento (a aba Despesas não tem
+          vínculo com anexo), é um atalho pra guardar o comprovante sem ter que ir até a aba Anexos
+          - o arquivo vai pro mesmo lugar de sempre, na categoria escolhida. */}
+      <div>
+        {!uploadOpen ? (
+          <button
+            type="button"
+            onClick={() => setUploadOpen(true)}
+            className="flex items-center gap-1.5 rounded-lg border border-dashed border-slate-300 dark:border-slate-700 px-3 py-2 text-xs font-medium text-slate-500 dark:text-slate-400 hover:border-blue-300 hover:text-blue-600"
+          >
+            📎 Anexar comprovante
+          </button>
+        ) : (
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium text-slate-600 dark:text-slate-400">
+                Anexar comprovante
+              </p>
+              <button
+                type="button"
+                onClick={() => setUploadOpen(false)}
+                className="text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700"
+              >
+                Fechar
+              </button>
+            </div>
+            <AnexoUpload
+              tripId={tripId}
+              datasDaViagem={datasDaViagem}
+              categoriaInicial={form.categoria === "aporte" ? "outros" : form.categoria}
+            />
+            <p className="text-xs text-slate-400 dark:text-slate-500">
+              O arquivo vai para a aba Anexos da viagem, na categoria escolhida.
+            </p>
+          </div>
+        )}
+      </div>
 
       <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
         <table className="w-full text-sm">
