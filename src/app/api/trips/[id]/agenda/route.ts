@@ -31,7 +31,8 @@ const createSchema = z.object({
   horario: z
     .string()
     .regex(/^\d{2}:\d{2}$/, "Horário deve estar no formato HH:MM"),
-  descricao: z.string().min(1, "Descrição é obrigatória"),
+  titulo: z.string().min(1, "Título é obrigatório"),
+  descricao: z.string().optional().default(""),
   url: z.string().url("URL inválida").or(z.literal("")).optional(),
 });
 
@@ -70,6 +71,7 @@ export async function POST(
       id: form.get("id") ? String(form.get("id")) : undefined,
       data: String(form.get("data") ?? ""),
       horario: String(form.get("horario") ?? ""),
+      titulo: String(form.get("titulo") ?? ""),
       descricao: String(form.get("descricao") ?? ""),
       url: String(form.get("url") ?? ""),
     };

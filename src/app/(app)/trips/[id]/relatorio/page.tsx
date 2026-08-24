@@ -14,6 +14,7 @@ export default function RelatorioPage() {
     id: string;
     categoria: string;
     valor: string;
+    natureza?: string;
   }>("despesas", tripId);
   const { items: receitas, loading: loadingReceitas } = useOfflineCollection<{
     id: string;

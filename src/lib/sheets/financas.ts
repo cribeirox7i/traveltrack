@@ -3,8 +3,9 @@ import { appendRows, readSheet, updateRow } from "./repository";
 import {
   Categoria,
   DespesaRow,
+  Natureza,
   ReceitaRow,
-  StatusDespesa,
+  StatusLancamento,
   StatusReceita,
 } from "./types";
 
@@ -25,7 +26,8 @@ export async function createDespesa(input: {
   descricao: string;
   pagador_id: string;
   meio_pagamento_id: string;
-  status?: StatusDespesa;
+  status?: StatusLancamento;
+  natureza?: Natureza;
 }): Promise<DespesaRow> {
   const row: DespesaRow = {
     id: input.id || uuid(),
@@ -37,7 +39,8 @@ export async function createDespesa(input: {
     descricao: input.descricao,
     pagador_id: input.pagador_id,
     meio_pagamento_id: input.meio_pagamento_id,
-    status: input.status ?? "a_pagar",
+    status: input.status ?? (input.natureza === "credito" ? "a_receber" : "a_pagar"),
+    natureza: input.natureza ?? "debito",
   };
   await appendRows("Despesas", [row]);
   return row;
@@ -45,7 +48,7 @@ export async function createDespesa(input: {
 
 export async function updateDespesaStatus(
   id: string,
-  status: StatusDespesa
+  status: StatusLancamento
 ): Promise<void> {
   await updateRow("Despesas", id, { status });
 }

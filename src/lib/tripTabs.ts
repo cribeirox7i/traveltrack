@@ -1,18 +1,22 @@
-/** Abas de uma viagem, agrupadas em 3 seções (Financeiro / Roteiro / Anexos). Fica fora de
+/** Abas de uma viagem, agrupadas em 3 seções (Roteiro / Financeiro / Anexos). Fica fora de
  * `components/TripTabs.tsx` porque a camada de sincronização offline (`lib/offline/sync.ts`)
  * também precisa da lista achatada de slugs - pra aquecer o cache do service worker com a URL
  * de cada aba - e não deve depender de um módulo de componente React.
  *
  * As URLs continuam todas em `/trips/{id}/{slug}`, sem prefixo de grupo: agrupar é só uma
- * mudança de navegação, não de rota - evita mexer nas 7 pastas de página e no aquecimento de
- * cache offline, que já indexa por esses mesmos slugs. */
+ * mudança de navegação, não de rota - evita mexer nas pastas de página e no aquecimento de
+ * cache offline, que já indexa por esses mesmos slugs.
+ *
+ * O slug da segunda aba de Roteiro continua "agenda" (é a pasta/rota já existente, com a
+ * tabela Agenda por trás) - só o RÓTULO virou "Roteiro" na navegação; edição de cidades saiu
+ * de lá e mora só em Itinerário agora. */
 export const TRIP_TAB_SLUGS = [
-  "orcamento",
-  "despesas",
-  "receitas",
-  "relatorio",
+  "itinerario",
   "agenda",
   "mapa",
+  "orcamento",
+  "lancamentos",
+  "relatorio",
   "anexos",
 ] as const;
 
@@ -26,21 +30,21 @@ export interface TripTabGroup {
 
 export const TRIP_TAB_GROUPS: TripTabGroup[] = [
   {
+    key: "roteiro",
+    label: "Roteiro",
+    tabs: [
+      { slug: "itinerario", label: "Itinerário" },
+      { slug: "agenda", label: "Roteiro" },
+      { slug: "mapa", label: "Mapa" },
+    ],
+  },
+  {
     key: "financeiro",
     label: "Financeiro",
     tabs: [
       { slug: "orcamento", label: "Orçamento" },
-      { slug: "despesas", label: "Despesas" },
-      { slug: "receitas", label: "Receitas" },
+      { slug: "lancamentos", label: "Lançamentos" },
       { slug: "relatorio", label: "Relatório" },
-    ],
-  },
-  {
-    key: "roteiro",
-    label: "Roteiro",
-    tabs: [
-      { slug: "agenda", label: "Agenda" },
-      { slug: "mapa", label: "Mapa" },
     ],
   },
   {

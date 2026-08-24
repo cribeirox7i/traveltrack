@@ -4,8 +4,13 @@ import { errorResponse, requireSession } from "@/lib/api-helpers";
 import { listDespesasByTrip, updateDespesaStatus } from "@/lib/sheets/financas";
 import { userCanAccessTrip } from "@/lib/sheets/trips";
 
+// Os dois vocabulários possíveis (débito e crédito compartilham a mesma coluna `status` na
+// aba Despesas - ver StatusLancamento em lib/sheets/types.ts). Não valida aqui qual vocabulário
+// combina com a natureza da linha; um lançamento de crédito com status "pago" em vez de
+// "recebido" seria inofensivo (só a label na tela ficaria estranha), não vale a complexidade de
+// buscar a linha só pra checar a natureza antes de aceitar o patch.
 const patchSchema = z.object({
-  status: z.enum(["pago", "a_pagar"]),
+  status: z.enum(["pago", "a_pagar", "recebido", "a_receber"]),
 });
 
 export async function PATCH(

@@ -6,12 +6,16 @@ import { userCanAccessTrip } from "@/lib/sheets/trips";
 
 const createSchema = z.object({
   id: z.string().min(1).optional(),
-  categoria: z.enum(["traslado", "passagem", "alimentacao", "passeio", "hospedagem"]),
+  categoria: z.enum(["traslado", "passagem", "alimentacao", "passeio", "hospedagem", "aporte"]),
   valor: z.number().positive(),
   data: z.string().date(),
   descricao: z.string().optional().default(""),
   pagador_id: z.string().min(1),
   meio_pagamento_id: z.string().min(1),
+  // Débito (dinheiro saindo) ou crédito (dinheiro entrando) - ver Natureza em lib/sheets/types.ts.
+  // Opcional por compatibilidade com clientes antigos; sem informar, cai no default de
+  // createDespesa ("debito").
+  natureza: z.enum(["debito", "credito"]).optional(),
 });
 
 export async function GET(

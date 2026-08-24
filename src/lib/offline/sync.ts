@@ -36,6 +36,7 @@ interface AgendaPayload {
   id: string;
   data: string;
   horario: string;
+  titulo: string;
   descricao: string;
   url: string;
 }
@@ -587,6 +588,9 @@ export async function createDespesaOffline(
     descricao: string;
     pagador_id: string;
     meio_pagamento_id: string;
+    /** Débito (padrão, dinheiro saindo) ou crédito (dinheiro entrando, ex.: um aporte) - ver
+     * Natureza em lib/sheets/types.ts. */
+    natureza?: "debito" | "credito";
   }
 ): Promise<void> {
   const id = uuid();
@@ -594,7 +598,8 @@ export async function createDespesaOffline(
     id,
     trip_id: tripId,
     lancado_por: "",
-    status: "a_pagar",
+    status: input.natureza === "credito" ? "a_receber" : "a_pagar",
+    natureza: "debito",
     ...input,
     valor: String(input.valor),
   });
@@ -608,13 +613,16 @@ export async function createDespesaOffline(
   void pushOutbox();
 }
 
-/** Marca uma despesa como paga/a pagar. Diferente da criação, é um PATCH direto (sem outbox
- * dedicado além do próprio `updateDespesaStatus` na fila) - o registro já existe no servidor,
- * então não há necessidade de reconciliar ids como em `createTripOffline`. */
+/** Marca um lançamento (aba Despesas, débito ou crédito) como concluído/pendente. Diferente da
+ * criação, é um PATCH direto (sem outbox dedicado além do próprio `updateDespesaStatus` na
+ * fila) - o registro já existe no servidor, então não há necessidade de reconciliar ids como em
+ * `createTripOffline`. Aceita os dois vocabulários (pago/a_pagar para débito, recebido/
+ * a_receber para crédito) porque a mesma coluna `status` serve às duas naturezas - ver
+ * StatusLancamento em lib/sheets/types.ts. */
 export async function updateDespesaStatusOffline(
   tripId: string,
   despesaId: string,
-  status: "pago" | "a_pagar"
+  status: "pago" | "a_pagar" | "recebido" | "a_receber"
 ): Promise<void> {
   const existing = await getOne("despesas", despesaId);
   if (existing) await putOne("despesas", { ...existing, status });
@@ -692,7 +700,14 @@ export async function saveDaysOffline(tripId: string, days: DayPatch[]): Promise
 
 export async function createAgendaOffline(
   tripId: string,
-  input: { data: string; horario: string; descricao: string; url: string; file?: File | null }
+  input: {
+    data: string;
+    horario: string;
+    titulo: string;
+    descricao: string;
+    url: string;
+    file?: File | null;
+  }
 ): Promise<void> {
   const id = uuid();
   await putOne("agenda", {
@@ -700,6 +715,7 @@ export async function createAgendaOffline(
     trip_id: tripId,
     data: input.data,
     horario: input.horario,
+    titulo: input.titulo,
     descricao: input.descricao,
     url: input.url,
     // Anexo ainda não existe no Drive enquanto a mutação está só na fila - a linha local nasce
@@ -715,6 +731,7 @@ export async function createAgendaOffline(
     id,
     data: input.data,
     horario: input.horario,
+    titulo: input.titulo,
     descricao: input.descricao,
     url: input.url,
   };
@@ -727,7 +744,14 @@ export async function createAgendaOffline(
 export async function updateAgendaOffline(
   tripId: string,
   agendaId: string,
-  input: { data: string; horario: string; descricao: string; url: string; file?: File | null }
+  input: {
+    data: string;
+    horario: string;
+    titulo: string;
+    descricao: string;
+    url: string;
+    file?: File | null;
+  }
 ): Promise<void> {
   const existing = await getOne("agenda", agendaId);
   await putOne("agenda", {
@@ -735,6 +759,7 @@ export async function updateAgendaOffline(
     id: agendaId,
     data: input.data,
     horario: input.horario,
+    titulo: input.titulo,
     descricao: input.descricao,
     url: input.url,
     // Se um arquivo novo foi anexado agora, o nome já reflete isso na tela mesmo antes de
@@ -746,6 +771,7 @@ export async function updateAgendaOffline(
     agendaId,
     data: input.data,
     horario: input.horario,
+    titulo: input.titulo,
     descricao: input.descricao,
     url: input.url,
   };

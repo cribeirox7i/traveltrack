@@ -19,7 +19,8 @@ export async function createAgenda(input: {
   trip_id: string;
   data: string;
   horario: string;
-  descricao: string;
+  titulo: string;
+  descricao?: string;
   url?: string;
   anexo_file_id?: string;
   anexo_nome?: string;
@@ -31,7 +32,8 @@ export async function createAgenda(input: {
     trip_id: input.trip_id,
     data: input.data,
     horario: input.horario,
-    descricao: input.descricao,
+    titulo: input.titulo,
+    descricao: input.descricao ?? "",
     url: input.url ?? "",
     anexo_file_id: input.anexo_file_id ?? "",
     anexo_nome: input.anexo_nome ?? "",
@@ -48,7 +50,14 @@ export async function updateAgenda(
   patch: Partial<
     Pick<
       AgendaRow,
-      "data" | "horario" | "descricao" | "url" | "anexo_file_id" | "anexo_nome" | "anexo_url"
+      | "data"
+      | "horario"
+      | "titulo"
+      | "descricao"
+      | "url"
+      | "anexo_file_id"
+      | "anexo_nome"
+      | "anexo_url"
     >
   >
 ): Promise<void> {

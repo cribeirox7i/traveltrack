@@ -57,6 +57,7 @@ export const SHEET_HEADERS: Record<SheetTab, string[]> = {
     "pagador_id",
     "meio_pagamento_id",
     "status",
+    "natureza",
   ],
   Receitas: ["id", "trip_id", "user_id", "valor", "data", "descricao", "credor_id", "status"],
   MeiosPagamento: ["id", "nome", "ativo"],
@@ -65,6 +66,7 @@ export const SHEET_HEADERS: Record<SheetTab, string[]> = {
     "trip_id",
     "data",
     "horario",
+    "titulo",
     "descricao",
     "url",
     "anexo_file_id",
@@ -144,7 +146,8 @@ export type Categoria =
   | "passagem"
   | "alimentacao"
   | "passeio"
-  | "hospedagem";
+  | "hospedagem"
+  | "aporte";
 
 /**
  * Situação de pagamento de uma despesa/receita. Linhas antigas (criadas antes da coluna
@@ -153,6 +156,19 @@ export type Categoria =
  */
 export type StatusDespesa = "pago" | "a_pagar";
 export type StatusReceita = "recebido" | "a_receber";
+/** O campo `status` de um lançamento na aba Despesas guarda um dos dois vocabulários acima,
+ * dependendo de `natureza`: débito usa pago/a_pagar, crédito usa recebido/a_receber (mesmo
+ * vocabulário já usado há tempos na aba Receitas - sem conflito com dado existente, já que toda
+ * linha de Despesas anterior a esta coluna é implicitamente débito). */
+export type StatusLancamento = StatusDespesa | StatusReceita;
+
+/**
+ * Débito (dinheiro saindo, ex.: uma diária de hotel) ou crédito (dinheiro entrando, ex.: um
+ * aporte de alguém do grupo) - o que hoje distinguia as abas Despesas/Receitas vira um campo na
+ * mesma linha, unificado em "Lançamentos". Linhas antigas (de antes desta coluna existir) vêm
+ * com a célula vazia e são tratadas como "debito", já que só a aba Despesas existia até então.
+ */
+export type Natureza = "debito" | "credito";
 
 export interface DespesaRow {
   [key: string]: string;
@@ -165,7 +181,8 @@ export interface DespesaRow {
   descricao: string;
   pagador_id: string;
   meio_pagamento_id: string;
-  status: StatusDespesa | "";
+  status: StatusLancamento | "";
+  natureza: Natureza | "";
 }
 
 export interface MeioPagamentoRow {
@@ -194,6 +211,7 @@ export interface AgendaRow {
   trip_id: string;
   data: string;
   horario: string;
+  titulo: string;
   descricao: string;
   url: string;
   anexo_file_id: string;
