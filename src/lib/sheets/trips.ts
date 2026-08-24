@@ -195,8 +195,11 @@ export const DAY_AUTO_FIELDS = ["temp_min", "temp_max"] as const;
 
 export type DayAutoField = (typeof DAY_AUTO_FIELDS)[number];
 
-/** Coordenadas dos campos de cidade (origem/destino/pernoite) - preenchidas junto quando o
- * autocomplete de cidade grava uma escolha, não digitadas diretamente pelo usuário. */
+/** Coordenadas + país dos campos de cidade (origem/destino/pernoite) - preenchidos junto quando
+ * o autocomplete de cidade grava uma escolha, não digitados diretamente pelo usuário. Faltavam
+ * os `_pais` aqui quando esse campo foi adicionado - a whitelist descartava silenciosamente o
+ * país antes de chegar na planilha, mesmo com o Apps Script já implantado (bug de código, não
+ * de deploy pendente). */
 export const DAY_GEO_FIELDS = [
   "origem_lat",
   "origem_lon",
@@ -204,6 +207,9 @@ export const DAY_GEO_FIELDS = [
   "destino_lon",
   "pernoite_lat",
   "pernoite_lon",
+  "origem_pais",
+  "destino_pais",
+  "pernoite_pais",
 ] as const;
 
 export type DayGeoField = (typeof DAY_GEO_FIELDS)[number];

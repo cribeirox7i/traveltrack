@@ -238,7 +238,7 @@ export default function OrcamentoPage() {
                 <td className="px-2 py-1 text-slate-600 dark:text-slate-400">{formatDateBR(day.data)}</td>
                 <td className="px-1 py-1 text-slate-500 dark:text-slate-400">{weekdayLabel(day.data)}</td>
                 {ROUTE_FIELDS.map((f) => (
-                  <td key={f.key} className="px-1 py-1 text-slate-500 dark:text-slate-400">
+                  <td key={f.key} className="min-w-[130px] px-1 py-1 text-slate-500 dark:text-slate-400">
                     {day[f.key] || "-"}
                   </td>
                 ))}
@@ -261,8 +261,9 @@ export default function OrcamentoPage() {
                         disabled={isSaving}
                         // `w-full` mantém o input preenchendo a coluna (é o que alinha cabeçalho,
                         // dados e totais); o `min-w` é o que impede a coluna de encolher até o
-                        // tamanho do rótulo curto do cabeçalho ("TRAS.") num viewport estreito.
-                        className="w-full min-w-24 rounded-md border border-slate-300 dark:border-slate-700 px-1.5 py-0.5 text-right text-xs"
+                        // tamanho do rótulo curto do cabeçalho ("TRAS.") num viewport estreito -
+                        // 82px = os 96px (min-w-24) de antes, 15% mais estreito.
+                        className="w-full min-w-[82px] rounded-md border border-slate-300 dark:border-slate-700 px-1.5 py-0.5 text-right text-xs"
                       />
                     </td>
                   );

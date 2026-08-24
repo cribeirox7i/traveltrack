@@ -23,7 +23,9 @@ export function TopBar({ initialDark }: { initialDark: boolean }) {
           desta barra centraliza no viewport inteiro em vez de alinhar com main - que centraliza
           só no espaço que sobra ao lado da sidebar. Ver AppLayout em (app)/layout.tsx. */}
       <div className="hidden shrink-0 md:block md:w-56" aria-hidden="true" />
-      <div className="mx-auto flex w-full max-w-[980px] flex-1 items-center justify-between gap-3 px-4 py-2">
+      {/* max-w-[1078px] = os 980px de antes, 10% mais largo - mesmo valor usado no `main` em
+          (app)/layout.tsx, os dois têm que bater pra continuar alinhado. */}
+      <div className="mx-auto flex w-full max-w-[1078px] flex-1 items-center justify-between gap-3 px-4 py-2">
         <span className="text-lg font-bold text-slate-800 dark:text-slate-100">TravelX7i</span>
         <div className="flex shrink-0 items-center gap-1">
           <DownloadOfflineButton />

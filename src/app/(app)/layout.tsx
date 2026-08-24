@@ -13,9 +13,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <SyncStatusBar />
       <div className="flex flex-1 flex-col md:flex-row">
         <NavBar />
-        {/* max-w-[980px]: ~15% mais estreito que o max-w-6xl (1152px) usado antes - a mesma
-            largura da TopBar em components/TopBar.tsx, pra alinhar as duas. */}
-        <main className="flex-1 pb-20 md:pb-6 p-4 md:p-8 max-w-[980px] mx-auto w-full">
+        {/* max-w-[1078px]: os 980px de antes, 10% mais largo - mesma largura da TopBar em
+            components/TopBar.tsx, pra alinhar as duas. */}
+        <main className="flex-1 pb-20 md:pb-6 p-4 md:p-8 max-w-[1078px] mx-auto w-full">
           {children}
         </main>
       </div>

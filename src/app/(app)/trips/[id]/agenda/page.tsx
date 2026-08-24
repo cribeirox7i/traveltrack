@@ -93,6 +93,17 @@ export default function AgendaPage() {
   const [error, setError] = useState<string | null>(null);
   const [localUrls, setLocalUrls] = useState<Record<string, string>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+  const tituloInputRef = useRef<HTMLInputElement>(null);
+
+  // Ao abrir o formulário (novo ou editar), o clique costuma ter sido num botão lá embaixo, num
+  // acordeão já aberto - sem isso a tela fica exatamente onde estava, com o formulário
+  // aparecendo fora da vista lá em cima. Rola até ele e já foca o Título.
+  useEffect(() => {
+    if (!formOpen) return;
+    formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    tituloInputRef.current?.focus();
+  }, [formOpen]);
 
   // Mesmo padrão da tela de Anexos: resolve, pra cada anexo de compromisso já baixado neste
   // aparelho, um object URL que abre offline - os que ainda não foram baixados caem pro link ao
@@ -250,6 +261,7 @@ export default function AgendaPage() {
 
       {formOpen && (
         <form
+          ref={formRef}
           onSubmit={handleSubmit}
           className="flex flex-col gap-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:flex-row sm:flex-wrap sm:items-end"
         >
@@ -286,6 +298,7 @@ export default function AgendaPage() {
           <div className="flex-1 min-w-[200px]">
             <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">Título</label>
             <input
+              ref={tituloInputRef}
               required
               value={form.titulo}
               onChange={(e) => setForm({ ...form, titulo: e.target.value })}
