@@ -41,6 +41,8 @@ export const SHEET_HEADERS: Record<SheetTab, string[]> = {
     "hospedagem_pp",
     "temp_min",
     "temp_max",
+    "chuva_mm",
+    "vento_kmh",
     "origem_lat",
     "origem_lon",
     "destino_lat",
@@ -170,6 +172,11 @@ export interface TripDayRow {
   hospedagem_pp: string;
   temp_min: string;
   temp_max: string;
+  /** Chuva (mm) e vento máximo (km/h) do dia - previsão real (Open-Meteo, até 16 dias à frente)
+   * ou média histórica dos últimos anos, mesma fonte/regra de temp_min/temp_max (ver
+   * `lib/weather.ts`). Vazio se `pernoite` não tiver cidade preenchida ainda. */
+  chuva_mm: string;
+  vento_kmh: string;
   origem_lat: string;
   origem_lon: string;
   destino_lat: string;

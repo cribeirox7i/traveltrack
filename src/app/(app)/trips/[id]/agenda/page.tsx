@@ -13,6 +13,8 @@ interface TripDay {
   pernoite: string;
   temp_min: string;
   temp_max: string;
+  chuva_mm: string;
+  vento_kmh: string;
 }
 
 interface AgendaItem {
@@ -37,6 +39,20 @@ function weekdayLabel(iso: string): string {
 function formatDateBR(iso: string): string {
   const [y, m, d] = iso.slice(0, 10).split("-");
   return d && m && y ? `${d}/${m}/${y}` : iso;
+}
+
+const FORECAST_MAX_DIAS = 16;
+
+/** Mesma regra de `lib/weather.ts`: até 16 dias à frente de hoje é previsão real, senão é média
+ * histórica - a tela não guarda qual fonte foi usada (não é uma coluna na planilha), dá pra
+ * recalcular na hora a partir da própria data do dia. */
+function isForecastReal(dataISO: string): boolean {
+  const MS_DIA = 86_400_000;
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+  const alvo = new Date(`${dataISO.slice(0, 10)}T00:00:00`);
+  const dias = Math.round((alvo.getTime() - hoje.getTime()) / MS_DIA);
+  return dias >= 0 && dias <= FORECAST_MAX_DIAS;
 }
 
 const emptyForm = { data: "", horario: "", titulo: "", descricao: "", url: "" };
@@ -316,16 +332,42 @@ export default function AgendaPage() {
                     </span>
                   )}
                 </div>
-                <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
+                <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
                   <span>
                     {day.temp_min && day.temp_max ? `${day.temp_min}° / ${day.temp_max}°` : "-"}
                   </span>
+                  {day.temp_min && day.temp_max && (
+                    <span
+                      title={
+                        isForecastReal(day.data)
+                          ? "Previsão real do tempo (até 16 dias à frente de hoje)"
+                          : "Estimativa: média histórica de temperatura/chuva/vento pra esta data nos últimos anos - não é uma previsão real"
+                      }
+                    >
+                      {isForecastReal(day.data) ? "🔮" : "📊"}
+                    </span>
+                  )}
                   <span className={`transition-transform ${isOpen ? "rotate-180" : ""}`}>▾</span>
                 </div>
               </button>
 
               {isOpen && (
                 <div className="border-t border-slate-100 dark:border-slate-800 px-4 py-3">
+                  {day.temp_min && day.temp_max && (
+                    <div className="mb-3 flex flex-col gap-0.5 text-xs text-slate-500 dark:text-slate-400">
+                      <div className="flex flex-wrap items-center gap-3">
+                        <span>🌡️ {day.temp_min}° / {day.temp_max}°</span>
+                        {day.chuva_mm && <span>🌧️ {day.chuva_mm}mm</span>}
+                        {day.vento_kmh && <span>💨 {day.vento_kmh}km/h</span>}
+                      </div>
+                      <p className="text-[11px] text-slate-400 dark:text-slate-500">
+                        {isForecastReal(day.data)
+                          ? "🔮 Previsão real do tempo (até 16 dias à frente de hoje)."
+                          : "📊 Estimativa: média histórica de temperatura/chuva/vento pra esta data nos últimos anos - não é uma previsão real, dias tão distantes ainda não têm previsão disponível."}
+                      </p>
+                    </div>
+                  )}
+
                   {itens.length === 0 && (
                     <p className="text-sm text-slate-400 dark:text-slate-500">Nenhum compromisso nesta data ainda.</p>
                   )}

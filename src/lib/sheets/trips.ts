@@ -97,6 +97,8 @@ export async function createTrip(input: {
     hospedagem_pp: "0",
     temp_min: "",
     temp_max: "",
+    chuva_mm: "",
+    vento_kmh: "",
     origem_lat: "",
     origem_lon: "",
     destino_lat: "",
@@ -204,7 +206,7 @@ export type DayEditableField = (typeof DAY_EDITABLE_FIELDS)[number];
 /** Campos preenchidos automaticamente pelo app (busca de temperatura), não pelo usuário digitando
  * na grade - mas gravados pelo mesmo endpoint de "salvar dias", por isso entram na whitelist de
  * patch abaixo junto com os campos editáveis de verdade. */
-export const DAY_AUTO_FIELDS = ["temp_min", "temp_max"] as const;
+export const DAY_AUTO_FIELDS = ["temp_min", "temp_max", "chuva_mm", "vento_kmh"] as const;
 
 export type DayAutoField = (typeof DAY_AUTO_FIELDS)[number];
 
@@ -332,6 +334,8 @@ export async function insertTripDay(tripId: string, afterDayId: string | null): 
     hospedagem_pp: "0",
     temp_min: "",
     temp_max: "",
+    chuva_mm: "",
+    vento_kmh: "",
     origem_lat: "",
     origem_lon: "",
     destino_lat: "",

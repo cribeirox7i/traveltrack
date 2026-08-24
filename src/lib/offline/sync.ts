@@ -348,37 +348,54 @@ interface WeatherableDay {
   pernoite: string;
 }
 
-function monthDay(iso: string): { month: number; day: number } {
-  const d = new Date(`${iso.slice(0, 10)}T00:00:00`);
-  return { month: d.getMonth() + 1, day: d.getDate() };
+interface WeatherApiResult {
+  min: number;
+  max: number;
+  chuva: number | null;
+  vento: number | null;
+  source: "forecast" | "historico";
 }
 
-/** Busca e grava a temperatura mínima/máxima de cada dia com Pernoite preenchido - antes era um
+/** Busca e grava temperatura/chuva/vento de cada dia com Pernoite preenchido - antes era um
  * botão próprio na aba Roteiro, virou parte do "Atualizar" global (ver `refreshNow`) pra
- * concentrar as atualizações num lugar só, a pedido do usuário. */
+ * concentrar as atualizações num lugar só, a pedido do usuário. Cache por cidade+data exata
+ * (não só mês/dia, como antes) - previsão real muda dia a dia, não dá pra reaproveitar entre
+ * anos como a média histórica antiga permitia. */
 export async function fetchAndSaveWeather(tripId: string, days: WeatherableDay[]): Promise<void> {
-  const cache: Record<string, { min: number; max: number } | null> = {};
-  const updates: { id: string; temp_min: string; temp_max: string }[] = [];
+  const cache: Record<string, WeatherApiResult | null> = {};
+  const updates: {
+    id: string;
+    temp_min: string;
+    temp_max: string;
+    chuva_mm: string;
+    vento_kmh: string;
+  }[] = [];
 
   for (const day of days) {
     const city = day.pernoite?.trim();
-    if (!city) continue;
-    const { month, day: dayOfMonth } = monthDay(day.data);
-    const cacheKey = `${city.toLowerCase()}|${month}-${dayOfMonth}`;
+    const data = day.data?.slice(0, 10);
+    if (!city || !data) continue;
+    const cacheKey = `${city.toLowerCase()}|${data}`;
     if (!(cacheKey in cache)) {
       try {
         const res = await fetch(
-          `/api/weather?city=${encodeURIComponent(city)}&month=${month}&day=${dayOfMonth}`
+          `/api/weather?city=${encodeURIComponent(city)}&date=${data}`
         );
-        const data = res.ok ? await res.json() : { temp: null };
-        cache[cacheKey] = data.temp;
+        const body = res.ok ? await res.json() : { weather: null };
+        cache[cacheKey] = body.weather;
       } catch {
         cache[cacheKey] = null;
       }
     }
     const result = cache[cacheKey];
     if (!result) continue;
-    updates.push({ id: day.id, temp_min: result.min.toFixed(1), temp_max: result.max.toFixed(1) });
+    updates.push({
+      id: day.id,
+      temp_min: result.min.toFixed(1),
+      temp_max: result.max.toFixed(1),
+      chuva_mm: result.chuva !== null ? result.chuva.toFixed(1) : "",
+      vento_kmh: result.vento !== null ? result.vento.toFixed(0) : "",
+    });
   }
 
   if (updates.length) await saveDaysOffline(tripId, updates);
@@ -699,6 +716,8 @@ export async function createTripOffline(input: {
     hospedagem_pp: "0",
     temp_min: "",
     temp_max: "",
+    chuva_mm: "",
+    vento_kmh: "",
     origem_lat: "",
     origem_lon: "",
     destino_lat: "",

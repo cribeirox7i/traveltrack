@@ -3,6 +3,7 @@
 import { useState } from "react";
 import dynamic from "next/dynamic";
 import { useParams } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { useOfflineCollection, useOfflineTrip } from "@/lib/offline/useOfflineData";
 import { pullTrips } from "@/lib/offline/sync";
 import { CityAutocomplete } from "@/components/CityAutocomplete";
@@ -36,6 +37,8 @@ function formatDateBR(iso: string): string {
 
 export default function MapaPage() {
   const { id: tripId } = useParams<{ id: string }>();
+  const { data: session } = useSession();
+  const isAdmin = session?.user.role === "admin";
   const { trip, loading: loadingTrip } = useOfflineTrip<TripMeta>(tripId);
   const { items: days, loading: loadingDays } = useOfflineCollection<TripDay>("tripDays", tripId);
   const [origemForm, setOrigemForm] = useState({ nome: "", lat: "", lon: "" });
@@ -85,7 +88,7 @@ export default function MapaPage() {
 
   return (
     <div className="flex flex-col gap-3">
-      {!trip.cidade_origem_lat && (
+      {!trip.cidade_origem_lat && isAdmin && (
         <div className="flex flex-col gap-2 rounded-2xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950 p-4 sm:flex-row sm:items-end">
           <div className="flex-1">
             <label className="mb-1 block text-xs font-medium text-amber-800 dark:text-amber-300">
@@ -108,6 +111,11 @@ export default function MapaPage() {
             {savingOrigem ? "Salvando..." : "Salvar"}
           </button>
         </div>
+      )}
+      {!trip.cidade_origem_lat && !isAdmin && (
+        <p className="text-sm text-slate-400 dark:text-slate-500">
+          A cidade de origem ainda não foi definida - só um administrador pode fazer isso.
+        </p>
       )}
 
       {points.length === 0 ? (

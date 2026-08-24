@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { useOfflineCollection } from "@/lib/offline/useOfflineData";
 import { pullTripDetail, pullTrips, saveDaysOffline } from "@/lib/offline/sync";
 import { CityAutocomplete } from "@/components/CityAutocomplete";
@@ -62,6 +63,8 @@ function formatDateBR(iso: string): string {
 
 export default function ItinerarioPage() {
   const { id: tripId } = useParams<{ id: string }>();
+  const { data: session } = useSession();
+  const isAdmin = session?.user.role === "admin";
   const { items, loading } = useOfflineCollection<TripDay>("tripDays", tripId);
   const [days, setDays] = useState<TripDay[]>([]);
   const [isSaving, setIsSaving] = useState(false);
@@ -220,71 +223,81 @@ export default function ItinerarioPage() {
   return (
     <div className="flex flex-col gap-3">
       <p className="text-sm text-slate-500 dark:text-slate-400">
-        Origem, destino e pernoite de cada dia da viagem. Este é o único lugar onde essas cidades
-        podem ser editadas - nas outras abas elas aparecem só como texto. Incluir/excluir dias
-        também só é feito aqui - as datas dos dias seguintes se ajustam sozinhas pra continuarem
-        sequenciais.
+        {isAdmin ? (
+          <>
+            Origem, destino e pernoite de cada dia da viagem. Este é o único lugar onde essas
+            cidades podem ser editadas - nas outras abas elas aparecem só como texto.
+            Incluir/excluir dias também só é feito aqui - as datas dos dias seguintes se ajustam
+            sozinhas pra continuarem sequenciais.
+          </>
+        ) : (
+          "Somente administradores podem editar o Itinerário (cidades e dias da viagem)."
+        )}
       </p>
 
       {structError && <p className="text-sm text-red-600 dark:text-red-400">{structError}</p>}
 
-      <div>
-        <button
-          type="button"
-          onClick={() => insertDay(null)}
-          disabled={structBusy || isDirty}
-          title={isDirty ? "Salve as edições antes de incluir um dia" : undefined}
-          className="flex items-center gap-1.5 rounded-lg border border-dashed border-slate-300 dark:border-slate-700 px-2.5 py-1.5 text-xs font-medium text-slate-500 dark:text-slate-400 hover:border-blue-300 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          + Incluir dia no início
-        </button>
-      </div>
-
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-2">
+      {isAdmin && (
+        <div>
           <button
             type="button"
-            onClick={() => replicateColumn("all")}
-            disabled={!focusedCell}
-            className="flex items-center gap-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2.5 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 hover:border-blue-300 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
+            onClick={() => insertDay(null)}
+            disabled={structBusy || isDirty}
+            title={isDirty ? "Salve as edições antes de incluir um dia" : undefined}
+            className="flex items-center gap-1.5 rounded-lg border border-dashed border-slate-300 dark:border-slate-700 px-2.5 py-1.5 text-xs font-medium text-slate-500 dark:text-slate-400 hover:border-blue-300 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-3.5 w-3.5">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2M10 10h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-8a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2Z" />
-            </svg>
-            Replicar todas as linhas
-          </button>
-          <button
-            type="button"
-            onClick={() => replicateColumn("down")}
-            disabled={!focusedCell}
-            className="flex items-center gap-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2.5 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 hover:border-blue-300 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-3.5 w-3.5">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14m0 0-5-5m5 5 5-5" />
-            </svg>
-            Replicar para baixo
-          </button>
-          <span className="text-xs text-slate-400 dark:text-slate-500">
-            {focusedCell
-              ? `Coluna selecionada: ${ROUTE_FIELDS.find((f) => f.key === focusedCell.field)?.label}`
-              : "Clique em um campo para selecionar a coluna a replicar"}
-          </span>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-slate-500 dark:text-slate-400">
-            {isDirty ? "Alterações não salvas" : "Tudo salvo"}
-          </span>
-          <button
-            type="button"
-            onClick={saveAll}
-            disabled={!isDirty || isSaving}
-            className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
-          >
-            {isSaving ? "Salvando..." : "Salvar"}
+            + Incluir dia no início
           </button>
         </div>
-      </div>
+      )}
+
+      {isAdmin && (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => replicateColumn("all")}
+              disabled={!focusedCell}
+              className="flex items-center gap-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2.5 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 hover:border-blue-300 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-3.5 w-3.5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2M10 10h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-8a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2Z" />
+              </svg>
+              Replicar todas as linhas
+            </button>
+            <button
+              type="button"
+              onClick={() => replicateColumn("down")}
+              disabled={!focusedCell}
+              className="flex items-center gap-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2.5 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 hover:border-blue-300 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-3.5 w-3.5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14m0 0-5-5m5 5 5-5" />
+              </svg>
+              Replicar para baixo
+            </button>
+            <span className="text-xs text-slate-400 dark:text-slate-500">
+              {focusedCell
+                ? `Coluna selecionada: ${ROUTE_FIELDS.find((f) => f.key === focusedCell.field)?.label}`
+                : "Clique em um campo para selecionar a coluna a replicar"}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-500 dark:text-slate-400">
+              {isDirty ? "Alterações não salvas" : "Tudo salvo"}
+            </span>
+            <button
+              type="button"
+              onClick={saveAll}
+              disabled={!isDirty || isSaving}
+              className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+            >
+              {isSaving ? "Salvando..." : "Salvar"}
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
         <table className="w-full whitespace-nowrap text-xs">
@@ -297,7 +310,7 @@ export default function ItinerarioPage() {
                   {f.label}
                 </th>
               ))}
-              <th className="px-1 py-1" />
+              {isAdmin && <th className="px-1 py-1" />}
             </tr>
           </thead>
           <tbody>
@@ -318,33 +331,35 @@ export default function ItinerarioPage() {
                       }}
                       onSelect={(city) => applyCitySelection(day.id, f.key, city)}
                       onFocus={() => setFocusedCell({ dayId: day.id, field: f.key })}
-                      disabled={isSaving}
+                      disabled={isSaving || !isAdmin}
                       className="w-full min-w-32 rounded-md border border-slate-300 dark:border-slate-700 py-0.5 pl-1.5 pr-3.5 text-xs"
                     />
                   </td>
                 ))}
-                <td className="px-1 py-1">
-                  <div className="flex items-center gap-2 text-xs">
-                    <button
-                      type="button"
-                      onClick={() => insertDay(day.id)}
-                      disabled={structBusy || isDirty}
-                      title={isDirty ? "Salve as edições antes de incluir um dia" : "Incluir dia depois deste"}
-                      className="text-slate-400 dark:text-slate-500 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-40"
-                    >
-                      + dia
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => deleteDay(day)}
-                      disabled={structBusy || isDirty || days.length <= 1}
-                      title={isDirty ? "Salve as edições antes de excluir um dia" : "Excluir este dia"}
-                      className="text-red-400 dark:text-red-500 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40"
-                    >
-                      Excluir
-                    </button>
-                  </div>
-                </td>
+                {isAdmin && (
+                  <td className="px-1 py-1">
+                    <div className="flex items-center gap-2 text-xs">
+                      <button
+                        type="button"
+                        onClick={() => insertDay(day.id)}
+                        disabled={structBusy || isDirty}
+                        title={isDirty ? "Salve as edições antes de incluir um dia" : "Incluir dia depois deste"}
+                        className="text-slate-400 dark:text-slate-500 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        + dia
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => deleteDay(day)}
+                        disabled={structBusy || isDirty || days.length <= 1}
+                        title={isDirty ? "Salve as edições antes de excluir um dia" : "Excluir este dia"}
+                        className="text-red-400 dark:text-red-500 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        Excluir
+                      </button>
+                    </div>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>

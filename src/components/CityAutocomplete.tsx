@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 export interface CitySelection {
   nome: string;
@@ -62,6 +63,8 @@ export function CityAutocomplete({
   const [highlighted, setHighlighted] = useState(0);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number; width: number } | null>(null);
 
   useEffect(() => {
     return () => {
@@ -69,6 +72,26 @@ export function CityAutocomplete({
       abortRef.current?.abort();
     };
   }, []);
+
+  // O dropdown é renderizado num portal (document.body), `position: fixed` - sem isso, dentro de
+  // um container com scroll (ex.: a grade de dias do Itinerário, `overflow-x-auto`), a lista de
+  // sugestões ficava cortada pela borda do container em vez de flutuar por cima de tudo. Precisa
+  // recalcular a posição a cada abertura e a cada scroll/resize enquanto estiver aberto, já que
+  // `fixed` não acompanha o input sozinho.
+  useEffect(() => {
+    if (!open) return;
+    function updatePos() {
+      const rect = inputRef.current?.getBoundingClientRect();
+      if (rect) setMenuPos({ top: rect.bottom, left: rect.left, width: rect.width });
+    }
+    updatePos();
+    window.addEventListener("scroll", updatePos, true);
+    window.addEventListener("resize", updatePos);
+    return () => {
+      window.removeEventListener("scroll", updatePos, true);
+      window.removeEventListener("resize", updatePos);
+    };
+  }, [open]);
 
   function scheduleSearch(query: string) {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -134,6 +157,7 @@ export function CityAutocomplete({
   return (
     <div className="relative">
       <input
+        ref={inputRef}
         type="text"
         value={value}
         onChange={(e) => handleChange(e.target.value)}
@@ -160,24 +184,31 @@ export function CityAutocomplete({
           }`}
         />
       )}
-      {open && suggestions.length > 0 && (
-        <ul className="absolute z-20 mt-1 max-h-56 w-max min-w-full overflow-auto rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs shadow-lg">
-          {suggestions.map((s, i) => (
-            <li key={`${s.name}-${s.latitude}-${s.longitude}`}>
-              <button
-                type="button"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => handlePick(s)}
-                className={`block w-full whitespace-nowrap px-3 py-1.5 text-left ${
-                  i === highlighted ? "bg-slate-100 dark:bg-slate-800" : "hover:bg-slate-50"
-                }`}
-              >
-                {labelFor(s)}
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
+      {open &&
+        suggestions.length > 0 &&
+        menuPos &&
+        createPortal(
+          <ul
+            style={{ position: "fixed", top: menuPos.top, left: menuPos.left, width: "max-content", minWidth: menuPos.width }}
+            className="z-50 mt-1 max-h-56 overflow-auto rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs shadow-lg"
+          >
+            {suggestions.map((s, i) => (
+              <li key={`${s.name}-${s.latitude}-${s.longitude}`}>
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => handlePick(s)}
+                  className={`block w-full whitespace-nowrap px-3 py-1.5 text-left ${
+                    i === highlighted ? "bg-slate-100 dark:bg-slate-800" : "hover:bg-slate-50"
+                  }`}
+                >
+                  {labelFor(s)}
+                </button>
+              </li>
+            ))}
+          </ul>,
+          document.body
+        )}
     </div>
   );
 }

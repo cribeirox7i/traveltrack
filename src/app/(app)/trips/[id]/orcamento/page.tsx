@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { useOfflineCollection, useOfflineTrip } from "@/lib/offline/useOfflineData";
 import { saveDaysOffline } from "@/lib/offline/sync";
 
@@ -73,6 +74,8 @@ function formatDateBR(iso: string): string {
 
 export default function OrcamentoPage() {
   const { id: tripId } = useParams<{ id: string }>();
+  const { data: session } = useSession();
+  const isAdmin = session?.user.role === "admin";
   const { trip } = useOfflineTrip<TripMeta>(tripId);
   const { items, loading } = useOfflineCollection<TripDay>("tripDays", tripId);
   const modoTotal = trip?.custo_modo === "total";
@@ -179,56 +182,63 @@ export default function OrcamentoPage() {
         {modoTotal
           ? `Valores TOTAIS do grupo, por dia (${qtdPessoas} pessoa(s)) - a tela divide pelo número de viajantes pra mostrar o valor por pessoa.`
           : "Valores por pessoa, por dia."}{" "}
-        As edições ficam só nesta tela até você clicar em{" "}
-        <strong>Salvar</strong>. Origem/destino/pernoite aparecem só como referência - editáveis
-        na aba Itinerário.
+        {isAdmin ? (
+          <>
+            As edições ficam só nesta tela até você clicar em <strong>Salvar</strong>.{" "}
+          </>
+        ) : (
+          "Somente administradores podem editar o Orçamento - "
+        )}
+        Origem/destino/pernoite aparecem só como referência - editáveis na aba Itinerário.
       </p>
 
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => replicateColumn("all")}
-            disabled={!focusedCell}
-            className="flex items-center gap-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2.5 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 hover:border-blue-300 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-3.5 w-3.5">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2M10 10h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-8a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2Z" />
-            </svg>
-            Replicar todas as linhas
-          </button>
-          <button
-            type="button"
-            onClick={() => replicateColumn("down")}
-            disabled={!focusedCell}
-            className="flex items-center gap-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2.5 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 hover:border-blue-300 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-3.5 w-3.5">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14m0 0-5-5m5 5 5-5" />
-            </svg>
-            Replicar para baixo
-          </button>
-          <span className="text-xs text-slate-400 dark:text-slate-500">
-            {focusedCell
-              ? `Coluna selecionada: ${FIELD_LABELS[focusedCell.field]}`
-              : "Clique em um campo para selecionar a coluna a replicar"}
-          </span>
-        </div>
+      {isAdmin && (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => replicateColumn("all")}
+              disabled={!focusedCell}
+              className="flex items-center gap-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2.5 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 hover:border-blue-300 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-3.5 w-3.5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2M10 10h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-8a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2Z" />
+              </svg>
+              Replicar todas as linhas
+            </button>
+            <button
+              type="button"
+              onClick={() => replicateColumn("down")}
+              disabled={!focusedCell}
+              className="flex items-center gap-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2.5 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 hover:border-blue-300 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-3.5 w-3.5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14m0 0-5-5m5 5 5-5" />
+              </svg>
+              Replicar para baixo
+            </button>
+            <span className="text-xs text-slate-400 dark:text-slate-500">
+              {focusedCell
+                ? `Coluna selecionada: ${FIELD_LABELS[focusedCell.field]}`
+                : "Clique em um campo para selecionar a coluna a replicar"}
+            </span>
+          </div>
 
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-slate-500 dark:text-slate-400">
-            {isDirty ? "Alterações não salvas" : "Tudo salvo"}
-          </span>
-          <button
-            type="button"
-            onClick={saveAll}
-            disabled={!isDirty || isSaving}
-            className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
-          >
-            {isSaving ? "Salvando..." : "Salvar"}
-          </button>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-500 dark:text-slate-400">
+              {isDirty ? "Alterações não salvas" : "Tudo salvo"}
+            </span>
+            <button
+              type="button"
+              onClick={saveAll}
+              disabled={!isDirty || isSaving}
+              className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+            >
+              {isSaving ? "Salvando..." : "Salvar"}
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
         <table className="w-full whitespace-nowrap text-xs">
@@ -274,7 +284,7 @@ export default function OrcamentoPage() {
                           setEditingKey(`${day.id}:${f.key}`);
                         }}
                         onBlur={(e) => normalizeCostOnBlur(day.id, f.key, e.target.value)}
-                        disabled={isSaving}
+                        disabled={isSaving || !isAdmin}
                         // `w-full` mantém o input preenchendo a coluna (é o que alinha cabeçalho,
                         // dados e totais); o `min-w` é o que impede a coluna de encolher até o
                         // tamanho do rótulo curto do cabeçalho ("TRAS.") num viewport estreito -

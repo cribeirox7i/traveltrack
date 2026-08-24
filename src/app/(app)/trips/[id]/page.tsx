@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { useOfflineCollection, useOfflineTrip, useCountries } from "@/lib/offline/useOfflineData";
 import { pullTripDetail, pullTrips } from "@/lib/offline/sync";
 import { findCountry } from "@/lib/countryMatch";
@@ -108,6 +109,8 @@ const ACCORDION_LABELS: Record<AccordionKey, { icon: string; label: string }> = 
 
 export default function TripDashboardPage() {
   const { id: tripId } = useParams<{ id: string }>();
+  const { data: session } = useSession();
+  const isAdmin = session?.user.role === "admin";
   const { trip } = useOfflineTrip<TripMeta>(tripId);
   const { items: days, loading } = useOfflineCollection<TripDay>("tripDays", tripId);
   const countries = useCountries();
@@ -194,6 +197,7 @@ export default function TripDashboardPage() {
         />
       )}
 
+      {isAdmin && (
       <div>
         {!editOpen ? (
           <button
@@ -268,6 +272,7 @@ export default function TripDashboardPage() {
           </div>
         )}
       </div>
+      )}
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
         {stats.map((s) => (

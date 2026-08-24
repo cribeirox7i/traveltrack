@@ -1,22 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import { errorResponse, requireSession } from "@/lib/api-helpers";
-import { deleteTripDay, userCanAccessTrip } from "@/lib/sheets/trips";
+import { errorResponse, requireAdmin } from "@/lib/api-helpers";
+import { deleteTripDay } from "@/lib/sheets/trips";
 
 /** Remove um dia da grade - ver `deleteTripDay` pra regra completa de reindexação de datas,
- * cascade de compromissos da Agenda cravados na data do dia removido, etc. */
+ * cascade de compromissos da Agenda cravados na data do dia removido, etc. Admin-only: mesma
+ * regra do insert, é estrutura de Itinerário. */
 export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string; dayId: string }> }
 ) {
-  const auth = await requireSession();
+  const auth = await requireAdmin();
   if ("error" in auth) return auth.error;
 
   const { id, dayId } = await params;
-  const { user } = auth.session;
-  if (!(await userCanAccessTrip(user.id, user.role, id))) {
-    return errorResponse("Sem acesso a esta viagem", 403);
-  }
-
   try {
     await deleteTripDay(id, dayId);
     return NextResponse.json({ ok: true });

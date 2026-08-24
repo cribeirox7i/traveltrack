@@ -38,19 +38,16 @@ const patchSchema = z.object({
   data_inicio: z.string().date().optional(),
 });
 
+/** Admin-only: todo campo aqui (cidade de origem/Mapa, capa/modo de custo/data início do
+ * Dashboard) pertence a uma aba que usuário comum não pode editar. */
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const auth = await requireSession();
+  const auth = await requireAdmin();
   if ("error" in auth) return auth.error;
 
   const { id } = await params;
-  const { user } = auth.session;
-  if (!(await userCanAccessTrip(user.id, user.role, id))) {
-    return errorResponse("Sem acesso a esta viagem", 403);
-  }
-
   const parsed = patchSchema.safeParse(await req.json());
   if (!parsed.success) return errorResponse(parsed.error.issues[0].message);
 
