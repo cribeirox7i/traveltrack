@@ -1,6 +1,8 @@
 import { v4 as uuid } from "uuid";
 import { enumerateDates } from "../dateRange";
 import { TRIP_TAB_SLUGS } from "../tripTabs";
+import { resolveCountryInfo } from "../countryInfo";
+import { fetchRateToBRL, todayISO } from "../exchangeRate";
 import {
   OutboxEntry,
   deleteByTrip,
@@ -143,22 +145,52 @@ export async function pullMeiosPagamento(): Promise<void> {
   }
 }
 
-export interface EletricInfo {
+export interface CountryInfo {
+  id: string;
   country: string;
   plug_type: string;
   volts: string;
   hertz: string;
+  currency_code: string;
+  currency_name: string;
+  currency_symbol: string;
+  capital: string;
+  ddi: string;
+  driving_side: "left" | "right" | "";
+  timezone: string;
+  flag_emoji: string;
+  rate_brl: string;
+  rate_date: string;
 }
 
-/** Tabela de referência de voltagem/tomada por país (aba Eletric, mantida manualmente na
- * planilha) - mesma lógica de cache local dos meios de pagamento: não muda por viagem, só
- * precisa ser buscada de novo de vez em quando. */
-export async function pullEletric(): Promise<void> {
+/** Tabela de referência por país (aba Countries - tomada/voltagem curados à mão, o resto
+ * auto-preenchido, ver `upsertCountryInfo`) - mesma lógica de cache local dos meios de
+ * pagamento: não muda por viagem, só precisa ser buscada de novo de vez em quando. */
+export async function pullCountries(): Promise<void> {
   if (!isOnline()) return;
-  const list = await getJson<EletricInfo[]>("/api/eletric");
+  const list = await getJson<CountryInfo[]>("/api/countries");
   if (list) {
-    await setMeta("eletric", list);
+    await setMeta("countries", list);
     notifyChange();
+  }
+}
+
+/** Manda pro servidor os campos de um país resolvidos localmente (ver `lib/countryInfo.ts`/
+ * `lib/exchangeRate.ts`) pra completar a linha dele na aba Countries - silencioso, uma falha
+ * aqui só significa que aquele país continua sem esses dados até a próxima tentativa. */
+export async function upsertCountryInfo(
+  country: string,
+  fields: Record<string, string>
+): Promise<void> {
+  if (!isOnline()) return;
+  try {
+    await fetch("/api/countries", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ country, fields }),
+    });
+  } catch {
+    // sem sinal no meio da chamada, ou o servidor caiu - próxima tentativa de "Atualizar" cobre.
   }
 }
 
@@ -324,8 +356,102 @@ export async function refreshNow(
   if (tripId) {
     await pullTripDetail(tripId);
     await pullAnexosList(tripId);
+    const days = await listByTrip("tripDays", tripId);
+    await fetchAndSaveWeather(tripId, days as unknown as WeatherableDay[]);
+    await refreshCountriesAndRates(days as unknown as CountryableDay[]);
   }
   return { ok: true };
+}
+
+interface WeatherableDay {
+  id: string;
+  data: string;
+  pernoite: string;
+}
+
+function monthDay(iso: string): { month: number; day: number } {
+  const d = new Date(`${iso.slice(0, 10)}T00:00:00`);
+  return { month: d.getMonth() + 1, day: d.getDate() };
+}
+
+/** Busca e grava a temperatura mínima/máxima de cada dia com Pernoite preenchido - antes era um
+ * botão próprio na aba Roteiro, virou parte do "Atualizar" global (ver `refreshNow`) pra
+ * concentrar as atualizações num lugar só, a pedido do usuário. */
+export async function fetchAndSaveWeather(tripId: string, days: WeatherableDay[]): Promise<void> {
+  const cache: Record<string, { min: number; max: number } | null> = {};
+  const updates: { id: string; temp_min: string; temp_max: string }[] = [];
+
+  for (const day of days) {
+    const city = day.pernoite?.trim();
+    if (!city) continue;
+    const { month, day: dayOfMonth } = monthDay(day.data);
+    const cacheKey = `${city.toLowerCase()}|${month}-${dayOfMonth}`;
+    if (!(cacheKey in cache)) {
+      try {
+        const res = await fetch(
+          `/api/weather?city=${encodeURIComponent(city)}&month=${month}&day=${dayOfMonth}`
+        );
+        const data = res.ok ? await res.json() : { temp: null };
+        cache[cacheKey] = data.temp;
+      } catch {
+        cache[cacheKey] = null;
+      }
+    }
+    const result = cache[cacheKey];
+    if (!result) continue;
+    updates.push({ id: day.id, temp_min: result.min.toFixed(1), temp_max: result.max.toFixed(1) });
+  }
+
+  if (updates.length) await saveDaysOffline(tripId, updates);
+}
+
+interface CountryableDay {
+  origem_pais: string;
+  destino_pais: string;
+  pernoite_pais: string;
+}
+
+/** Resolve (datasets estáticos, sem chave - ver `lib/countryInfo.ts`) e grava na aba Countries o
+ * que faltar pros países do roteiro desta viagem, e atualiza a cotação de câmbio de cada moeda
+ * envolvida se a que está salva não é de hoje - também parte do "Atualizar" global. Silencioso:
+ * um país que não resolve, ou uma cotação que falha, não trava o resto nem os outros países. */
+export async function refreshCountriesAndRates(days: CountryableDay[]): Promise<void> {
+  const paises = new Set<string>();
+  for (const day of days) {
+    for (const p of [day.origem_pais, day.destino_pais, day.pernoite_pais]) {
+      if (p?.trim()) paises.add(p.trim());
+    }
+  }
+  if (paises.size === 0) return;
+
+  await pullCountries();
+  const cached = ((await getMeta("countries")) as CountryInfo[] | undefined) ?? [];
+  const hoje = todayISO();
+
+  for (const pais of paises) {
+    const existing = cached.find((c) => c.country.trim().toLowerCase() === pais.toLowerCase());
+    let currencyCode = existing?.currency_code || "";
+
+    const faltaEstatico = !existing || !existing.currency_code || !existing.timezone;
+    if (faltaEstatico) {
+      const resolved = await resolveCountryInfo(pais);
+      if (resolved) {
+        await upsertCountryInfo(pais, resolved);
+        currencyCode = currencyCode || resolved.currency_code;
+      }
+    }
+
+    if (!currencyCode) continue;
+    const cotacaoDesatualizada = !existing || existing.rate_date !== hoje;
+    if (cotacaoDesatualizada) {
+      const rate = await fetchRateToBRL(currencyCode);
+      if (rate !== null) {
+        await upsertCountryInfo(pais, { rate_brl: String(rate), rate_date: hoje });
+      }
+    }
+  }
+
+  await pullCountries();
 }
 
 /** Baixa (ou atualiza) de uma vez os DADOS de todas as viagens marcadas "Dados offline".

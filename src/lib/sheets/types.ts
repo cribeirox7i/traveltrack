@@ -8,7 +8,7 @@ export type SheetTab =
   | "Receitas"
   | "MeiosPagamento"
   | "Agenda"
-  | "Eletric";
+  | "Countries";
 
 export const SHEET_HEADERS: Record<SheetTab, string[]> = {
   Users: ["id", "nome", "email", "senha_hash", "role", "ativo"],
@@ -79,9 +79,28 @@ export const SHEET_HEADERS: Record<SheetTab, string[]> = {
     "criado_por",
     "criado_em",
   ],
-  // Tabela de referência (voltagem/frequência/tomada por país) já criada manualmente pelo
-  // usuário na planilha - não gerenciada por criação automática de linhas, só lida.
-  Eletric: ["country", "plug_type", "volts", "hertz"],
+  // Tabela de referência por país - nasceu como "Eletric" (tomada/voltagem/frequência,
+  // preenchida manualmente pelo usuário) e ganhou o resto (moeda, capital, DDI, lado de
+  // direção, fuso, cotação) auto-preenchido pelo app na primeira vez que cada país é
+  // necessário (ver upsertCountry em lib/sheets/countries.ts) - por isso tem `id` e é
+  // gravável, diferente das outras tabelas de referência só-leitura deste arquivo.
+  Countries: [
+    "id",
+    "country",
+    "plug_type",
+    "volts",
+    "hertz",
+    "currency_code",
+    "currency_name",
+    "currency_symbol",
+    "capital",
+    "ddi",
+    "driving_side",
+    "timezone",
+    "flag_emoji",
+    "rate_brl",
+    "rate_date",
+  ],
 };
 
 export type Role = "admin" | "user";
@@ -140,8 +159,8 @@ export interface TripDayRow {
   pernoite_lat: string;
   pernoite_lon: string;
   /** País da cidade escolhida na busca (Open-Meteo devolve isso na sugestão) - vazio se o campo
-   * foi digitado livre, sem selecionar sugestão. Usado pra cruzar com a aba Eletric e mostrar
-   * tomada/voltagem/frequência no acordeão do Roteiro. */
+   * foi digitado livre, sem selecionar sugestão. Usado pra cruzar com a aba Countries e mostrar
+   * tomada/voltagem/moeda/fuso/etc. no acordeão do Roteiro. */
   origem_pais: string;
   destino_pais: string;
   pernoite_pais: string;
@@ -217,14 +236,34 @@ export interface ReceitaRow {
   status: StatusReceita | "";
 }
 
-/** Voltagem/frequência/tipo de tomada padrão por país - tabela de referência mantida manualmente
- * pelo usuário direto na planilha, só lida pelo app (sem tela de cadastro). */
-export interface EletricRow {
+/**
+ * Tudo o que o app sabe sobre um país, numa linha só. `plug_type`/`volts`/`hertz` continuam
+ * curados à mão pelo usuário (herança da antiga aba "Eletric"); o resto é preenchido sozinho -
+ * `upsertCountry` (lib/sheets/countries.ts) só grava um campo vazio, nunca sobrescreve o que já
+ * tem valor (nem os manuais, nem um valor auto-preenchido antes), exceto `rate_brl`/`rate_date`,
+ * que são atualizados de propósito a cada refresh (é uma cotação do dia, não um dado estático).
+ */
+export interface CountryRow {
   [key: string]: string;
+  id: string;
   country: string;
   plug_type: string;
   volts: string;
   hertz: string;
+  currency_code: string;
+  currency_name: string;
+  currency_symbol: string;
+  capital: string;
+  /** Código de discagem internacional, ex.: "+33". */
+  ddi: string;
+  driving_side: "left" | "right" | "";
+  /** Fuso IANA, ex.: "Europe/Paris" - usado só pra calcular a hora local a partir do horário do
+   * próprio aparelho (`Intl.DateTimeFormat`), nunca por uma chamada de API. */
+  timezone: string;
+  flag_emoji: string;
+  /** Cotação de 1 unidade da moeda do país em Real, na data de `rate_date` (yyyy-MM-dd). */
+  rate_brl: string;
+  rate_date: string;
 }
 
 /** Um compromisso do roteiro, ancorado numa das datas da grade de diárias da viagem. */

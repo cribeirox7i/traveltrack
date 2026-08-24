@@ -3,13 +3,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { getAnexoFile, getMeta, getOne, getTripImage, listAll, listByTrip, listOutbox } from "./db";
 import {
-  EletricInfo,
+  CountryInfo,
   MAX_OUTBOX_ATTEMPTS,
   PersonOption,
   isOnline,
   pullAnexosList,
   pullCollaborators,
-  pullEletric,
+  pullCountries,
   pullMeiosPagamento,
   pullTripDetail,
   pullTrips,
@@ -172,19 +172,22 @@ export function useMeiosPagamento() {
   return meios;
 }
 
-/** Voltagem/tomada/frequência padrão por país (aba Eletric) - mesma lógica de cache local dos
- * meios de pagamento. Usado no acordeão do Roteiro pra mostrar o que esperar em cada pernoite. */
-export function useEletric(): EletricInfo[] {
-  const [lista, setLista] = useState<EletricInfo[]>([]);
+/** Tudo o que o app sabe sobre cada país (aba Countries: tomada/voltagem/frequência, moeda,
+ * capital, DDI, lado de direção, fuso, cotação) - mesma lógica de cache local dos meios de
+ * pagamento. Usado no acordeão do Roteiro. Só sincroniza o que já está gravado na planilha -
+ * resolver um país que falta e mandar pro servidor é o botão "Atualizar" (ver `RefreshButton`/
+ * `refreshNow`), não este hook. */
+export function useCountries(): CountryInfo[] {
+  const [lista, setLista] = useState<CountryInfo[]>([]);
 
   const refresh = useCallback(async () => {
-    const local = await getMeta("eletric");
-    setLista(Array.isArray(local) ? (local as EletricInfo[]) : []);
+    const local = await getMeta("countries");
+    setLista(Array.isArray(local) ? (local as CountryInfo[]) : []);
   }, []);
 
   useEffect(() => {
     refresh();
-    if (isOnline()) pullEletric().catch(() => {});
+    if (isOnline()) pullCountries().catch(() => {});
   }, [refresh]);
 
   useSyncChangeListener(refresh);

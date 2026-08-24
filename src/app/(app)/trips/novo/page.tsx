@@ -31,7 +31,7 @@ export default function NovaViagemPage() {
     setSaving(true);
     const tripId = await createTripOffline(form);
     setSaving(false);
-    router.push(`/trips/${tripId}/orcamento`);
+    router.push(`/trips/${tripId}/agenda`);
   }
 
   return (

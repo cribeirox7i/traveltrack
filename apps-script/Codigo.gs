@@ -24,9 +24,11 @@ const ESTRUTURA = {
   Receitas: ['id', 'trip_id', 'user_id', 'valor', 'data', 'descricao', 'credor_id', 'status'],
   MeiosPagamento: ['id', 'nome', 'ativo'],
   Agenda: ['id', 'trip_id', 'data', 'horario', 'titulo', 'descricao', 'url', 'anexo_file_id', 'anexo_nome', 'anexo_url', 'criado_por', 'criado_em'],
-  // Aba já criada manualmente pelo usuário com os dados - só listada aqui pra ensureStructure
-  // não reclamar/duplicar cabeçalho se algum dia rodar sobre ela.
-  Eletric: ['country', 'plug_type', 'volts', 'hertz']
+  // Nasceu como "Eletric" (tomada/voltagem/frequência, preenchida à mão pelo usuário) - renomeie
+  // a aba pra "Countries" na planilha (bota direito na aba > Renomear) e o app passa a
+  // completá-la sozinho com o resto (moeda, capital, DDI, lado de direção, fuso, cotação) na
+  // primeira vez que cada país for necessário.
+  Countries: ['id', 'country', 'plug_type', 'volts', 'hertz', 'currency_code', 'currency_name', 'currency_symbol', 'capital', 'ddi', 'driving_side', 'timezone', 'flag_emoji', 'rate_brl', 'rate_date']
 };
 
 // ---------- PONTO DE ENTRADA DO WEB APP ----------
@@ -59,6 +61,7 @@ function api(action, payload) {
       case 'append':           return ok(inserirLinhas(payload.tab, payload.rows || []));
       case 'updateById':       return ok(atualizarPorId(payload.tab, payload.id, payload.patch || {}));
       case 'updateManyById':   return ok(atualizarVariosPorId(payload.tab, payload.updates || []));
+      case 'updateByField':    return ok(atualizarPorCampo(payload.tab, payload.campo, payload.valor, payload.patch || {}));
       case 'deleteById':       return ok(excluirPorId(payload.tab, payload.id));
       case 'deleteByField':    return ok(excluirPorCampo(payload.tab, payload.campo, payload.valor));
       case 'resetTab':         return ok(resetarAba(payload.tab));
@@ -185,6 +188,41 @@ function atualizarPorId(nome, id, patch) {
       if (String(values[r][idCol]) === String(id)) { rowIndex = r; break; }
     }
     if (rowIndex === -1) throw new Error('Linha com id "' + id + '" não encontrada na aba ' + nome);
+
+    const atual = values[rowIndex];
+    const nova = headers.map(function (h, i) {
+      return (h in patch) ? patch[h] : sanitizarValor(atual[i]);
+    });
+    sh.getRange(rowIndex + 1, 1, 1, headers.length).setNumberFormat('@').setValues([nova]);
+  } finally {
+    lock.releaseLock();
+  }
+  return null;
+}
+
+/**
+ * Como atualizarPorId, mas localiza a linha por um valor de coluna qualquer em vez de "id" -
+ * pra tabelas como Countries, cuja chave natural é o nome do país, não um id. Atualiza só a
+ * PRIMEIRA linha encontrada com esse valor; espera-se que o campo seja único na prática (país
+ * não devia se repetir na aba). Usado por upsertCountry (lib/sheets/countries.ts) pra completar
+ * uma linha existente sem sobrescrever o que já tinha valor (é o `patch` que decide o quê,
+ * montado do lado do Next.js - aqui só aplica).
+ */
+function atualizarPorCampo(nome, campo, valor, patch) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const sh = getSheet(nome);
+    const values = sh.getDataRange().getValues();
+    const headers = (values[0] || []).map(String);
+    const col = headers.indexOf(campo);
+    if (col === -1) throw new Error('Aba "' + nome + '" não tem coluna "' + campo + '"');
+
+    let rowIndex = -1;
+    for (let r = 1; r < values.length; r++) {
+      if (String(values[r][col]) === String(valor)) { rowIndex = r; break; }
+    }
+    if (rowIndex === -1) throw new Error('Linha com ' + campo + '="' + valor + '" não encontrada na aba ' + nome);
 
     const atual = values[rowIndex];
     const nova = headers.map(function (h, i) {

@@ -32,6 +32,17 @@ export async function updateRows(
   await callAppsScript<null>("updateManyById", { tab, updates });
 }
 
+/** Como updateRow, mas localiza a linha por um valor de coluna qualquer em vez de "id" - pra
+ * tabelas cuja chave natural não é um id gerado (ex.: Countries, chaveada pelo nome do país). */
+export async function updateRowByField(
+  tab: SheetTab,
+  field: string,
+  value: string,
+  patch: RowObject
+): Promise<void> {
+  await callAppsScript<null>("updateByField", { tab, campo: field, valor: value, patch });
+}
+
 export async function deleteRow(tab: SheetTab, id: string): Promise<void> {
   await callAppsScript<null>("deleteById", { tab, id });
 }
