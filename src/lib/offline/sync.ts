@@ -170,11 +170,21 @@ export async function saveLastTripImage(
   tripId: string,
   cidade: string,
   imageUrl: string,
-  pageUrl: string
+  pageUrl: string,
+  // Cache de blobs já baixados nesta sessão (mantido por quem chama, tipicamente um `useRef` no
+  // componente) - a rotação do banner volta pras mesmas poucas fotos sem parar enquanto a tela
+  // fica aberta; sem isso, cada volta rebaixava a imagem de novo da Wikimedia à toa (tráfego
+  // desnecessário, ainda que longe de qualquer limite de fato).
+  blobCache?: Map<string, Blob>
 ): Promise<void> {
   if (!isOnline()) return;
-  const blob = await getBlob(imageUrl);
-  if (!blob) return;
+  let blob = blobCache?.get(imageUrl);
+  if (!blob) {
+    const fetched = await getBlob(imageUrl);
+    if (!fetched) return;
+    blob = fetched;
+    blobCache?.set(imageUrl, blob);
+  }
   await saveTripImage({ trip_id: tripId, blob, cidade, pageUrl, savedAt: Date.now() });
 }
 

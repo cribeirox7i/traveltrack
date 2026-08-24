@@ -99,13 +99,16 @@ export function TripHeroImage({ tripId, days }: { tripId: string; days: TripDayC
   }, [images.length]);
 
   // A cada troca de foto, salva a atual como "a última mostrada" - sobrescreve a anterior, é só
-  // essa uma que precisa sobreviver offline, não o álbum inteiro.
+  // essa uma que precisa sobreviver offline, não o álbum inteiro. `blobCacheRef` garante que cada
+  // foto só é baixada da Wikimedia uma vez por sessão nesta tela - sem isso, a rotação voltando
+  // pras mesmas poucas fotos (A→B→A→B→...) rebaixava o arquivo de novo a cada 9s, sem motivo.
   const lastSavedRef = useRef<string | null>(null);
+  const blobCacheRef = useRef<Map<string, Blob>>(new Map());
   useEffect(() => {
     const atual = images[index];
     if (!online || !atual || lastSavedRef.current === atual.imageUrl) return;
     lastSavedRef.current = atual.imageUrl;
-    void saveLastTripImage(tripId, atual.cidade, atual.imageUrl, atual.pageUrl);
+    void saveLastTripImage(tripId, atual.cidade, atual.imageUrl, atual.pageUrl, blobCacheRef.current);
   }, [online, images, index, tripId]);
 
   const atual = online ? images[index] : null;
