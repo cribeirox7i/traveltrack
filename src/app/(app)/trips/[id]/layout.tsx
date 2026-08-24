@@ -4,9 +4,8 @@ import { useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { TripTabs } from "@/components/TripTabs";
-import { TripHeroImage } from "@/components/TripHeroImage";
 import { TRIP_TAB_SLUGS } from "@/lib/tripTabs";
-import { useOfflineCollection, useOfflineTrip } from "@/lib/offline/useOfflineData";
+import { useOfflineTrip } from "@/lib/offline/useOfflineData";
 import { isOnline } from "@/lib/offline/sync";
 
 interface TripMeta {
@@ -17,22 +16,11 @@ interface TripMeta {
   qtd_pessoas: string;
 }
 
-interface TripDayCities {
-  id: string;
-  origem: string;
-  destino: string;
-  pernoite: string;
-  origem_pais: string;
-  destino_pais: string;
-  pernoite_pais: string;
-}
-
 export default function TripLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { id } = useParams<{ id: string }>();
   const { status } = useSession();
   const { trip, loading } = useOfflineTrip<TripMeta>(id);
-  const { items: days } = useOfflineCollection<TripDayCities>("tripDays", id);
 
   useEffect(() => {
     if (status === "unauthenticated") router.replace("/login");
@@ -63,7 +51,6 @@ export default function TripLayout({ children }: { children: React.ReactNode }) 
 
   return (
     <div className="flex flex-col gap-4">
-      <TripHeroImage tripId={id} days={days} />
       <div>
         <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">{trip.nome}</h1>
         <p className="text-xs text-slate-500 dark:text-slate-400">

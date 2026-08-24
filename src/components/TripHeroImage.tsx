@@ -43,7 +43,19 @@ function distinctCities(days: TripDayCities[]): { cidade: string; pais: string }
  * enquanto online, a foto atual é baixada e salva como "a última mostrada" (não o álbum inteiro)
  * - é isso que aparece, parado, quando a tela abre sem sinal.
  */
-export function TripHeroImage({ tripId, days }: { tripId: string; days: TripDayCities[] }) {
+export function TripHeroImage({
+  tripId,
+  days,
+  compact,
+  className,
+}: {
+  tripId: string;
+  days: TripDayCities[];
+  /** Versão enxuta pro card da lista de viagens: mais baixa, cantos só de cima arredondados
+   * (o resto do card continua abaixo), sem o link "Wikipedia" (espaço curto demais pra isso). */
+  compact?: boolean;
+  className?: string;
+}) {
   const online = useOnlineStatus();
   const [images, setImages] = useState<CityImage[]>([]);
   const [index, setIndex] = useState(0);
@@ -119,7 +131,12 @@ export function TripHeroImage({ tripId, days }: { tripId: string; days: TripDayC
   if (!mostrar) return null;
 
   return (
-    <div className="relative h-40 w-full overflow-hidden rounded-2xl sm:h-56">
+    <div
+      className={
+        className ??
+        `relative w-full overflow-hidden ${compact ? "h-28 rounded-t-2xl" : "h-40 rounded-2xl sm:h-56"}`
+      }
+    >
       {/* eslint-disable-next-line @next/next/no-img-element -- fonte externa (Wikipedia), sem
           domínio fixo pra configurar em next/image, e o volume aqui é baixo (poucas fotos por
           viagem, trocando devagar). */}
@@ -131,17 +148,20 @@ export function TripHeroImage({ tripId, days }: { tripId: string; days: TripDayC
       />
       <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-2 bg-gradient-to-t from-black/60 to-transparent px-3 py-2 text-xs text-white">
         <span className="font-medium">{mostrar.cidade}</span>
-        <div className="flex items-center gap-2">
-          {!online && <span className="opacity-80">offline</span>}
-          <a
-            href={mostrar.pageUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="opacity-80 hover:underline"
-          >
-            Wikipedia
-          </a>
-        </div>
+        {!compact && (
+          <div className="flex items-center gap-2">
+            {!online && <span className="opacity-80">offline</span>}
+            <a
+              href={mostrar.pageUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="opacity-80 hover:underline"
+            >
+              Wikipedia
+            </a>
+          </div>
+        )}
+        {compact && !online && <span className="opacity-80">offline</span>}
       </div>
     </div>
   );

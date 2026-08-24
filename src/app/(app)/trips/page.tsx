@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
-import { useOfflineTrips } from "@/lib/offline/useOfflineData";
+import { useOfflineCollection, useOfflineTrips } from "@/lib/offline/useOfflineData";
 import { deleteTripOffline, listOfflineTripIds, setTripOffline, syncEvents } from "@/lib/offline/sync";
+import { TripHeroImage } from "@/components/TripHeroImage";
 
 interface TripItem {
   id: string;
@@ -14,9 +15,91 @@ interface TripItem {
   qtd_pessoas: string;
 }
 
+interface TripDayCities {
+  id: string;
+  origem: string;
+  destino: string;
+  pernoite: string;
+  origem_pais: string;
+  destino_pais: string;
+  pernoite_pais: string;
+}
+
 function formatDateBR(iso: string): string {
   const [y, m, d] = iso.slice(0, 10).split("-");
   return d && m && y ? `${d}/${m}/${y}` : iso;
+}
+
+/** Um card da grade de viagens. Precisa ser componente próprio (não inline dentro do `.map` da
+ * página) pra poder chamar `useOfflineCollection` por viagem - um hook não pode ser chamado
+ * dentro de um callback de map na mesma função, só no corpo de um componente de verdade. */
+function TripCard({
+  trip,
+  isAdmin,
+  offline,
+  busy,
+  deleting,
+  onToggleOffline,
+  onDelete,
+}: {
+  trip: TripItem;
+  isAdmin: boolean;
+  offline: boolean;
+  busy: boolean;
+  deleting: boolean;
+  onToggleOffline: (checked: boolean) => void;
+  onDelete: () => void;
+}) {
+  const { items: days } = useOfflineCollection<TripDayCities>("tripDays", trip.id);
+
+  return (
+    <div className="flex flex-col overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-slate-400">
+      <TripHeroImage tripId={trip.id} days={days} compact />
+      <div className="flex flex-col gap-2 p-4">
+        <div className="flex items-start justify-between gap-2">
+          <Link href={`/trips/${trip.id}/orcamento`} className="min-w-0 flex-1">
+            <p className="font-semibold text-slate-900 dark:text-slate-100">{trip.nome}</p>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              {formatDateBR(trip.data_inicio)} - {formatDateBR(trip.data_fim)}
+            </p>
+            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+              {trip.qtd_pessoas} pessoa(s)
+            </p>
+          </Link>
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={onDelete}
+              disabled={deleting}
+              title="Excluir viagem"
+              className="shrink-0 rounded-lg p-1.5 text-slate-400 dark:text-slate-500 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {deleting ? (
+                <span className="text-xs">...</span>
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-4 w-4">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 7h12M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2m-8 0 1 13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1l1-13" />
+                </svg>
+              )}
+            </button>
+          )}
+        </div>
+        <label className="mt-1 flex items-center justify-between gap-2 border-t border-slate-100 dark:border-slate-800 pt-2 text-xs text-slate-500 dark:text-slate-400">
+          <span>
+            Dados offline
+            {busy && <span className="ml-1 text-slate-400 dark:text-slate-500">({offline ? "apagando" : "baixando"}...)</span>}
+          </span>
+          <input
+            type="checkbox"
+            checked={offline}
+            disabled={busy}
+            onChange={(e) => onToggleOffline(e.target.checked)}
+            className="h-4 w-4 rounded border-slate-300 dark:border-slate-700"
+          />
+        </label>
+      </div>
+    </div>
+  );
 }
 
 export default function TripsPage() {
@@ -111,57 +194,18 @@ export default function TripsPage() {
       )}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {trips.map((t) => {
-          const offline = offlineIds.has(t.id);
-          const busy = busyIds.has(t.id);
-          const deleting = deletingIds.has(t.id);
-          return (
-            <div
-              key={t.id}
-              className="flex flex-col gap-2 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 hover:border-slate-400"
-            >
-              <div className="flex items-start justify-between gap-2">
-                <Link href={`/trips/${t.id}/orcamento`} className="min-w-0 flex-1">
-                  <p className="font-semibold text-slate-900 dark:text-slate-100">{t.nome}</p>
-                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                    {formatDateBR(t.data_inicio)} - {formatDateBR(t.data_fim)}
-                  </p>
-                  <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">{t.qtd_pessoas} pessoa(s)</p>
-                </Link>
-                {session?.user.role === "admin" && (
-                  <button
-                    type="button"
-                    onClick={() => handleDelete(t.id, t.nome)}
-                    disabled={deleting}
-                    title="Excluir viagem"
-                    className="shrink-0 rounded-lg p-1.5 text-slate-400 dark:text-slate-500 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {deleting ? (
-                      <span className="text-xs">...</span>
-                    ) : (
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-4 w-4">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 7h12M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2m-8 0 1 13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1l1-13" />
-                      </svg>
-                    )}
-                  </button>
-                )}
-              </div>
-              <label className="mt-1 flex items-center justify-between gap-2 border-t border-slate-100 dark:border-slate-800 pt-2 text-xs text-slate-500 dark:text-slate-400">
-                <span>
-                  Dados offline
-                  {busy && <span className="ml-1 text-slate-400 dark:text-slate-500">({offline ? "apagando" : "baixando"}...)</span>}
-                </span>
-                <input
-                  type="checkbox"
-                  checked={offline}
-                  disabled={busy}
-                  onChange={(e) => handleToggleOffline(t.id, e.target.checked)}
-                  className="h-4 w-4 rounded border-slate-300 dark:border-slate-700"
-                />
-              </label>
-            </div>
-          );
-        })}
+        {trips.map((t) => (
+          <TripCard
+            key={t.id}
+            trip={t}
+            isAdmin={session?.user.role === "admin"}
+            offline={offlineIds.has(t.id)}
+            busy={busyIds.has(t.id)}
+            deleting={deletingIds.has(t.id)}
+            onToggleOffline={(checked) => handleToggleOffline(t.id, checked)}
+            onDelete={() => handleDelete(t.id, t.nome)}
+          />
+        ))}
       </div>
     </div>
   );
