@@ -108,6 +108,7 @@ export function AnexoUpload({
         const extraido = parseDocumento(texto, {
           tipo: categoria as "passagem" | "hospedagem",
           nomeArquivo: file.name,
+          datasDaViagem,
         });
         setSugestao({ extraido, nome: file.name });
       }

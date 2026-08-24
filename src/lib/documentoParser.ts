@@ -79,7 +79,20 @@ const RUIDO = [
   // permitidas remarcações antes do voo com uma multa de ...").
   "permitida", "permitidas", "remarcac", "remarcaç", "reembolso", "multa", "sujeito",
   "consulte", "informacao sobre", "informação sobre", "regras",
+  // Cortesia, status e chamada pra ação de e-mail de confirmação. Um voucher da Booking chega
+  // como e-mail, e as linhas que mais "gritam" nele são justamente estas - "Obrigado, FULANO!
+  // Seu apartamento em", "... esta confirmado.", "Saiba mais" - que vinham ganhando do nome real
+  // da acomodação. "confirmad" cobre confirmado/confirmada/confirmados.
+  "obrigado", "obrigada", "confirmad", "saiba mais", "ver no navegador", "clique aqui",
+  "cancelar inscric", "cancelar inscriç", "descadastr", "unsubscribe", "enviado por",
+  "privacidade", "baixe o app", "baixar o app",
 ];
+
+/** Cabeçalho de e-mail ("Para:", "De:", "Assunto:") - o texto colado costuma trazer isso junto. */
+const CABECALHO_EMAIL = /^\s*(para|de|from|to|assunto|subject|cc|cco|bcc|data|date)\s*:/i;
+
+/** Endereço de e-mail em qualquer lugar da linha - é dado de contato, nunca nome de acomodação. */
+const TEM_EMAIL = /[^\s@]+@[^\s@]+\.[a-z]{2,}/i;
 
 /**
  * Data ou horário no meio da linha: é linha de dado ("Check-in: 10/09/2026 às 15:00"), não nome.
@@ -152,6 +165,16 @@ function extrairHorarios(texto: string): string[] {
   return achados;
 }
 
+/** Title Case de 2 a 6 palavras e sem pontuação de fim de frase - a cara de um nome próprio
+ * ("Park Life Condesa Hipódromo") e não de uma frase solta do e-mail. */
+function pareceNomeProprio(linha: string): boolean {
+  const palavras = linha.split(/\s+/).filter((p) => p.length > 1);
+  if (palavras.length < 2 || palavras.length > 6) return false;
+  if (/[.!?;:]$/.test(linha)) return false;
+  const capitalizadas = palavras.filter((p) => /^[A-ZÀ-Ý]/.test(p)).length;
+  return capitalizadas >= Math.ceil(palavras.length * 0.6);
+}
+
 /**
  * Quanto essa linha "parece" o nome do hotel/trecho. Score alto = candidato melhor. Negativo =
  * descartada. Os pesos são empíricos (ajustados olhando bilhete/voucher real), não uma ciência -
@@ -163,6 +186,7 @@ function pontuarLinha(linha: string): number {
 
   if (limpa.length < 4 || limpa.length > 70) return -1;
   if (RUIDO.some((r) => norm.includes(normalizar(r)))) return -1;
+  if (CABECALHO_EMAIL.test(limpa) || TEM_EMAIL.test(limpa)) return -1;
   if (TEM_DATA_OU_HORA.test(limpa)) return -1;
   if (TEM_DINHEIRO_OU_CARTAO.test(limpa)) return -1;
   // Cabeçalho de tabela (2+ rótulos de coluna na mesma linha) - ver PALAVRAS_ROTULO.
@@ -176,6 +200,11 @@ function pontuarLinha(linha: string): number {
 
   let score = 0;
   if (PALAVRAS_TITULO.some((p) => norm.includes(p))) score += 10;
+  // Nome de acomodação muitas vezes não traz palavra-chave nenhuma ("Park Life Condesa
+  // Hipódromo"), mas quase sempre vem em Title Case e sem pontuação final - diferente de uma
+  // frase ("Cidade do México esta confirmado."). Sem este peso, o nome real empatava com
+  // qualquer sobra de texto e perdia na desempate por ordem do documento.
+  if (pareceNomeProprio(limpa)) score += 6;
   // CAIXA ALTA costuma ser o destaque do documento (nome do hotel, nome do passageiro...).
   if (limpa === limpa.toUpperCase() && letras >= 6) score += 4;
   // Linha de tamanho "de nome" (nem sigla solta, nem parágrafo).
@@ -249,27 +278,47 @@ function montarVoo(texto: string, nomeArquivo: string): { titulos: string[]; des
   return { titulos: Array.from(new Set(titulos)), descricao: rota };
 }
 
-export function parseDocumento(
-  texto: string,
-  opcoes: { tipo?: TipoDocumento; nomeArquivo?: string } = {}
-): DocumentoExtraido {
-  const base = { datas: extrairDatas(texto), horarios: extrairHorarios(texto) };
-
-  if (opcoes.tipo === "passagem") {
-    const { titulos, descricao } = montarVoo(texto, opcoes.nomeArquivo ?? "");
-    return { ...base, titulos, descricaoSugerida: descricao };
-  }
-
-  return { ...base, titulos: extrairTitulos(texto), descricaoSugerida: "" };
+/**
+ * Descarta data fora do período da viagem. Um voucher está cheio de data que não é a hospedagem
+ * (emissão, validade da tarifa, prazo de cancelamento gratuito, ano do rodapé) e, por definição,
+ * o compromisso cai entre o primeiro e o último dia da grade - então o que está fora não é
+ * candidato, é ruído. Sem `datasDaViagem` (uso em teste), devolve como veio.
+ */
+function dentroDaViagem(datas: string[], datasDaViagem: string[]): string[] {
+  if (datasDaViagem.length === 0) return datas;
+  const min = datasDaViagem.reduce((a, b) => (a < b ? a : b));
+  const max = datasDaViagem.reduce((a, b) => (a > b ? a : b));
+  return datas.filter((d) => d >= min && d <= max);
 }
 
 /**
- * Reordena as datas achadas pra priorizar as que caem dentro da viagem - um voucher tem várias
- * datas (emissão, validade, política de cancelamento) e só as do período da viagem interessam pro
- * compromisso. As de fora não são descartadas, só vão pro fim: se o OCR errou um dígito, é melhor
- * a pessoa ver a opção errada e corrigir do que não ver nada.
+ * Hora cheia primeiro, pra hospedagem. Check-in/check-out de acomodação é quase sempre em hora
+ * cheia (15:00, 12:00); horário com minuto quebrado no meio de um voucher costuma ser outra coisa
+ * (horário de atendimento, telefone que casou com o padrão, hora de emissão). Só REORDENA, não
+ * descarta - a pessoa continua podendo escolher nos chips.
  */
-export function priorizarDatasDaViagem(datas: string[], datasDaViagem: string[]): string[] {
-  const validas = new Set(datasDaViagem);
-  return [...datas].sort((a, b) => Number(validas.has(b)) - Number(validas.has(a)));
+function horaCheiaPrimeiro(horarios: string[]): string[] {
+  return [...horarios].sort((a, b) => Number(b.endsWith(":00")) - Number(a.endsWith(":00")));
+}
+
+export function parseDocumento(
+  texto: string,
+  opcoes: { tipo?: TipoDocumento; nomeArquivo?: string; datasDaViagem?: string[] } = {}
+): DocumentoExtraido {
+  const datas = dentroDaViagem(extrairDatas(texto), opcoes.datasDaViagem ?? []);
+  const horarios = extrairHorarios(texto);
+
+  if (opcoes.tipo === "passagem") {
+    const { titulos, descricao } = montarVoo(texto, opcoes.nomeArquivo ?? "");
+    // Voo tem horário quebrado por natureza (09:05, 14:55) - reordenar por hora cheia aqui só
+    // atrapalharia.
+    return { datas, horarios, titulos, descricaoSugerida: descricao };
+  }
+
+  return {
+    datas,
+    horarios: horaCheiaPrimeiro(horarios),
+    titulos: extrairTitulos(texto),
+    descricaoSugerida: "",
+  };
 }

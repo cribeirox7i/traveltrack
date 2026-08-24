@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { createAgendaOffline } from "@/lib/offline/sync";
-import { DocumentoExtraido, priorizarDatasDaViagem } from "@/lib/documentoParser";
+import { DocumentoExtraido } from "@/lib/documentoParser";
 
 /**
  * Rascunho de compromisso montado a partir do que foi lido do anexo (ver `lib/documentoParser.ts`).
@@ -25,9 +25,9 @@ export function SugestaoAgendaModal({
   nomeArquivo: string;
   onClose: () => void;
 }) {
-  const datasSugeridas = priorizarDatasDaViagem(extraido.datas, datasDaViagem).filter((d) =>
-    datasDaViagem.includes(d)
-  );
+  // `extraido.datas` já vem limitado ao período da viagem pelo parser - aqui só resta garantir
+  // que a data é uma das da grade (a grade é contígua, então na prática coincide).
+  const datasSugeridas = extraido.datas.filter((d) => datasDaViagem.includes(d));
 
   const [form, setForm] = useState({
     titulo: extraido.titulos[0] ?? "",
