@@ -6,6 +6,7 @@ export const CATEGORIAS_ANEXO = [
   "alimentacao",
   "passeio",
   "hospedagem",
+  "documentos",
   "outros",
   // Anexos presos a um compromisso da Agenda. Ficam na mesma pasta da viagem no Drive, em
   // subpasta própria, mas não são oferecidos como destino de upload na tela de Anexos: eles

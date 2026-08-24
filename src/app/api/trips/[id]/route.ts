@@ -28,6 +28,8 @@ export async function GET(
 }
 
 const patchSchema = z.object({
+  nome: z.string().min(1).optional(),
+  qtd_pessoas: z.string().optional(),
   cidade_origem: z.string().optional(),
   cidade_origem_lat: z.string().optional(),
   cidade_origem_lon: z.string().optional(),

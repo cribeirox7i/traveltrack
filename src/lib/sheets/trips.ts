@@ -119,6 +119,8 @@ export async function createTrip(input: {
 export async function updateTrip(
   id: string,
   patch: {
+    nome?: string;
+    qtd_pessoas?: string;
     cidade_origem?: string;
     cidade_origem_lat?: string;
     cidade_origem_lon?: string;

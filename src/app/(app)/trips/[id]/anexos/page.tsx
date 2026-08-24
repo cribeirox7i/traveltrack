@@ -21,6 +21,7 @@ const CATEGORIAS = [
   { value: "alimentacao", label: "Alimentação" },
   { value: "passeio", label: "Passeio" },
   { value: "hospedagem", label: "Hospedagem" },
+  { value: "documentos", label: "Documentos" },
   { value: "outros", label: "Outros" },
 ];
 
