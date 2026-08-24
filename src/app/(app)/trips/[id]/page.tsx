@@ -280,7 +280,7 @@ export default function TripDashboardPage() {
                             <span className="font-medium text-slate-700 dark:text-slate-300">{cidade}</span>
                             <span className="text-xs text-slate-500 dark:text-slate-400">
                               {temPlug
-                                ? `${info?.plug_type || "?"} · ${info?.volts || "?"}V · ${info?.hertz || "?"}Hz`
+                                ? `${info?.plug_type || "?"} · ${info?.volts || "?"} · ${info?.hertz || "?"}`
                                 : "sem dado ainda"}
                             </span>
                           </li>
