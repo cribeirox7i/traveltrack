@@ -523,7 +523,18 @@ function driveDownloadFile(payload) {
 function testeAutorizacao() {
   Logger.log('Planilha: ' + abrirPlanilha().getName());
   if (DRIVE_ROOT_FOLDER_ID) {
-    Logger.log('Pasta de anexos: ' + DriveApp.getFolderById(DRIVE_ROOT_FOLDER_ID).getName());
+    const raiz = DriveApp.getFolderById(DRIVE_ROOT_FOLDER_ID);
+    Logger.log('Pasta de anexos: ' + raiz.getName());
+
+    // Exercita ESCRITA de verdade, não só leitura. Antes esta função parava no getFolderById
+    // acima e logava "Autorização OK!" - o que dava um falso positivo perigoso: ler a pasta só
+    // prova o escopo de leitura, enquanto enviar anexo precisa de createFolder. Deu exatamente
+    // nisso em produção - o teste passava e o upload quebrava com "You do not have permission to
+    // call DriveApp.Folder.createFolder". Agora, se o escopo estiver errado, é AQUI que estoura,
+    // e rodar esta função é o que dispara a tela de consentimento pra concedê-lo.
+    const temp = raiz.createFolder('__teste_permissao__');
+    temp.setTrashed(true);
+    Logger.log('Escrita no Drive: OK (createFolder testado e desfeito)');
   }
   Logger.log('Autorização OK!');
 }

@@ -144,13 +144,13 @@ Apps Script (em vez de service account do Google Cloud) traz limitações extras
 - **Reautorização manual**: se o escopo de acesso do script mudar, é preciso reautorizar
   interativamente no editor - não é automatizável via CI/deploy.
 
-### Erro `You do not have permission to call DriveApp.getFolderById`
+### Erro `You do not have permission to call DriveApp...`
 
-Aparece em qualquer ação que mexe na pasta de anexos (enviar anexo, listar anexos, excluir uma
-viagem) e quer dizer que o script foi autorizado com um escopo de Drive estreito demais para abrir
-uma pasta que não foi ele quem criou. Acontece quando o `appsscript.json` colado no editor não
-declara `oauthScopes` - sem essa lista, o Apps Script infere os escopos sozinho e pode escolher um
-mais restrito que o necessário. Para resolver:
+Aparece como `DriveApp.getFolderById` ou `DriveApp.Folder.createFolder`, em ações que mexem na
+pasta de anexos (enviar anexo, listar anexos, excluir uma viagem), e quer dizer que o script foi
+autorizado com um escopo de Drive estreito demais. Acontece quando o `appsscript.json` colado no
+editor não declara `oauthScopes` - sem essa lista, o Apps Script infere os escopos sozinho e pode
+escolher um mais restrito que o necessário. Para resolver:
 
 1. No editor, **Configurações do projeto** → marque "Mostrar arquivo de manifesto
    `appsscript.json`", abra o arquivo e garanta que ele tem o bloco `oauthScopes` igual ao de
@@ -159,6 +159,13 @@ mais restrito que o necessário. Para resolver:
    autorização outra vez - agora incluindo o acesso ao Drive.
 3. **Implantar → Gerenciar implantações → editar → Nova versão**: a implantação publicada carrega
    os escopos da versão em que foi criada, então sem uma versão nova ela continua com os antigos.
+
+> **Atenção ao "Autorização OK!"**: até uma versão recente, `testeAutorizacao` só *lia* a pasta
+> raiz, então passava com o escopo de leitura e dava um falso positivo - o teste dizia OK e o
+> upload de anexo continuava quebrando em `createFolder`. Hoje a função cria e descarta uma pasta
+> temporária de propósito: se o escopo estiver errado, ela **falha** ali, que é o comportamento
+> útil. Se o seu editor ainda tem a versão antiga, cole o `Codigo.gs` atual antes de confiar no
+> resultado do teste.
 
 Excluir uma viagem funciona mesmo com esse erro pendente: a remoção da pasta no Drive é feita por
 último e não derruba a exclusão - o app só avisa que a pasta ficou para trás.
