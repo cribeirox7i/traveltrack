@@ -20,6 +20,7 @@ interface TripMeta {
   cidade_origem: string;
   cidade_origem_lat: string;
   cidade_origem_lon: string;
+  criado_por: string;
 }
 
 interface TripDay {
@@ -38,8 +39,10 @@ function formatDateBR(iso: string): string {
 export default function MapaPage() {
   const { id: tripId } = useParams<{ id: string }>();
   const { data: session } = useSession();
-  const isAdmin = session?.user.role === "admin";
   const { trip, loading: loadingTrip } = useOfflineTrip<TripMeta>(tripId);
+  // Admin edita qualquer viagem; usuário comum só a própria (criada por ele).
+  const canEdit =
+    session?.user.role === "admin" || (!!trip && trip.criado_por === session?.user.id);
   const { items: days, loading: loadingDays } = useOfflineCollection<TripDay>("tripDays", tripId);
   const [origemForm, setOrigemForm] = useState({ nome: "", lat: "", lon: "" });
   const [savingOrigem, setSavingOrigem] = useState(false);
@@ -88,7 +91,7 @@ export default function MapaPage() {
 
   return (
     <div className="flex flex-col gap-3">
-      {!trip.cidade_origem_lat && isAdmin && (
+      {!trip.cidade_origem_lat && canEdit && (
         <div className="flex flex-col gap-2 rounded-2xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950 p-4 sm:flex-row sm:items-end">
           <div className="flex-1">
             <label className="mb-1 block text-xs font-medium text-amber-800 dark:text-amber-300">
@@ -112,9 +115,10 @@ export default function MapaPage() {
           </button>
         </div>
       )}
-      {!trip.cidade_origem_lat && !isAdmin && (
+      {!trip.cidade_origem_lat && !canEdit && (
         <p className="text-sm text-slate-400 dark:text-slate-500">
-          A cidade de origem ainda não foi definida - só um administrador pode fazer isso.
+          A cidade de origem ainda não foi definida - só o administrador ou quem criou a viagem
+          pode fazer isso.
         </p>
       )}
 

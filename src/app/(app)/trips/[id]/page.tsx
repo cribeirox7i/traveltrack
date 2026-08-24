@@ -16,6 +16,7 @@ interface TripMeta {
   qtd_pessoas: string;
   capa_url: string;
   custo_modo?: "por_pessoa" | "total" | "";
+  criado_por: string;
 }
 
 interface TripDay {
@@ -110,8 +111,10 @@ const ACCORDION_LABELS: Record<AccordionKey, { icon: string; label: string }> = 
 export default function TripDashboardPage() {
   const { id: tripId } = useParams<{ id: string }>();
   const { data: session } = useSession();
-  const isAdmin = session?.user.role === "admin";
   const { trip } = useOfflineTrip<TripMeta>(tripId);
+  // Admin edita qualquer viagem; usuário comum só a própria (criada por ele).
+  const canEdit =
+    session?.user.role === "admin" || (!!trip && trip.criado_por === session?.user.id);
   const { items: days, loading } = useOfflineCollection<TripDay>("tripDays", tripId);
   const countries = useCountries();
 
@@ -197,7 +200,7 @@ export default function TripDashboardPage() {
         />
       )}
 
-      {isAdmin && (
+      {canEdit && (
       <div>
         {!editOpen ? (
           <button

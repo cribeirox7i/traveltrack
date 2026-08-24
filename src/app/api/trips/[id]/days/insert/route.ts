@@ -1,21 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { errorResponse, requireAdmin } from "@/lib/api-helpers";
+import { errorResponse, requireTripEditor } from "@/lib/api-helpers";
 import { insertTripDay } from "@/lib/sheets/trips";
 
 const bodySchema = z.object({ afterDayId: z.string().min(1).nullable() });
 
 /** Insere um dia em branco na grade, logo depois de `afterDayId` (ou no início, se null) - ver
- * `insertTripDay` pra regra completa de deslocamento de datas/Agenda. Admin-only: mexer na
- * estrutura de dias é parte de Itinerário, que usuário comum não pode editar. */
+ * `insertTripDay` pra regra completa de deslocamento de datas/Agenda. Admin ou quem criou a
+ * viagem: mexer na estrutura de dias é parte de Itinerário, que usuário comum só edita nas
+ * próprias viagens. */
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const auth = await requireAdmin();
+  const { id } = await params;
+  const auth = await requireTripEditor(id);
   if ("error" in auth) return auth.error;
 
-  const { id } = await params;
   const parsed = bodySchema.safeParse(await req.json());
   if (!parsed.success) return errorResponse(parsed.error.issues[0].message);
 

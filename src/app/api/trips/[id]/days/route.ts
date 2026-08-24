@@ -4,6 +4,7 @@ import { errorResponse, requireSession } from "@/lib/api-helpers";
 import {
   DAY_AUTO_FIELDS,
   DAY_PATCHABLE_FIELDS,
+  getTrip,
   listTripDays,
   saveTripDays,
   userCanAccessTrip,
@@ -51,16 +52,19 @@ export async function PUT(
   if (!parsed.success) return errorResponse(parsed.error.issues[0].message);
 
   // Usuário comum só pode editar as abas Lançamentos/Anexos/Roteiro - Orçamento e Itinerário
-  // (os únicos dois que gravam por aqui campos que não sejam clima) são admin-only. Os campos de
+  // (os únicos dois que gravam por aqui campos que não sejam clima) são restritos ao admin e a
+  // quem criou a viagem (dono tem privilégio total na própria viagem, mesmo comum). Os campos de
   // clima (DAY_AUTO_FIELDS) continuam liberados pra qualquer um, porque são gravados sozinhos
   // pelo botão "Atualizar" global, não uma edição de tela - não faz sentido travar isso.
-  if (user.role !== "admin") {
+  const temCampoRestrito = parsed.data.days.some((day) => {
     const autoFieldsSet = new Set<string>(DAY_AUTO_FIELDS);
-    const temCampoRestrito = parsed.data.days.some((day) =>
-      Object.keys(day).some((k) => k !== "id" && !autoFieldsSet.has(k))
-    );
-    if (temCampoRestrito) {
-      return errorResponse("Só administradores podem editar Orçamento/Itinerário", 403);
+    return Object.keys(day).some((k) => k !== "id" && !autoFieldsSet.has(k));
+  });
+  if (temCampoRestrito) {
+    const trip = await getTrip(id);
+    const isOwner = trip?.criado_por === user.id;
+    if (user.role !== "admin" && !isOwner) {
+      return errorResponse("Só o administrador ou quem criou a viagem pode editar Orçamento/Itinerário", 403);
     }
   }
 

@@ -10,6 +10,7 @@ interface TripMeta {
   id: string;
   qtd_pessoas: string;
   custo_modo?: "por_pessoa" | "total" | "";
+  criado_por: string;
 }
 
 interface TripDay {
@@ -75,8 +76,11 @@ function formatDateBR(iso: string): string {
 export default function OrcamentoPage() {
   const { id: tripId } = useParams<{ id: string }>();
   const { data: session } = useSession();
-  const isAdmin = session?.user.role === "admin";
   const { trip } = useOfflineTrip<TripMeta>(tripId);
+  // Admin edita qualquer viagem; usuário comum só a própria (criada por ele) - dono tem
+  // privilégio total na sua própria viagem, mesmo sem ser admin.
+  const canEdit =
+    session?.user.role === "admin" || (!!trip && trip.criado_por === session?.user.id);
   const { items, loading } = useOfflineCollection<TripDay>("tripDays", tripId);
   const modoTotal = trip?.custo_modo === "total";
   const qtdPessoas = Math.max(1, Number(trip?.qtd_pessoas) || 1);
@@ -182,17 +186,17 @@ export default function OrcamentoPage() {
         {modoTotal
           ? `Valores TOTAIS do grupo, por dia (${qtdPessoas} pessoa(s)) - a tela divide pelo número de viajantes pra mostrar o valor por pessoa.`
           : "Valores por pessoa, por dia."}{" "}
-        {isAdmin ? (
+        {canEdit ? (
           <>
             As edições ficam só nesta tela até você clicar em <strong>Salvar</strong>.{" "}
           </>
         ) : (
-          "Somente administradores podem editar o Orçamento - "
+          "Somente o administrador ou quem criou esta viagem pode editar o Orçamento - "
         )}
         Origem/destino/pernoite aparecem só como referência - editáveis na aba Itinerário.
       </p>
 
-      {isAdmin && (
+      {canEdit && (
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap items-center gap-2">
             <button
@@ -284,7 +288,7 @@ export default function OrcamentoPage() {
                           setEditingKey(`${day.id}:${f.key}`);
                         }}
                         onBlur={(e) => normalizeCostOnBlur(day.id, f.key, e.target.value)}
-                        disabled={isSaving || !isAdmin}
+                        disabled={isSaving || !canEdit}
                         // `w-full` mantém o input preenchendo a coluna (é o que alinha cabeçalho,
                         // dados e totais); o `min-w` é o que impede a coluna de encolher até o
                         // tamanho do rótulo curto do cabeçalho ("TRAS.") num viewport estreito -

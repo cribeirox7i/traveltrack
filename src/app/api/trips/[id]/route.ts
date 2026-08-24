@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { errorResponse, requireAdmin, requireSession } from "@/lib/api-helpers";
+import { errorResponse, requireAdmin, requireSession, requireTripEditor } from "@/lib/api-helpers";
 import {
   changeTripStartDate,
   deleteTrip,
@@ -38,16 +38,16 @@ const patchSchema = z.object({
   data_inicio: z.string().date().optional(),
 });
 
-/** Admin-only: todo campo aqui (cidade de origem/Mapa, capa/modo de custo/data início do
- * Dashboard) pertence a uma aba que usuário comum não pode editar. */
+/** Admin ou quem criou a viagem: todo campo aqui (cidade de origem/Mapa, capa/modo de custo/
+ * data início do Dashboard) pertence a uma aba que usuário comum só edita nas próprias viagens. */
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const auth = await requireAdmin();
+  const { id } = await params;
+  const auth = await requireTripEditor(id);
   if ("error" in auth) return auth.error;
 
-  const { id } = await params;
   const parsed = patchSchema.safeParse(await req.json());
   if (!parsed.success) return errorResponse(parsed.error.issues[0].message);
 

@@ -3,9 +3,14 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { useOfflineCollection } from "@/lib/offline/useOfflineData";
+import { useOfflineCollection, useOfflineTrip } from "@/lib/offline/useOfflineData";
 import { pullTripDetail, pullTrips, saveDaysOffline } from "@/lib/offline/sync";
 import { CityAutocomplete } from "@/components/CityAutocomplete";
+
+interface TripMeta {
+  id: string;
+  criado_por: string;
+}
 
 interface TripDay {
   id: string;
@@ -64,7 +69,10 @@ function formatDateBR(iso: string): string {
 export default function ItinerarioPage() {
   const { id: tripId } = useParams<{ id: string }>();
   const { data: session } = useSession();
-  const isAdmin = session?.user.role === "admin";
+  const { trip } = useOfflineTrip<TripMeta>(tripId);
+  // Admin edita qualquer viagem; usuário comum só a própria (criada por ele).
+  const canEdit =
+    session?.user.role === "admin" || (!!trip && trip.criado_por === session?.user.id);
   const { items, loading } = useOfflineCollection<TripDay>("tripDays", tripId);
   const [days, setDays] = useState<TripDay[]>([]);
   const [isSaving, setIsSaving] = useState(false);
@@ -223,7 +231,7 @@ export default function ItinerarioPage() {
   return (
     <div className="flex flex-col gap-3">
       <p className="text-sm text-slate-500 dark:text-slate-400">
-        {isAdmin ? (
+        {canEdit ? (
           <>
             Origem, destino e pernoite de cada dia da viagem. Este é o único lugar onde essas
             cidades podem ser editadas - nas outras abas elas aparecem só como texto.
@@ -231,13 +239,13 @@ export default function ItinerarioPage() {
             sozinhas pra continuarem sequenciais.
           </>
         ) : (
-          "Somente administradores podem editar o Itinerário (cidades e dias da viagem)."
+          "Somente o administrador ou quem criou esta viagem pode editar o Itinerário (cidades e dias da viagem)."
         )}
       </p>
 
       {structError && <p className="text-sm text-red-600 dark:text-red-400">{structError}</p>}
 
-      {isAdmin && (
+      {canEdit && (
         <div>
           <button
             type="button"
@@ -251,7 +259,7 @@ export default function ItinerarioPage() {
         </div>
       )}
 
-      {isAdmin && (
+      {canEdit && (
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap items-center gap-2">
             <button
@@ -310,7 +318,7 @@ export default function ItinerarioPage() {
                   {f.label}
                 </th>
               ))}
-              {isAdmin && <th className="px-1 py-1" />}
+              {canEdit && <th className="px-1 py-1" />}
             </tr>
           </thead>
           <tbody>
@@ -331,12 +339,12 @@ export default function ItinerarioPage() {
                       }}
                       onSelect={(city) => applyCitySelection(day.id, f.key, city)}
                       onFocus={() => setFocusedCell({ dayId: day.id, field: f.key })}
-                      disabled={isSaving || !isAdmin}
+                      disabled={isSaving || !canEdit}
                       className="w-full min-w-32 rounded-md border border-slate-300 dark:border-slate-700 py-0.5 pl-1.5 pr-3.5 text-xs"
                     />
                   </td>
                 ))}
-                {isAdmin && (
+                {canEdit && (
                   <td className="px-1 py-1">
                     <div className="flex items-center gap-2 text-xs">
                       <button
