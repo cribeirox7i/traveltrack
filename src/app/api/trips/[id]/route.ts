@@ -25,6 +25,8 @@ const patchSchema = z.object({
   cidade_origem: z.string().optional(),
   cidade_origem_lat: z.string().optional(),
   cidade_origem_lon: z.string().optional(),
+  capa_url: z.string().optional(),
+  custo_modo: z.enum(["por_pessoa", "total"]).optional(),
 });
 
 export async function PATCH(

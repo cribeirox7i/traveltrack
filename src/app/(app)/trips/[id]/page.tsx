@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { useOfflineCollection, useOfflineTrip, useCountries } from "@/lib/offline/useOfflineData";
+import { pullTrips } from "@/lib/offline/sync";
 import { findCountry } from "@/lib/countryMatch";
 import { distinctCities } from "@/lib/tripCities";
 
@@ -12,6 +13,8 @@ interface TripMeta {
   data_inicio: string;
   data_fim: string;
   qtd_pessoas: string;
+  capa_url: string;
+  custo_modo?: "por_pessoa" | "total" | "";
 }
 
 interface TripDay {
@@ -116,6 +119,30 @@ export default function TripDashboardPage() {
     return () => clearInterval(timer);
   }, []);
 
+  const [editOpen, setEditOpen] = useState(false);
+  const [editForm, setEditForm] = useState({ capa_url: "", custo_modo: "por_pessoa" as "por_pessoa" | "total" });
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  function openEdit() {
+    setEditForm({
+      capa_url: trip?.capa_url ?? "",
+      custo_modo: trip?.custo_modo === "total" ? "total" : "por_pessoa",
+    });
+    setEditOpen(true);
+  }
+
+  async function saveEdit() {
+    setSavingEdit(true);
+    await fetch(`/api/trips/${tripId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(editForm),
+    });
+    await pullTrips();
+    setSavingEdit(false);
+    setEditOpen(false);
+  }
+
   const cidades = distinctCities(days);
   const paises = Array.from(new Set(cidades.map((c) => c.pais).filter(Boolean)));
   const temperaturas = temperaturasPorCidade(days);
@@ -140,6 +167,78 @@ export default function TripDashboardPage() {
 
   return (
     <div className="flex flex-col gap-5">
+      {trip?.capa_url && (
+        // eslint-disable-next-line @next/next/no-img-element -- URL externa qualquer, escolhida pelo usuário, sem domínio fixo pra next/image
+        <img
+          src={trip.capa_url}
+          alt=""
+          className="h-40 w-full rounded-2xl object-cover sm:h-56"
+          onError={(e) => {
+            e.currentTarget.style.display = "none";
+          }}
+        />
+      )}
+
+      <div>
+        {!editOpen ? (
+          <button
+            type="button"
+            onClick={openEdit}
+            className="text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:underline"
+          >
+            Editar capa / modo de custo
+          </button>
+        ) : (
+          <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:flex-row sm:flex-wrap sm:items-end">
+            <div className="flex-1 min-w-[220px]">
+              <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">
+                URL da capa
+              </label>
+              <input
+                type="url"
+                placeholder="https://..."
+                value={editForm.capa_url}
+                onChange={(e) => setEditForm({ ...editForm, capa_url: e.target.value })}
+                className="w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
+              />
+            </div>
+            <div className="min-w-[180px]">
+              <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">
+                Custos do Orçamento
+              </label>
+              <select
+                value={editForm.custo_modo}
+                onChange={(e) =>
+                  setEditForm({ ...editForm, custo_modo: e.target.value as "por_pessoa" | "total" })
+                }
+                className="w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
+              >
+                <option value="por_pessoa">Por pessoa</option>
+                <option value="total">Total da viagem</option>
+              </select>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={saveEdit}
+                disabled={savingEdit}
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+              >
+                {savingEdit ? "Salvando..." : "Salvar"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setEditOpen(false)}
+                disabled={savingEdit}
+                className="rounded-lg border border-slate-300 dark:border-slate-700 px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-50 disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
         {stats.map((s) => (
           <div

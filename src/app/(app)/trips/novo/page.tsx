@@ -15,6 +15,8 @@ export default function NovaViagemPage() {
     cidade_origem: "",
     cidade_origem_lat: "",
     cidade_origem_lon: "",
+    capa_url: "",
+    custo_modo: "por_pessoa" as "por_pessoa" | "total",
   });
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -106,6 +108,41 @@ export default function NovaViagemPage() {
             className="w-full rounded-lg border border-slate-300 dark:border-slate-700 py-2 pl-3 pr-5 text-sm"
           />
           <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">Usada como ponto de partida do roteiro na aba Mapa.</p>
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
+            URL da capa <span className="font-normal text-slate-400 dark:text-slate-500">(opcional)</span>
+          </label>
+          <input
+            type="url"
+            placeholder="https://..."
+            value={form.capa_url}
+            onChange={(e) => setForm({ ...form, capa_url: e.target.value })}
+            className="w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
+          />
+          <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
+            Imagem de capa da viagem, mostrada no card da lista e no Dashboard.
+          </p>
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
+            Custos do Orçamento
+          </label>
+          <select
+            value={form.custo_modo}
+            onChange={(e) =>
+              setForm({ ...form, custo_modo: e.target.value as "por_pessoa" | "total" })
+            }
+            className="w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
+          >
+            <option value="por_pessoa">Por pessoa</option>
+            <option value="total">Total da viagem</option>
+          </select>
+          <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
+            Se for &ldquo;Total da viagem&rdquo;, os valores lançados no Orçamento são o custo
+            total do grupo naquele item - a tela divide pelo número de pessoas pra mostrar o
+            valor por pessoa.
+          </p>
         </div>
 
         {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}

@@ -24,6 +24,8 @@ export const SHEET_HEADERS: Record<SheetTab, string[]> = {
     "cidade_origem",
     "cidade_origem_lat",
     "cidade_origem_lon",
+    "capa_url",
+    "custo_modo",
   ],
   TripDays: [
     "id",
@@ -136,6 +138,14 @@ export interface TripRow {
   cidade_origem: string;
   cidade_origem_lat: string;
   cidade_origem_lon: string;
+  /** URL de uma imagem estática escolhida pelo usuário como capa da viagem (card da lista +
+   * Dashboard) - vazio se não definida, aí nenhuma capa aparece (sem fallback automático). */
+  capa_url: string;
+  /** Se os valores por categoria/dia no Orçamento são o custo POR PESSOA (default, comportamento
+   * histórico - campos `_pp` em TripDayRow) ou o custo TOTAL da viagem naquele item/dia, caso em
+   * que a tela de Orçamento/Relatório precisa dividir pelo `qtd_pessoas` pra mostrar o valor por
+   * pessoa. Linhas antigas sem essa coluna são tratadas como "por_pessoa". */
+  custo_modo: "por_pessoa" | "total" | "";
 }
 
 export interface TripDayRow {

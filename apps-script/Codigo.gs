@@ -17,7 +17,7 @@
 const ESTRUTURA = {
   Users: ['id', 'nome', 'email', 'senha_hash', 'role', 'ativo'],
   Parametros: ['id', 'chave', 'valor', 'descricao'],
-  Trips: ['id', 'nome', 'data_inicio', 'data_fim', 'qtd_pessoas', 'criado_por', 'criado_em', 'cidade_origem', 'cidade_origem_lat', 'cidade_origem_lon'],
+  Trips: ['id', 'nome', 'data_inicio', 'data_fim', 'qtd_pessoas', 'criado_por', 'criado_em', 'cidade_origem', 'cidade_origem_lat', 'cidade_origem_lon', 'capa_url', 'custo_modo'],
   TripDays: ['id', 'trip_id', 'data', 'origem', 'destino', 'pernoite', 'traslado_pp', 'passagem_pp', 'alimentacao_pp', 'passeio_pp', 'hospedagem_pp', 'temp_min', 'temp_max', 'origem_lat', 'origem_lon', 'destino_lat', 'destino_lon', 'pernoite_lat', 'pernoite_lon', 'origem_pais', 'destino_pais', 'pernoite_pais'],
   UserTrip: ['id', 'user_id', 'trip_id'],
   Despesas: ['id', 'trip_id', 'categoria', 'valor', 'data', 'lancado_por', 'descricao', 'pagador_id', 'meio_pagamento_id', 'status', 'natureza'],

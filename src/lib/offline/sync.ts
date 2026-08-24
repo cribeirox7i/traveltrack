@@ -21,7 +21,6 @@ import {
   putOne,
   removeOutboxByTrip,
   removeOutboxEntry,
-  saveTripImage,
   setMeta,
   updateOutboxEntry,
 } from "./db";
@@ -198,32 +197,6 @@ export async function upsertCountryInfo(
     // sem sinal no meio da chamada, ou o servidor caiu - próxima tentativa de "Atualizar" cobre.
     console.error(`upsertCountryInfo(${country}) falhou:`, err);
   }
-}
-
-/** Baixa a imagem atual do banner giratório da viagem (ver `TripHeroImage.tsx`) e grava como "a
- * última mostrada", sobrescrevendo a anterior - só uma por viagem é guardada, não o álbum
- * inteiro, é o que a tela mostra (sem girar) quando abre offline. Silencioso: uma foto
- * ilustrativa que falha ao baixar não é motivo pra incomodar o usuário com erro nenhum. */
-export async function saveLastTripImage(
-  tripId: string,
-  cidade: string,
-  imageUrl: string,
-  pageUrl: string,
-  // Cache de blobs já baixados nesta sessão (mantido por quem chama, tipicamente um `useRef` no
-  // componente) - a rotação do banner volta pras mesmas poucas fotos sem parar enquanto a tela
-  // fica aberta; sem isso, cada volta rebaixava a imagem de novo da Wikimedia à toa (tráfego
-  // desnecessário, ainda que longe de qualquer limite de fato).
-  blobCache?: Map<string, Blob>
-): Promise<void> {
-  if (!isOnline()) return;
-  let blob = blobCache?.get(imageUrl);
-  if (!blob) {
-    const fetched = await getBlob(imageUrl);
-    if (!fetched) return;
-    blob = fetched;
-    blobCache?.set(imageUrl, blob);
-  }
-  await saveTripImage({ trip_id: tripId, blob, cidade, pageUrl, savedAt: Date.now() });
 }
 
 // ---------- "Dados offline" - download completo por viagem, incluindo anexos ----------
@@ -691,6 +664,8 @@ export async function createTripOffline(input: {
   cidade_origem?: string;
   cidade_origem_lat?: string;
   cidade_origem_lon?: string;
+  capa_url?: string;
+  custo_modo?: "por_pessoa" | "total";
 }): Promise<string> {
   const id = uuid();
   const trip = {
@@ -704,6 +679,8 @@ export async function createTripOffline(input: {
     cidade_origem: input.cidade_origem ?? "",
     cidade_origem_lat: input.cidade_origem_lat ?? "",
     cidade_origem_lon: input.cidade_origem_lon ?? "",
+    capa_url: input.capa_url ?? "",
+    custo_modo: input.custo_modo ?? "por_pessoa",
   };
   await putOne("trips", trip);
 

@@ -2,8 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
-import { useOfflineCollection } from "@/lib/offline/useOfflineData";
+import { useOfflineCollection, useOfflineTrip } from "@/lib/offline/useOfflineData";
 import { saveDaysOffline } from "@/lib/offline/sync";
+
+interface TripMeta {
+  id: string;
+  qtd_pessoas: string;
+  custo_modo?: "por_pessoa" | "total" | "";
+}
 
 interface TripDay {
   id: string;
@@ -67,7 +73,10 @@ function formatDateBR(iso: string): string {
 
 export default function OrcamentoPage() {
   const { id: tripId } = useParams<{ id: string }>();
+  const { trip } = useOfflineTrip<TripMeta>(tripId);
   const { items, loading } = useOfflineCollection<TripDay>("tripDays", tripId);
+  const modoTotal = trip?.custo_modo === "total";
+  const qtdPessoas = Math.max(1, Number(trip?.qtd_pessoas) || 1);
   const [days, setDays] = useState<TripDay[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
@@ -156,14 +165,21 @@ export default function OrcamentoPage() {
     acc[f.key] = days.reduce((sum, d) => sum + (Number(d[f.key]) || 0), 0);
     return acc;
   }, {});
-  const totalGeralPorPessoa = Object.values(totals).reduce((a, b) => a + b, 0);
+  const totalGeral = Object.values(totals).reduce((a, b) => a + b, 0);
+  // No modo "total", os valores lançados são o custo do GRUPO inteiro - o "por pessoa" é
+  // derivado dividindo pelo número de viajantes, só pra exibição (o que fica salvo na planilha
+  // continua sendo o total, célula por célula).
+  const totalGeralPorPessoa = modoTotal ? totalGeral / qtdPessoas : totalGeral;
 
   if (loading) return <p className="text-sm text-slate-500 dark:text-slate-400">Carregando...</p>;
 
   return (
     <div className="flex flex-col gap-3">
       <p className="text-sm text-slate-500 dark:text-slate-400">
-        Valores por pessoa, por dia. As edições ficam só nesta tela até você clicar em{" "}
+        {modoTotal
+          ? `Valores TOTAIS do grupo, por dia (${qtdPessoas} pessoa(s)) - a tela divide pelo número de viajantes pra mostrar o valor por pessoa.`
+          : "Valores por pessoa, por dia."}{" "}
+        As edições ficam só nesta tela até você clicar em{" "}
         <strong>Salvar</strong>. Origem/destino/pernoite aparecem só como referência - editáveis
         na aba Itinerário.
       </p>
@@ -273,7 +289,7 @@ export default function OrcamentoPage() {
           </tbody>
           <tfoot>
             <tr className="border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 font-bold">
-              <td className="px-2 py-1">Total por pessoa</td>
+              <td className="px-2 py-1">{modoTotal ? "Total do grupo" : "Total por pessoa"}</td>
               <td className="px-1 py-1" />
               {ROUTE_FIELDS.map((f) => (
                 <td key={f.key} className="px-1 py-1" />
@@ -284,11 +300,31 @@ export default function OrcamentoPage() {
                 </td>
               ))}
             </tr>
+            {modoTotal && (
+              <tr className="border-t border-slate-100 dark:border-slate-800 text-slate-500 dark:text-slate-400">
+                <td className="px-2 py-1">Por pessoa</td>
+                <td className="px-1 py-1" />
+                {ROUTE_FIELDS.map((f) => (
+                  <td key={f.key} className="px-1 py-1" />
+                ))}
+                {COST_FIELDS.map((f) => (
+                  <td key={f.key} className="px-1 py-1 text-right">
+                    {formatDecimal(String(totals[f.key] / qtdPessoas))}
+                  </td>
+                ))}
+              </tr>
+            )}
           </tfoot>
         </table>
       </div>
 
       <p className="text-sm text-slate-600 dark:text-slate-400">
+        {modoTotal && (
+          <>
+            Total geral do grupo: <span className="font-bold">R$ {formatDecimal(String(totalGeral))}</span>
+            {" · "}
+          </>
+        )}
         Total geral por pessoa:{" "}
         <span className="font-bold">R$ {formatDecimal(String(totalGeralPorPessoa))}</span>
       </p>

@@ -13,6 +13,8 @@ const createTripSchema = z
     cidade_origem: z.string().optional(),
     cidade_origem_lat: z.string().optional(),
     cidade_origem_lon: z.string().optional(),
+    capa_url: z.string().optional(),
+    custo_modo: z.enum(["por_pessoa", "total"]).optional(),
     dayIds: z.array(z.string().min(1)).optional(),
   })
   .refine((data) => data.data_fim >= data.data_inicio, {

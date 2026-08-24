@@ -39,14 +39,18 @@ export function computeRelatorio(
   qtdPessoas: number,
   days: Record<string, unknown>[],
   despesas: { categoria: string; valor: string | number; natureza?: string }[],
-  receitas: { valor: string | number }[]
+  receitas: { valor: string | number }[],
+  // "total": os campos `_pp` de cada dia já são o custo TOTAL do grupo (apesar do nome do campo,
+  // herdado de quando só existia o modo por pessoa) - não multiplica por `qtdPessoas` de novo,
+  // senão dobraria o orçado. Linhas antigas/viagens sem essa coluna são tratadas como "por_pessoa".
+  custoModo: "por_pessoa" | "total" | "" = "por_pessoa"
 ): Relatorio {
   const debitos = despesas.filter((d) => (d.natureza ?? "debito") !== "credito");
   const creditos = despesas.filter((d) => d.natureza === "credito");
 
   const categorias: RelatorioCategoria[] = CATEGORIAS.map(({ key, dayField }) => {
-    const orcadoPorPessoa = days.reduce((sum, day) => sum + (Number(day[dayField]) || 0), 0);
-    const orcado = orcadoPorPessoa * qtdPessoas;
+    const somaCampos = days.reduce((sum, day) => sum + (Number(day[dayField]) || 0), 0);
+    const orcado = custoModo === "total" ? somaCampos : somaCampos * qtdPessoas;
     const realizado = debitos
       .filter((d) => d.categoria === key)
       .reduce((sum, d) => sum + (Number(d.valor) || 0), 0);

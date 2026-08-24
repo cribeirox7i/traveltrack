@@ -273,16 +273,10 @@ export async function updateOutboxEntry(entry: OutboxEntry) {
   await db.put("outbox", entry);
 }
 
-export async function saveTripImage(row: TripImageRow): Promise<void> {
-  const db = await getDB();
-  await db.put("tripImages", row);
-}
-
-export async function getTripImage(tripId: string): Promise<TripImageRow | undefined> {
-  const db = await getDB();
-  return db.get("tripImages", tripId);
-}
-
+/** A store `tripImages` em si (ver `upgrade` mais acima) ficou pra trás - guardava a última foto
+ * do banner giratório da Wikipedia, removido em favor de uma capa estática por URL
+ * (`Trips.capa_url`). Só esta função de limpeza continua, pro cascade de exclusão de viagem
+ * remover eventuais imagens antigas ainda presas no IndexedDB de quem usou o app antes da troca. */
 export async function deleteTripImage(tripId: string): Promise<void> {
   const db = await getDB();
   await db.delete("tripImages", tripId);

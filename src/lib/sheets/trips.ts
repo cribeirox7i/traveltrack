@@ -55,6 +55,8 @@ export async function createTrip(input: {
   cidade_origem?: string;
   cidade_origem_lat?: string;
   cidade_origem_lon?: string;
+  capa_url?: string;
+  custo_modo?: "por_pessoa" | "total";
   /** Ids dos dias já gerados no cliente (modo offline) - reaproveitados aqui em vez de gerar
    * ids novos, senão o cliente e o servidor acabam criando duas linhas por dia (uma com o id
    * local, outra com o id gerado agora), duplicando a grade de diárias quando a sincronização
@@ -72,6 +74,8 @@ export async function createTrip(input: {
     cidade_origem: input.cidade_origem ?? "",
     cidade_origem_lat: input.cidade_origem_lat ?? "",
     cidade_origem_lon: input.cidade_origem_lon ?? "",
+    capa_url: input.capa_url ?? "",
+    custo_modo: input.custo_modo ?? "por_pessoa",
   };
 
   const days = enumerateDates(input.data_inicio, input.data_fim);
@@ -109,7 +113,13 @@ export async function createTrip(input: {
 
 export async function updateTrip(
   id: string,
-  patch: { cidade_origem?: string; cidade_origem_lat?: string; cidade_origem_lon?: string }
+  patch: {
+    cidade_origem?: string;
+    cidade_origem_lat?: string;
+    cidade_origem_lon?: string;
+    capa_url?: string;
+    custo_modo?: "por_pessoa" | "total";
+  }
 ): Promise<void> {
   await updateRow("Trips", id, patch);
 }

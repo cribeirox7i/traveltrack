@@ -9,8 +9,8 @@ export interface TripDayCities {
 
 /** Cidades distintas do roteiro (Origem/Destino/Pernoite de todos os dias), com o país que foi
  * capturado junto na hora da escolha no autocomplete (ver Itinerário) - repetições e campos
- * vazios descartados. Usado tanto pelo banner de fotos (TripHeroImage) quanto pelo Dashboard da
- * viagem (contagem de cidades/países, acordeões de fuso/eletricidade). */
+ * vazios descartados. Usado pelo Dashboard da viagem (contagem de cidades/países, acordeões de
+ * fuso/eletricidade). */
 export function distinctCities(days: TripDayCities[]): { cidade: string; pais: string }[] {
   const vistos = new Map<string, { cidade: string; pais: string }>();
   for (const day of days) {

@@ -13,5 +13,5 @@ export async function buildRelatorio(tripId: string): Promise<Relatorio | null> 
   const despesas = await listDespesasByTrip(tripId);
   const receitas = await listReceitasByTrip(tripId);
 
-  return computeRelatorio(tripId, qtdPessoas, days, despesas, receitas);
+  return computeRelatorio(tripId, qtdPessoas, days, despesas, receitas, trip.custo_modo);
 }

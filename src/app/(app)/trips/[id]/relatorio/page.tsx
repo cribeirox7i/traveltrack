@@ -10,7 +10,11 @@ function formatMoney(value: number): string {
 
 export default function RelatorioPage() {
   const { id: tripId } = useParams<{ id: string }>();
-  const { trip, loading: loadingTrip } = useOfflineTrip<{ id: string; qtd_pessoas: string }>(tripId);
+  const { trip, loading: loadingTrip } = useOfflineTrip<{
+    id: string;
+    qtd_pessoas: string;
+    custo_modo?: "por_pessoa" | "total" | "";
+  }>(tripId);
   const { items: days, loading: loadingDays } = useOfflineCollection<
     { id: string } & Record<string, unknown>
   >("tripDays", tripId);
@@ -30,7 +34,14 @@ export default function RelatorioPage() {
   if (loading) return <p className="text-sm text-slate-500 dark:text-slate-400">Carregando...</p>;
   if (!trip) return <p className="text-sm text-red-600 dark:text-red-400">Erro ao carregar relatório.</p>;
 
-  const relatorio = computeRelatorio(tripId, Number(trip.qtd_pessoas) || 0, days, despesas, receitas);
+  const relatorio = computeRelatorio(
+    tripId,
+    Number(trip.qtd_pessoas) || 0,
+    days,
+    despesas,
+    receitas,
+    trip.custo_modo
+  );
 
   return (
     <div className="flex flex-col gap-4">

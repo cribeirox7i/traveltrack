@@ -3,9 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
-import { useOfflineCollection, useOfflineTrips } from "@/lib/offline/useOfflineData";
+import { useOfflineTrips } from "@/lib/offline/useOfflineData";
 import { deleteTripOffline, listOfflineTripIds, setTripOffline, syncEvents } from "@/lib/offline/sync";
-import { TripHeroImage } from "@/components/TripHeroImage";
 
 interface TripItem {
   id: string;
@@ -13,16 +12,7 @@ interface TripItem {
   data_inicio: string;
   data_fim: string;
   qtd_pessoas: string;
-}
-
-interface TripDayCities {
-  id: string;
-  origem: string;
-  destino: string;
-  pernoite: string;
-  origem_pais: string;
-  destino_pais: string;
-  pernoite_pais: string;
+  capa_url: string;
 }
 
 function formatDateBR(iso: string): string {
@@ -30,9 +20,6 @@ function formatDateBR(iso: string): string {
   return d && m && y ? `${d}/${m}/${y}` : iso;
 }
 
-/** Um card da grade de viagens. Precisa ser componente próprio (não inline dentro do `.map` da
- * página) pra poder chamar `useOfflineCollection` por viagem - um hook não pode ser chamado
- * dentro de um callback de map na mesma função, só no corpo de um componente de verdade. */
 function TripCard({
   trip,
   isAdmin,
@@ -50,11 +37,19 @@ function TripCard({
   onToggleOffline: (checked: boolean) => void;
   onDelete: () => void;
 }) {
-  const { items: days } = useOfflineCollection<TripDayCities>("tripDays", trip.id);
-
   return (
     <div className="flex flex-col overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-slate-400">
-      <TripHeroImage tripId={trip.id} days={days} compact />
+      {trip.capa_url && (
+        // eslint-disable-next-line @next/next/no-img-element -- URL externa qualquer, escolhida pelo usuário, sem domínio fixo pra next/image
+        <img
+          src={trip.capa_url}
+          alt=""
+          className="h-28 w-full rounded-t-2xl object-cover"
+          onError={(e) => {
+            e.currentTarget.style.display = "none";
+          }}
+        />
+      )}
       <div className="flex flex-col gap-2 p-4">
         <div className="flex items-start justify-between gap-2">
           <Link href={`/trips/${trip.id}`} className="min-w-0 flex-1">
