@@ -214,13 +214,15 @@ export default function AgendaPage() {
           >
             {loadingWeather ? "Buscando e salvando..." : "Buscar temperaturas"}
           </button>
-          <button
-            type="button"
-            onClick={() => (formOpen ? closeForm() : openNewForm())}
-            className="rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800"
-          >
-            {formOpen ? "Cancelar" : "+ Nova agenda"}
-          </button>
+          {!formOpen && (
+            <button
+              type="button"
+              onClick={() => openNewForm()}
+              className="rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800"
+            >
+              + Nova agenda
+            </button>
+          )}
         </div>
       </div>
 
@@ -304,13 +306,23 @@ export default function AgendaPage() {
               className="block w-full text-xs text-slate-600 file:mr-2 file:rounded-lg file:border-0 file:bg-slate-900 file:px-2.5 file:py-1.5 file:text-xs file:font-medium file:text-white hover:file:bg-slate-800"
             />
           </div>
-          <button
-            type="submit"
-            disabled={saving}
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-          >
-            {saving ? "Salvando..." : "Salvar"}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="submit"
+              disabled={saving}
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+            >
+              {saving ? "Salvando..." : "Salvar"}
+            </button>
+            <button
+              type="button"
+              onClick={closeForm}
+              disabled={saving}
+              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+            >
+              Cancelar
+            </button>
+          </div>
           {error && <p className="w-full text-sm text-red-600">{error}</p>}
         </form>
       )}
