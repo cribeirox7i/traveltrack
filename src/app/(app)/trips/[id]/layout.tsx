@@ -17,6 +17,11 @@ interface TripMeta {
   qtd_pessoas: string;
 }
 
+function formatDateBR(iso: string): string {
+  const [y, m, d] = iso.slice(0, 10).split("-");
+  return d && m && y ? `${d}/${m}/${y}` : iso;
+}
+
 export default function TripLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { id } = useParams<{ id: string }>();
@@ -61,7 +66,7 @@ export default function TripLayout({ children }: { children: React.ReactNode }) 
           {trip.nome}
         </Link>
         <p className="text-xs text-slate-500 dark:text-slate-400">
-          {trip.data_inicio} - {trip.data_fim} · {trip.qtd_pessoas} pessoa(s)
+          {formatDateBR(trip.data_inicio)} - {formatDateBR(trip.data_fim)} · {trip.qtd_pessoas} pessoa(s)
         </p>
       </div>
       <TripTabs tripId={id} />

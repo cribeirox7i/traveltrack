@@ -340,8 +340,8 @@ export default function AgendaPage() {
                     <span
                       title={
                         isForecastReal(day.data)
-                          ? "Previsão real do tempo (até 16 dias à frente de hoje)"
-                          : "Estimativa: média histórica de temperatura/chuva/vento pra esta data nos últimos anos - não é uma previsão real"
+                          ? "Previsão meteorológica atualizada"
+                          : "Estimativa por média histórica"
                       }
                     >
                       {isForecastReal(day.data) ? "🔮" : "📊"}
@@ -362,8 +362,8 @@ export default function AgendaPage() {
                       </div>
                       <p className="text-[11px] text-slate-400 dark:text-slate-500">
                         {isForecastReal(day.data)
-                          ? "🔮 Previsão real do tempo (até 16 dias à frente de hoje)."
-                          : "📊 Estimativa: média histórica de temperatura/chuva/vento pra esta data nos últimos anos - não é uma previsão real, dias tão distantes ainda não têm previsão disponível."}
+                          ? "🔮 Previsão meteorológica atualizada"
+                          : "📊 Estimativa por média histórica"}
                       </p>
                     </div>
                   )}

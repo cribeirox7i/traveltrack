@@ -13,6 +13,7 @@ interface TripItem {
   data_fim: string;
   qtd_pessoas: string;
   capa_url: string;
+  criado_por: string;
 }
 
 function formatDateBR(iso: string): string {
@@ -23,6 +24,7 @@ function formatDateBR(iso: string): string {
 function TripCard({
   trip,
   isAdmin,
+  canEdit,
   offline,
   busy,
   deleting,
@@ -31,6 +33,7 @@ function TripCard({
 }: {
   trip: TripItem;
   isAdmin: boolean;
+  canEdit: boolean;
   offline: boolean;
   busy: boolean;
   deleting: boolean;
@@ -40,15 +43,17 @@ function TripCard({
   return (
     <div className="flex flex-col overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-slate-400">
       {trip.capa_url && (
-        // eslint-disable-next-line @next/next/no-img-element -- URL externa qualquer, escolhida pelo usuário, sem domínio fixo pra next/image
-        <img
-          src={trip.capa_url}
-          alt=""
-          className="h-28 w-full rounded-t-2xl object-cover"
-          onError={(e) => {
-            e.currentTarget.style.display = "none";
-          }}
-        />
+        <Link href={`/trips/${trip.id}`}>
+          {/* eslint-disable-next-line @next/next/no-img-element -- URL externa qualquer, escolhida pelo usuário, sem domínio fixo pra next/image */}
+          <img
+            src={trip.capa_url}
+            alt=""
+            className="h-28 w-full rounded-t-2xl object-cover"
+            onError={(e) => {
+              e.currentTarget.style.display = "none";
+            }}
+          />
+        </Link>
       )}
       <div className="flex flex-col gap-2 p-4">
         <div className="flex items-start justify-between gap-2">
@@ -61,23 +66,36 @@ function TripCard({
               {trip.qtd_pessoas} pessoa(s)
             </p>
           </Link>
-          {isAdmin && (
-            <button
-              type="button"
-              onClick={onDelete}
-              disabled={deleting}
-              title="Excluir viagem"
-              className="shrink-0 rounded-lg p-1.5 text-slate-400 dark:text-slate-500 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {deleting ? (
-                <span className="text-xs">...</span>
-              ) : (
+          <div className="flex shrink-0 items-center gap-1">
+            {canEdit && (
+              <Link
+                href={`/trips/${trip.id}/editar`}
+                title="Editar viagem"
+                className="rounded-lg p-1.5 text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-700 dark:hover:text-slate-300"
+              >
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-4 w-4">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 7h12M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2m-8 0 1 13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1l1-13" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 4.5a2.1 2.1 0 0 1 3 3L7 20 3 21l1-4Z" />
                 </svg>
-              )}
-            </button>
-          )}
+              </Link>
+            )}
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={onDelete}
+                disabled={deleting}
+                title="Excluir viagem"
+                className="rounded-lg p-1.5 text-slate-400 dark:text-slate-500 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {deleting ? (
+                  <span className="text-xs">...</span>
+                ) : (
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-4 w-4">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 7h12M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2m-8 0 1 13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1l1-13" />
+                  </svg>
+                )}
+              </button>
+            )}
+          </div>
         </div>
         <label className="mt-1 flex items-center justify-between gap-2 border-t border-slate-100 dark:border-slate-800 pt-2 text-xs text-slate-500 dark:text-slate-400">
           <span>
@@ -194,6 +212,7 @@ export default function TripsPage() {
             key={t.id}
             trip={t}
             isAdmin={session?.user.role === "admin"}
+            canEdit={session?.user.role === "admin" || t.criado_por === session?.user.id}
             offline={offlineIds.has(t.id)}
             busy={busyIds.has(t.id)}
             deleting={deletingIds.has(t.id)}

@@ -94,6 +94,30 @@ export interface ResolvedCountryInfo {
 }
 
 /**
+ * `zones[0]` do moment-timezone NÃO é "o fuso mais comum do país" - é só o primeiro da lista,
+ * em geral ordenada pela tzdata (não por população). Pra Brasil isso pegava
+ * "America/Noronha" (Fernando de Noronha, UTC-2) em vez de "America/Sao_Paulo" (UTC-3, onde
+ * mora a esmagadora maioria da população) - a hora local mostrada saía 1h adiantada pra
+ * qualquer cidade do Brasil continental. Override manual pro fuso mais populoso/central dos
+ * países multi-fuso mais prováveis de aparecer numa viagem - não é exaustivo (a simplificação
+ * de "um fuso só por país" continua valendo pros demais), só corrige os casos mais visíveis.
+ */
+const TIMEZONE_OVERRIDES: Record<string, string> = {
+  BR: "America/Sao_Paulo",
+  US: "America/New_York",
+  CA: "America/Toronto",
+  RU: "Europe/Moscow",
+  AU: "Australia/Sydney",
+  MX: "America/Mexico_City",
+  AR: "America/Argentina/Buenos_Aires",
+  ID: "Asia/Jakarta",
+  ES: "Europe/Madrid",
+  PT: "Europe/Lisbon",
+  CL: "America/Santiago",
+  EC: "America/Guayaquil",
+};
+
+/**
  * `paisPt` é o nome do país como a Open-Meteo devolveu (português, ex.: "Estados Unidos",
  * "Japão") - bate contra `translations.por.common` do mledoze, não contra o nome em inglês.
  * Devolve `null` se o país não for encontrado em nenhum dataset (nome muito diferente do
@@ -124,10 +148,12 @@ export async function resolveCountryInfo(paisPt: string): Promise<ResolvedCountr
 
   const drivingEntry = driving.find((d) => normalize(d.country) === normalize(pais.name.common));
 
-  // Um país com mais de um fuso (EUA, Brasil, Rússia...) fica com o primeiro da lista - é uma
-  // simplificação aceita: mostrar "a" hora do país, não todas, já que a tela não sabe em qual
-  // região exata da cidade a pessoa está sem uma geolocalização de verdade.
-  const timezone = tzMeta.countries[pais.cca2]?.zones?.[0] ?? "";
+  // Um país com mais de um fuso (EUA, Brasil, Rússia...) fica com um só - é uma simplificação
+  // aceita: mostrar "a" hora do país, não todas, já que a tela não sabe em qual região exata da
+  // cidade a pessoa está sem uma geolocalização de verdade. `TIMEZONE_OVERRIDES` corrige o
+  // fuso pros países mais comuns onde `zones[0]` não é o mais populoso (ver comentário acima).
+  const timezone =
+    TIMEZONE_OVERRIDES[pais.cca2] ?? tzMeta.countries[pais.cca2]?.zones?.[0] ?? "";
   const language = pais.languages ? Object.values(pais.languages)[0] : "";
 
   return {
