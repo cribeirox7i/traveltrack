@@ -130,7 +130,14 @@ export interface TripRow {
   [key: string]: string;
   id: string;
   nome: string;
+  /** Só muda via `changeTripStartDate` - desloca a grade de TripDays (e a Agenda) inteira junto,
+   * pra `data_inicio` continuar sendo de fato a data do primeiro dia da grade. */
   data_inicio: string;
+  /** Derivado, nunca digitado direto: sempre a data do ÚLTIMO dia da grade de TripDays daquela
+   * viagem (`sequentialDates(data_inicio, qtd_dias)` no momento da criação; recalculado por
+   * `changeTripStartDate`/`insertTripDay`/`deleteTripDay` a cada mudança na grade). A duração da
+   * viagem só muda incluindo/excluindo dias na aba Itinerário - não existe mais um campo de
+   * "data de término" editável direto em lugar nenhum. */
   data_fim: string;
   qtd_pessoas: string;
   criado_por: string;

@@ -1,5 +1,5 @@
 import { v4 as uuid } from "uuid";
-import { enumerateDates } from "../dateRange";
+import { sequentialDates } from "../dateRange";
 import { TRIP_TAB_SLUGS } from "../tripTabs";
 import { resolveCountryInfo } from "../countryInfo";
 import { fetchRateToBRL, todayISO } from "../exchangeRate";
@@ -659,7 +659,7 @@ async function sendOutboxEntry(entry: OutboxEntry): Promise<"ok" | "network-erro
 export async function createTripOffline(input: {
   nome: string;
   data_inicio: string;
-  data_fim: string;
+  qtd_dias: number;
   qtd_pessoas: number;
   cidade_origem?: string;
   cidade_origem_lat?: string;
@@ -668,11 +668,12 @@ export async function createTripOffline(input: {
   custo_modo?: "por_pessoa" | "total";
 }): Promise<string> {
   const id = uuid();
+  const datas = sequentialDates(input.data_inicio, input.qtd_dias);
   const trip = {
     id,
     nome: input.nome,
     data_inicio: input.data_inicio,
-    data_fim: input.data_fim,
+    data_fim: datas[datas.length - 1],
     qtd_pessoas: String(input.qtd_pessoas),
     criado_por: "",
     criado_em: new Date().toISOString(),
@@ -684,7 +685,7 @@ export async function createTripOffline(input: {
   };
   await putOne("trips", trip);
 
-  const days = enumerateDates(input.data_inicio, input.data_fim).map((data) => ({
+  const days = datas.map((data) => ({
     id: uuid(),
     trip_id: id,
     data,

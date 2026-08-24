@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { useOfflineCollection } from "@/lib/offline/useOfflineData";
-import { saveDaysOffline } from "@/lib/offline/sync";
+import { pullTripDetail, pullTrips, saveDaysOffline } from "@/lib/offline/sync";
 import { CityAutocomplete } from "@/components/CityAutocomplete";
 
 interface TripDay {
@@ -67,6 +67,8 @@ export default function ItinerarioPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
   const [focusedCell, setFocusedCell] = useState<FocusedCell | null>(null);
+  const [structBusy, setStructBusy] = useState(false);
+  const [structError, setStructError] = useState<string | null>(null);
 
   // Snapshot do que já está sincronizado, pra "Salvar" enviar só os campos que mudaram de fato.
   const snapshotRef = useRef<Record<string, TripDay>>({});
@@ -171,14 +173,72 @@ export default function ItinerarioPage() {
     setIsSaving(false);
   }
 
+  /**
+   * Insere um dia em branco na grade e a Salva/o Roteiro. Exige conexão e nenhuma edição local
+   * pendente - é uma operação estrutural (desloca datas de outros dias e da Agenda no servidor),
+   * misturar com edições de célula ainda não salvas arriscaria a mistura de dois estados.
+   */
+  async function insertDay(afterDayId: string | null) {
+    setStructError(null);
+    setStructBusy(true);
+    const res = await fetch(`/api/trips/${tripId}/days/insert`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ afterDayId }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      setStructError(body.error ?? "Erro ao inserir dia");
+    } else {
+      await pullTripDetail(tripId);
+      await pullTrips();
+    }
+    setStructBusy(false);
+  }
+
+  async function deleteDay(day: TripDay) {
+    if (days.length <= 1) return;
+    const ok = confirm(
+      `Excluir ${formatDateBR(day.data)}? Isso também apaga os compromissos da Agenda cadastrados nesta data, se houver, e reorganiza as datas dos dias seguintes. Não pode ser desfeito.`
+    );
+    if (!ok) return;
+    setStructError(null);
+    setStructBusy(true);
+    const res = await fetch(`/api/trips/${tripId}/days/${day.id}`, { method: "DELETE" });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      setStructError(body.error ?? "Erro ao excluir dia");
+    } else {
+      await pullTripDetail(tripId);
+      await pullTrips();
+    }
+    setStructBusy(false);
+  }
+
   if (loading) return <p className="text-sm text-slate-500 dark:text-slate-400">Carregando...</p>;
 
   return (
     <div className="flex flex-col gap-3">
       <p className="text-sm text-slate-500 dark:text-slate-400">
         Origem, destino e pernoite de cada dia da viagem. Este é o único lugar onde essas cidades
-        podem ser editadas - nas outras abas elas aparecem só como texto.
+        podem ser editadas - nas outras abas elas aparecem só como texto. Incluir/excluir dias
+        também só é feito aqui - as datas dos dias seguintes se ajustam sozinhas pra continuarem
+        sequenciais.
       </p>
+
+      {structError && <p className="text-sm text-red-600 dark:text-red-400">{structError}</p>}
+
+      <div>
+        <button
+          type="button"
+          onClick={() => insertDay(null)}
+          disabled={structBusy || isDirty}
+          title={isDirty ? "Salve as edições antes de incluir um dia" : undefined}
+          className="flex items-center gap-1.5 rounded-lg border border-dashed border-slate-300 dark:border-slate-700 px-2.5 py-1.5 text-xs font-medium text-slate-500 dark:text-slate-400 hover:border-blue-300 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          + Incluir dia no início
+        </button>
+      </div>
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
@@ -237,6 +297,7 @@ export default function ItinerarioPage() {
                   {f.label}
                 </th>
               ))}
+              <th className="px-1 py-1" />
             </tr>
           </thead>
           <tbody>
@@ -262,6 +323,28 @@ export default function ItinerarioPage() {
                     />
                   </td>
                 ))}
+                <td className="px-1 py-1">
+                  <div className="flex items-center gap-2 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => insertDay(day.id)}
+                      disabled={structBusy || isDirty}
+                      title={isDirty ? "Salve as edições antes de incluir um dia" : "Incluir dia depois deste"}
+                      className="text-slate-400 dark:text-slate-500 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      + dia
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => deleteDay(day)}
+                      disabled={structBusy || isDirty || days.length <= 1}
+                      title={isDirty ? "Salve as edições antes de excluir um dia" : "Excluir este dia"}
+                      className="text-red-400 dark:text-red-500 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      Excluir
+                    </button>
+                  </div>
+                </td>
               </tr>
             ))}
           </tbody>

@@ -10,7 +10,7 @@ export default function NovaViagemPage() {
   const [form, setForm] = useState({
     nome: "",
     data_inicio: "",
-    data_fim: "",
+    qtd_dias: 1,
     qtd_pessoas: 1,
     cidade_origem: "",
     cidade_origem_lat: "",
@@ -24,12 +24,6 @@ export default function NovaViagemPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-
-    if (form.data_fim < form.data_inicio) {
-      setError("Data de término deve ser após a data de início");
-      return;
-    }
-
     setSaving(true);
     const tripId = await createTripOffline(form);
     setSaving(false);
@@ -65,16 +59,23 @@ export default function NovaViagemPage() {
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Término</label>
+            <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
+              Quantidade de dias
+            </label>
             <input
-              type="date"
+              type="number"
+              min={1}
               required
-              value={form.data_fim}
-              onChange={(e) => setForm({ ...form, data_fim: e.target.value })}
+              value={form.qtd_dias}
+              onChange={(e) => setForm({ ...form, qtd_dias: Number(e.target.value) })}
               className="w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
             />
           </div>
         </div>
+        <p className="-mt-2 text-xs text-slate-400 dark:text-slate-500">
+          Depois de criada, a duração só muda incluindo/excluindo dias na aba Itinerário - a data
+          de início continua editável (desloca a viagem inteira no calendário).
+        </p>
         <div>
           <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Qtd. de pessoas</label>
           <input

@@ -1,5 +1,5 @@
 import { v4 as uuid } from "uuid";
-import { enumerateDates } from "../dateRange";
+import { addDays, diffDays, sequentialDates } from "../dateRange";
 import {
   appendRows,
   deleteRow,
@@ -9,7 +9,8 @@ import {
   updateRow,
   updateRows,
 } from "./repository";
-import { deleteTripFolder } from "./anexos";
+import { deleteAnexo, deleteTripFolder } from "./anexos";
+import { listAgendaByTrip } from "./agenda";
 import { TripDayRow, TripRow, UserRow, UserTripRow } from "./types";
 
 export async function listAllTrips(): Promise<TripRow[]> {
@@ -49,7 +50,7 @@ export async function createTrip(input: {
   id?: string;
   nome: string;
   data_inicio: string;
-  data_fim: string;
+  qtd_dias: number;
   qtd_pessoas: number;
   criado_por: string;
   cidade_origem?: string;
@@ -63,11 +64,14 @@ export async function createTrip(input: {
    * puxa os dias do servidor de volta pro IndexedDB. */
   dayIds?: string[];
 }): Promise<TripRow> {
+  const days = sequentialDates(input.data_inicio, input.qtd_dias);
   const trip: TripRow = {
     id: input.id || uuid(),
     nome: input.nome,
     data_inicio: input.data_inicio,
-    data_fim: input.data_fim,
+    // Não é mais um campo digitado à parte - sempre o último dia gerado, derivado da
+    // quantidade de dias (ver comentário em TripRow, types.ts).
+    data_fim: days[days.length - 1],
     qtd_pessoas: String(input.qtd_pessoas),
     criado_por: input.criado_por,
     criado_em: new Date().toISOString(),
@@ -78,7 +82,6 @@ export async function createTrip(input: {
     custo_modo: input.custo_modo ?? "por_pessoa",
   };
 
-  const days = enumerateDates(input.data_inicio, input.data_fim);
   const dayIds = input.dayIds && input.dayIds.length === days.length ? input.dayIds : null;
   const dayRows: TripDayRow[] = days.map((data, i) => ({
     id: dayIds ? dayIds[i] : uuid(),
@@ -258,6 +261,176 @@ export async function saveTripDays(
 
   if (!updates.length) return;
   await updateRows("TripDays", updates);
+}
+
+/**
+ * Muda a data de início da viagem, deslocando TODOS os dias da grade (e os compromissos da
+ * Agenda que caem em alguma dessas datas) pela mesma diferença de dias - a duração da viagem
+ * (quantidade de dias) não muda, só desliza no calendário inteira. `data_fim` da viagem é
+ * recalculado junto (mesmo delta). Não mexe em Despesas/Receitas - são um livro-caixa
+ * independente da grade de dias, não "pertencem" a um dia específico como a Agenda.
+ */
+export async function changeTripStartDate(tripId: string, novaDataInicio: string): Promise<void> {
+  const trip = await findRowById<TripRow>("Trips", tripId);
+  if (!trip) throw new Error("Viagem não encontrada");
+  const delta = diffDays(novaDataInicio, trip.data_inicio);
+  if (delta === 0) return;
+
+  const days = await listTripDays(tripId);
+  const mapaDatas = new Map<string, string>();
+  const updatesDias = days.map((d) => {
+    const novaData = addDays(d.data, delta);
+    mapaDatas.set(d.data, novaData);
+    return { id: d.id, patch: { data: novaData } };
+  });
+  if (updatesDias.length) await updateRows("TripDays", updatesDias);
+
+  const agenda = await listAgendaByTrip(tripId);
+  const updatesAgenda = agenda
+    .filter((a) => mapaDatas.has(a.data))
+    .map((a) => ({ id: a.id, patch: { data: mapaDatas.get(a.data)! } }));
+  if (updatesAgenda.length) await updateRows("Agenda", updatesAgenda);
+
+  await updateRow("Trips", tripId, {
+    data_inicio: novaDataInicio,
+    data_fim: addDays(trip.data_fim, delta),
+  });
+}
+
+/**
+ * Insere um dia em branco na grade, na posição logo depois de `afterDayId` (ou no início da
+ * viagem, se `afterDayId` for null) - único lugar onde a duração da viagem pode crescer (ver
+ * changeTripStartDate, que só desliza, não estica). Todos os dias que ficam depois do ponto de
+ * inserção (e os compromissos da Agenda cravados nas datas deles) deslocam 1 dia pra frente,
+ * pra grade continuar sequencial sem furo a partir de `data_inicio`. `data_fim` da viagem cresce
+ * junto.
+ */
+export async function insertTripDay(tripId: string, afterDayId: string | null): Promise<void> {
+  const trip = await findRowById<TripRow>("Trips", tripId);
+  if (!trip) throw new Error("Viagem não encontrada");
+  const days = await listTripDays(tripId); // já vem ordenado por data
+
+  let insertIndex = 0;
+  if (afterDayId) {
+    const idx = days.findIndex((d) => d.id === afterDayId);
+    if (idx === -1) throw new Error("Dia de referência não encontrado");
+    insertIndex = idx + 1;
+  }
+
+  const novoId = uuid();
+  const novoDia: TripDayRow = {
+    id: novoId,
+    trip_id: tripId,
+    data: "",
+    origem: "",
+    destino: "",
+    pernoite: "",
+    traslado_pp: "0",
+    passagem_pp: "0",
+    alimentacao_pp: "0",
+    passeio_pp: "0",
+    hospedagem_pp: "0",
+    temp_min: "",
+    temp_max: "",
+    origem_lat: "",
+    origem_lon: "",
+    destino_lat: "",
+    destino_lon: "",
+    pernoite_lat: "",
+    pernoite_lon: "",
+    origem_pais: "",
+    destino_pais: "",
+    pernoite_pais: "",
+  };
+
+  const ordenados: TripDayRow[] = [...days];
+  ordenados.splice(insertIndex, 0, novoDia);
+  const novasDatas = sequentialDates(trip.data_inicio, ordenados.length);
+
+  const mapaDatas = new Map<string, string>();
+  const updatesDias: { id: string; patch: Record<string, string> }[] = [];
+  ordenados.forEach((d, i) => {
+    const novaData = novasDatas[i];
+    if (d.id === novoId) {
+      novoDia.data = novaData;
+      return;
+    }
+    if (d.data !== novaData) {
+      mapaDatas.set(d.data, novaData);
+      updatesDias.push({ id: d.id, patch: { data: novaData } });
+    }
+  });
+
+  await appendRows("TripDays", [novoDia]);
+  if (updatesDias.length) await updateRows("TripDays", updatesDias);
+
+  if (mapaDatas.size) {
+    const agenda = await listAgendaByTrip(tripId);
+    const updatesAgenda = agenda
+      .filter((a) => mapaDatas.has(a.data))
+      .map((a) => ({ id: a.id, patch: { data: mapaDatas.get(a.data)! } }));
+    if (updatesAgenda.length) await updateRows("Agenda", updatesAgenda);
+  }
+
+  await updateRow("Trips", tripId, { data_fim: novasDatas[novasDatas.length - 1] });
+}
+
+/**
+ * Remove um dia da grade - único lugar onde a duração da viagem pode encolher. Os dias
+ * seguintes ao removido (e os compromissos da Agenda cravados nas datas deles) deslocam 1 dia
+ * pra trás, fechando o buraco - a grade continua sequencial a partir de `data_inicio`, sem furo.
+ * Compromissos da Agenda cravados exatamente na data do dia removido não têm mais nenhum dia da
+ * grade pra "pertencer" - são apagados junto (com o anexo no Drive, best-effort), não ficam
+ * órfãos escondidos na planilha. `data_fim` da viagem encolhe junto.
+ */
+export async function deleteTripDay(tripId: string, dayId: string): Promise<void> {
+  const trip = await findRowById<TripRow>("Trips", tripId);
+  if (!trip) throw new Error("Viagem não encontrada");
+  const days = await listTripDays(tripId);
+  const alvo = days.find((d) => d.id === dayId);
+  if (!alvo) throw new Error("Dia não encontrado");
+  if (days.length <= 1) throw new Error("A viagem precisa ter pelo menos 1 dia");
+
+  const restantes = days.filter((d) => d.id !== dayId);
+  const novasDatas = sequentialDates(trip.data_inicio, restantes.length);
+
+  const mapaDatas = new Map<string, string>();
+  const updatesDias: { id: string; patch: Record<string, string> }[] = [];
+  restantes.forEach((d, i) => {
+    const novaData = novasDatas[i];
+    if (d.data !== novaData) {
+      mapaDatas.set(d.data, novaData);
+      updatesDias.push({ id: d.id, patch: { data: novaData } });
+    }
+  });
+
+  const agenda = await listAgendaByTrip(tripId);
+  const doDiaExcluido = agenda.filter((a) => a.data === alvo.data);
+  const paraDeslocar = agenda.filter((a) => mapaDatas.has(a.data));
+
+  for (const item of doDiaExcluido) {
+    if (item.anexo_file_id) {
+      try {
+        await deleteAnexo(item.anexo_file_id);
+      } catch {
+        // best-effort - a limpeza do anexo não pode travar a exclusão do dia em si
+      }
+    }
+    await deleteRow("Agenda", item.id);
+  }
+  if (paraDeslocar.length) {
+    await updateRows(
+      "Agenda",
+      paraDeslocar.map((a) => ({ id: a.id, patch: { data: mapaDatas.get(a.data)! } }))
+    );
+  }
+
+  await deleteRow("TripDays", dayId);
+  if (updatesDias.length) await updateRows("TripDays", updatesDias);
+
+  await updateRow("Trips", tripId, {
+    data_fim: novasDatas[novasDatas.length - 1] ?? trip.data_inicio,
+  });
 }
 
 export async function linkUserToTrip(userId: string, tripId: string): Promise<void> {

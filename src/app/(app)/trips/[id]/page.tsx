@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { useOfflineCollection, useOfflineTrip, useCountries } from "@/lib/offline/useOfflineData";
-import { pullTrips } from "@/lib/offline/sync";
+import { pullTripDetail, pullTrips } from "@/lib/offline/sync";
 import { findCountry } from "@/lib/countryMatch";
 import { distinctCities } from "@/lib/tripCities";
 
@@ -120,24 +120,39 @@ export default function TripDashboardPage() {
   }, []);
 
   const [editOpen, setEditOpen] = useState(false);
-  const [editForm, setEditForm] = useState({ capa_url: "", custo_modo: "por_pessoa" as "por_pessoa" | "total" });
+  const [editForm, setEditForm] = useState({
+    data_inicio: "",
+    capa_url: "",
+    custo_modo: "por_pessoa" as "por_pessoa" | "total",
+  });
   const [savingEdit, setSavingEdit] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
 
   function openEdit() {
     setEditForm({
+      data_inicio: trip?.data_inicio.slice(0, 10) ?? "",
       capa_url: trip?.capa_url ?? "",
       custo_modo: trip?.custo_modo === "total" ? "total" : "por_pessoa",
     });
+    setEditError(null);
     setEditOpen(true);
   }
 
   async function saveEdit() {
+    setEditError(null);
     setSavingEdit(true);
-    await fetch(`/api/trips/${tripId}`, {
+    const res = await fetch(`/api/trips/${tripId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(editForm),
     });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      setEditError(body.error ?? "Erro ao salvar");
+      setSavingEdit(false);
+      return;
+    }
+    await pullTripDetail(tripId);
     await pullTrips();
     setSavingEdit(false);
     setEditOpen(false);
@@ -186,10 +201,24 @@ export default function TripDashboardPage() {
             onClick={openEdit}
             className="text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:underline"
           >
-            Editar capa / modo de custo
+            Editar viagem
           </button>
         ) : (
           <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:flex-row sm:flex-wrap sm:items-end">
+            <div className="min-w-[160px]">
+              <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">
+                Data início
+              </label>
+              <input
+                type="date"
+                value={editForm.data_inicio}
+                onChange={(e) => setEditForm({ ...editForm, data_inicio: e.target.value })}
+                className="w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
+              />
+              <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
+                Desloca todos os dias da viagem (e a Agenda) - a duração não muda.
+              </p>
+            </div>
             <div className="flex-1 min-w-[220px]">
               <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">
                 URL da capa
@@ -234,6 +263,7 @@ export default function TripDashboardPage() {
               >
                 Cancelar
               </button>
+              {editError && <p className="text-sm text-red-600 dark:text-red-400">{editError}</p>}
             </div>
           </div>
         )}

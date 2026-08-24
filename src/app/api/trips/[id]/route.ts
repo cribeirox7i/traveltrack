@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, requireAdmin, requireSession } from "@/lib/api-helpers";
-import { deleteTrip, getTrip, updateTrip, userCanAccessTrip } from "@/lib/sheets/trips";
+import {
+  changeTripStartDate,
+  deleteTrip,
+  getTrip,
+  updateTrip,
+  userCanAccessTrip,
+} from "@/lib/sheets/trips";
 
 export async function GET(
   _req: NextRequest,
@@ -27,6 +33,9 @@ const patchSchema = z.object({
   cidade_origem_lon: z.string().optional(),
   capa_url: z.string().optional(),
   custo_modo: z.enum(["por_pessoa", "total"]).optional(),
+  // Não é um campo qualquer da linha - mudar isso desloca a grade inteira de dias (e a Agenda
+  // junto), ver `changeTripStartDate`. Tratado à parte abaixo, não entra no `updateTrip` genérico.
+  data_inicio: z.string().date().optional(),
 });
 
 export async function PATCH(
@@ -45,8 +54,15 @@ export async function PATCH(
   const parsed = patchSchema.safeParse(await req.json());
   if (!parsed.success) return errorResponse(parsed.error.issues[0].message);
 
-  await updateTrip(id, parsed.data);
-  return NextResponse.json({ ok: true });
+  const { data_inicio, ...resto } = parsed.data;
+
+  try {
+    if (data_inicio) await changeTripStartDate(id, data_inicio);
+    if (Object.keys(resto).length) await updateTrip(id, resto);
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    return errorResponse(err instanceof Error ? err.message : "Erro ao atualizar viagem", 500);
+  }
 }
 
 export async function DELETE(
