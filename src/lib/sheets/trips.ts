@@ -96,6 +96,9 @@ export async function createTrip(input: {
     destino_lon: "",
     pernoite_lat: "",
     pernoite_lon: "",
+    origem_pais: "",
+    destino_pais: "",
+    pernoite_pais: "",
   }));
 
   await appendRows("Trips", [trip]);

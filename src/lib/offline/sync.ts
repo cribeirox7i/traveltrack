@@ -141,6 +141,25 @@ export async function pullMeiosPagamento(): Promise<void> {
   }
 }
 
+export interface EletricInfo {
+  country: string;
+  plug_type: string;
+  volts: string;
+  hertz: string;
+}
+
+/** Tabela de referência de voltagem/tomada por país (aba Eletric, mantida manualmente na
+ * planilha) - mesma lógica de cache local dos meios de pagamento: não muda por viagem, só
+ * precisa ser buscada de novo de vez em quando. */
+export async function pullEletric(): Promise<void> {
+  if (!isOnline()) return;
+  const list = await getJson<EletricInfo[]>("/api/eletric");
+  if (list) {
+    await setMeta("eletric", list);
+    notifyChange();
+  }
+}
+
 // ---------- "Dados offline" - download completo por viagem, incluindo anexos ----------
 
 const OFFLINE_TRIPS_KEY = "offlineTripIds";
@@ -348,12 +367,22 @@ export async function deleteAnexoAndRefresh(tripId: string, fileId: string): Pro
 let pushing = false;
 
 /** Reenvia a fila de mutações pendentes contra os endpoints /api/* já existentes, em ordem. */
+/** Depois de tantas tentativas, uma entrada que falha com o mesmo erro de validação (não é
+ * problema de rede) provavelmente nunca vai passar sozinha - ex.: um esquema mudou depois que a
+ * mutação foi enfileirada num aparelho, e o servidor passou a rejeitar algo que era aceito antes
+ * (aconteceu de verdade: `titulo` virou obrigatório em Agenda depois que compromissos sem esse
+ * campo já podiam estar na fila de algum aparelho). Sem esse teto, `pushOutbox` reenviava a
+ * mesma entrada pra sempre, a cada sync (manual, periódico, ao voltar online) - nem o botão
+ * "Atualizar" nem um Ctrl+F5 limpavam, porque o problema mora no IndexedDB, não na página. */
+export const MAX_OUTBOX_ATTEMPTS = 5;
+
 export async function pushOutbox(): Promise<void> {
   if (pushing || !isOnline()) return;
   pushing = true;
   try {
     const entries = await listOutbox();
     for (const entry of entries) {
+      if (entry.attempts >= MAX_OUTBOX_ATTEMPTS) continue; // travada - ver discardOutboxEntry
       const result = await sendOutboxEntry(entry);
       if (result === "network-error") break; // provavelmente caiu a conexão de novo - para e tenta depois
       if (result === "ok") {
@@ -371,6 +400,14 @@ export async function pushOutbox(): Promise<void> {
   } finally {
     pushing = false;
   }
+}
+
+/** Descarta uma mutação que ficou travada (ver `MAX_OUTBOX_ATTEMPTS`) - a alteração que ela
+ * representava (uma despesa, um compromisso...) nunca chegou ao servidor e não vai mais tentar;
+ * quem chama decide se avisa o usuário que aquele dado precisa ser refeito. */
+export async function discardOutboxEntry(localId: string): Promise<void> {
+  await removeOutboxEntry(localId);
+  notifyChange();
 }
 
 async function sendOutboxEntry(entry: OutboxEntry): Promise<"ok" | "network-error" | string> {
@@ -528,6 +565,9 @@ export async function createTripOffline(input: {
     destino_lon: "",
     pernoite_lat: "",
     pernoite_lon: "",
+    origem_pais: "",
+    destino_pais: "",
+    pernoite_pais: "",
   }));
   await putAll("tripDays", days);
 

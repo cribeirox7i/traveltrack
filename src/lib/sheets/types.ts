@@ -7,7 +7,8 @@ export type SheetTab =
   | "Despesas"
   | "Receitas"
   | "MeiosPagamento"
-  | "Agenda";
+  | "Agenda"
+  | "Eletric";
 
 export const SHEET_HEADERS: Record<SheetTab, string[]> = {
   Users: ["id", "nome", "email", "senha_hash", "role", "ativo"],
@@ -44,6 +45,9 @@ export const SHEET_HEADERS: Record<SheetTab, string[]> = {
     "destino_lon",
     "pernoite_lat",
     "pernoite_lon",
+    "origem_pais",
+    "destino_pais",
+    "pernoite_pais",
   ],
   UserTrip: ["id", "user_id", "trip_id"],
   Despesas: [
@@ -75,6 +79,9 @@ export const SHEET_HEADERS: Record<SheetTab, string[]> = {
     "criado_por",
     "criado_em",
   ],
+  // Tabela de referência (voltagem/frequência/tomada por país) já criada manualmente pelo
+  // usuário na planilha - não gerenciada por criação automática de linhas, só lida.
+  Eletric: ["country", "plug_type", "volts", "hertz"],
 };
 
 export type Role = "admin" | "user";
@@ -132,6 +139,12 @@ export interface TripDayRow {
   destino_lon: string;
   pernoite_lat: string;
   pernoite_lon: string;
+  /** País da cidade escolhida na busca (Open-Meteo devolve isso na sugestão) - vazio se o campo
+   * foi digitado livre, sem selecionar sugestão. Usado pra cruzar com a aba Eletric e mostrar
+   * tomada/voltagem/frequência no acordeão do Roteiro. */
+  origem_pais: string;
+  destino_pais: string;
+  pernoite_pais: string;
 }
 
 export interface UserTripRow {
@@ -202,6 +215,16 @@ export interface ReceitaRow {
   descricao: string;
   credor_id: string;
   status: StatusReceita | "";
+}
+
+/** Voltagem/frequência/tipo de tomada padrão por país - tabela de referência mantida manualmente
+ * pelo usuário direto na planilha, só lida pelo app (sem tela de cadastro). */
+export interface EletricRow {
+  [key: string]: string;
+  country: string;
+  plug_type: string;
+  volts: string;
+  hertz: string;
 }
 
 /** Um compromisso do roteiro, ancorado numa das datas da grade de diárias da viagem. */

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
-import { getLocalAnexoUrl, useOfflineCollection } from "@/lib/offline/useOfflineData";
+import { getLocalAnexoUrl, useEletric, useOfflineCollection } from "@/lib/offline/useOfflineData";
 import {
   createAgendaOffline,
   deleteAgendaOffline,
@@ -16,8 +16,20 @@ interface TripDay {
   origem: string;
   destino: string;
   pernoite: string;
+  pernoite_pais: string;
   temp_min: string;
   temp_max: string;
+}
+
+/** Normaliza pra comparar nome de país com tolerância a acento/maiúscula/espaço - a Open-Meteo
+ * devolve o país em português (ex.: "Estados Unidos", "Japão"), e não há garantia de que a
+ * grafia na aba Eletric bata 100% com isso, então a comparação ignora acentuação e caixa. */
+function normalizeCountry(s: string): string {
+  return s
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .trim()
+    .toLowerCase();
 }
 
 interface AgendaItem {
@@ -44,6 +56,15 @@ function formatDateBR(iso: string): string {
   return d && m && y ? `${d}/${m}/${y}` : iso;
 }
 
+function findEletric(
+  lista: { country: string; plug_type: string; volts: string; hertz: string }[],
+  pais: string
+) {
+  if (!pais) return null;
+  const alvo = normalizeCountry(pais);
+  return lista.find((e) => normalizeCountry(e.country) === alvo) ?? null;
+}
+
 function monthDay(iso: string): { month: number; day: number } {
   const d = new Date(`${iso.slice(0, 10)}T00:00:00`);
   return { month: d.getMonth() + 1, day: d.getDate() };
@@ -58,6 +79,7 @@ export default function AgendaPage() {
     "agenda",
     tripId
   );
+  const eletric = useEletric();
 
   const [loadingWeather, setLoadingWeather] = useState(false);
 
@@ -336,6 +358,7 @@ export default function AgendaPage() {
         {sortedDays.map((day) => {
           const isOpen = openDay === day.data;
           const itens = agendaPorDia.get(day.data) ?? [];
+          const energia = findEletric(eletric, day.pernoite_pais);
           return (
             <div key={day.id} className="overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
               <button
@@ -366,9 +389,23 @@ export default function AgendaPage() {
 
               {isOpen && (
                 <div className="border-t border-slate-100 dark:border-slate-800 px-4 py-3">
-                  <p className="mb-3 text-xs text-slate-500 dark:text-slate-400">
+                  <p className="mb-1 text-xs text-slate-500 dark:text-slate-400">
                     {day.origem || "-"} → {day.destino || "-"} · Pernoite: {day.pernoite || "-"}
                   </p>
+
+                  {energia && (
+                    <p
+                      className="mb-3 inline-flex flex-wrap items-center gap-1.5 rounded-lg bg-blue-50 px-2 py-1 text-xs text-blue-800 dark:bg-blue-950 dark:text-blue-300"
+                      title={`Padrão elétrico de ${day.pernoite_pais}`}
+                    >
+                      🔌 Tomada {energia.plug_type} · {energia.volts}V · {energia.hertz}Hz
+                    </p>
+                  )}
+                  {!energia && day.pernoite_pais && (
+                    <p className="mb-3 text-xs text-slate-400 dark:text-slate-500">
+                      🔌 Sem dado elétrico cadastrado para {day.pernoite_pais}
+                    </p>
+                  )}
 
                   {itens.length === 0 && (
                     <p className="text-sm text-slate-400 dark:text-slate-500">Nenhum compromisso nesta data ainda.</p>

@@ -3,10 +3,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { getAnexoFile, getMeta, getOne, listAll, listByTrip, listOutbox } from "./db";
 import {
+  EletricInfo,
+  MAX_OUTBOX_ATTEMPTS,
   PersonOption,
   isOnline,
   pullAnexosList,
   pullCollaborators,
+  pullEletric,
   pullMeiosPagamento,
   pullTripDetail,
   pullTrips,
@@ -158,6 +161,26 @@ export function useMeiosPagamento() {
   return meios;
 }
 
+/** Voltagem/tomada/frequência padrão por país (aba Eletric) - mesma lógica de cache local dos
+ * meios de pagamento. Usado no acordeão do Roteiro pra mostrar o que esperar em cada pernoite. */
+export function useEletric(): EletricInfo[] {
+  const [lista, setLista] = useState<EletricInfo[]>([]);
+
+  const refresh = useCallback(async () => {
+    const local = await getMeta("eletric");
+    setLista(Array.isArray(local) ? (local as EletricInfo[]) : []);
+  }, []);
+
+  useEffect(() => {
+    refresh();
+    if (isOnline()) pullEletric().catch(() => {});
+  }, [refresh]);
+
+  useSyncChangeListener(refresh);
+
+  return lista;
+}
+
 /** Indicador de conectividade (navigator.onLine + eventos online/offline) pra UI (banner, etc.). */
 export function useOnlineStatus(): boolean {
   const [online, setOnline] = useState(true);
@@ -180,6 +203,9 @@ export interface OutboxSummary {
   pending: number;
   errored: number;
   firstError: string | null;
+  /** Entradas que já bateram o teto de tentativas (ver `MAX_OUTBOX_ATTEMPTS`) - `pushOutbox`
+   * parou de reenviar sozinho, só saem da fila se o usuário descartar (`discardOutboxEntry`). */
+  stuck: { localId: string; lastError: string | undefined }[];
 }
 
 /** Estado da fila de sincronização: quantas mutações estão pendentes e se alguma já falhou de
@@ -189,15 +215,20 @@ export function useOutboxSummary(): OutboxSummary {
     pending: 0,
     errored: 0,
     firstError: null,
+    stuck: [],
   });
 
   const refresh = useCallback(async () => {
     const entries = await listOutbox();
     const withError = entries.filter((e) => e.attempts > 0);
+    const stuck = entries
+      .filter((e) => e.attempts >= MAX_OUTBOX_ATTEMPTS)
+      .map((e) => ({ localId: e.localId, lastError: e.lastError }));
     setSummary({
       pending: entries.length,
       errored: withError.length,
       firstError: withError[0]?.lastError ?? null,
+      stuck,
     });
   }, []);
 

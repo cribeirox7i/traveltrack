@@ -14,6 +14,11 @@ interface TripItem {
   qtd_pessoas: string;
 }
 
+function formatDateBR(iso: string): string {
+  const [y, m, d] = iso.slice(0, 10).split("-");
+  return d && m && y ? `${d}/${m}/${y}` : iso;
+}
+
 export default function TripsPage() {
   const { data: session } = useSession();
   const { trips, loading } = useOfflineTrips<TripItem>();
@@ -119,7 +124,7 @@ export default function TripsPage() {
                 <Link href={`/trips/${t.id}/orcamento`} className="min-w-0 flex-1">
                   <p className="font-semibold text-slate-900 dark:text-slate-100">{t.nome}</p>
                   <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                    {t.data_inicio} - {t.data_fim}
+                    {formatDateBR(t.data_inicio)} - {formatDateBR(t.data_fim)}
                   </p>
                   <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">{t.qtd_pessoas} pessoa(s)</p>
                 </Link>

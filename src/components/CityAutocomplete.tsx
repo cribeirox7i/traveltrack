@@ -6,6 +6,9 @@ export interface CitySelection {
   nome: string;
   lat: string;
   lon: string;
+  /** País da sugestão escolhida, como a Open-Meteo devolveu (em português, por causa de
+   * `language=pt` na busca) - "" quando a sugestão não trouxer país. */
+  pais: string;
 }
 
 interface GeoResult {
@@ -106,6 +109,7 @@ export function CityAutocomplete({
       nome: result.name,
       lat: String(result.latitude),
       lon: String(result.longitude),
+      pais: result.country ?? "",
     });
     setOpen(false);
     setSuggestions([]);

@@ -18,9 +18,13 @@ export function TopBar({ initialDark }: { initialDark: boolean }) {
   if (status === "loading" || !session) return null;
 
   return (
-    <header className="sticky top-0 z-20 border-b border-slate-200 bg-white print:hidden dark:border-slate-800 dark:bg-slate-900">
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-2">
-        <span className="text-sm font-semibold text-slate-800 dark:text-slate-100">Viagens</span>
+    <header className="sticky top-0 z-20 flex border-b border-slate-200 bg-white print:hidden dark:border-slate-800 dark:bg-slate-900">
+      {/* Reserva o mesmo espaço da sidebar (NavBar, md:w-56) que fica abaixo, senão o conteúdo
+          desta barra centraliza no viewport inteiro em vez de alinhar com main - que centraliza
+          só no espaço que sobra ao lado da sidebar. Ver AppLayout em (app)/layout.tsx. */}
+      <div className="hidden shrink-0 md:block md:w-56" aria-hidden="true" />
+      <div className="mx-auto flex w-full max-w-[980px] flex-1 items-center justify-between gap-3 px-4 py-2">
+        <span className="text-lg font-bold text-slate-800 dark:text-slate-100">TravelX7i</span>
         <div className="flex shrink-0 items-center gap-1">
           <DownloadOfflineButton />
           <RefreshButton />

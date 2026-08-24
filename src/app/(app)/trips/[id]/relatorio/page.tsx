@@ -4,6 +4,10 @@ import { useParams } from "next/navigation";
 import { useOfflineCollection, useOfflineTrip } from "@/lib/offline/useOfflineData";
 import { computeRelatorio } from "@/lib/relatorioCalc";
 
+function formatMoney(value: number): string {
+  return value.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 export default function RelatorioPage() {
   const { id: tripId } = useParams<{ id: string }>();
   const { trip, loading: loadingTrip } = useOfflineTrip<{ id: string; qtd_pessoas: string }>(tripId);
@@ -46,10 +50,10 @@ export default function RelatorioPage() {
               return (
                 <tr key={c.categoria} className="border-t border-slate-100 dark:border-slate-800">
                   <td className="px-3 py-2 capitalize">{c.categoria}</td>
-                  <td className="px-3 py-2">R$ {c.orcado.toFixed(2)}</td>
-                  <td className="px-3 py-2">R$ {c.realizado.toFixed(2)}</td>
+                  <td className="px-3 py-2">R$ {formatMoney(c.orcado)}</td>
+                  <td className="px-3 py-2">R$ {formatMoney(c.realizado)}</td>
                   <td className={`px-3 py-2 ${diff < 0 ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"}`}>
-                    R$ {diff.toFixed(2)}
+                    R$ {formatMoney(diff)}
                   </td>
                 </tr>
               );
@@ -58,10 +62,10 @@ export default function RelatorioPage() {
           <tfoot>
             <tr className="border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 font-medium">
               <td className="px-3 py-2">Total</td>
-              <td className="px-3 py-2">R$ {relatorio.totalOrcado.toFixed(2)}</td>
-              <td className="px-3 py-2">R$ {relatorio.totalDespesas.toFixed(2)}</td>
+              <td className="px-3 py-2">R$ {formatMoney(relatorio.totalOrcado)}</td>
+              <td className="px-3 py-2">R$ {formatMoney(relatorio.totalDespesas)}</td>
               <td className="px-3 py-2">
-                R$ {(relatorio.totalOrcado - relatorio.totalDespesas).toFixed(2)}
+                R$ {formatMoney(relatorio.totalOrcado - relatorio.totalDespesas)}
               </td>
             </tr>
           </tfoot>
@@ -72,13 +76,13 @@ export default function RelatorioPage() {
         <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
           <p className="text-xs uppercase text-slate-500 dark:text-slate-400">Orçamento total</p>
           <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">
-            R$ {relatorio.totalOrcado.toFixed(2)}
+            R$ {formatMoney(relatorio.totalOrcado)}
           </p>
         </div>
         <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
           <p className="text-xs uppercase text-slate-500 dark:text-slate-400">Receitas (aportes)</p>
           <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">
-            R$ {relatorio.totalReceitas.toFixed(2)}
+            R$ {formatMoney(relatorio.totalReceitas)}
           </p>
         </div>
         <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
@@ -88,7 +92,7 @@ export default function RelatorioPage() {
               relatorio.saldo < 0 ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"
             }`}
           >
-            R$ {relatorio.saldo.toFixed(2)}
+            R$ {formatMoney(relatorio.saldo)}
           </p>
         </div>
       </div>

@@ -18,6 +18,9 @@ interface TripDay {
   destino_lon: string;
   pernoite_lat: string;
   pernoite_lon: string;
+  origem_pais: string;
+  destino_pais: string;
+  pernoite_pais: string;
 }
 
 type FocusedCell = { dayId: string; field: (typeof ROUTE_FIELDS)[number]["key"] };
@@ -38,7 +41,11 @@ function lonKey(field: (typeof ROUTE_FIELD_KEYS)[number]): keyof TripDay {
   return `${field}_lon` as keyof TripDay;
 }
 
-const GEO_FIELDS = ROUTE_FIELD_KEYS.flatMap((k) => [latKey(k), lonKey(k)]);
+function paisKey(field: (typeof ROUTE_FIELD_KEYS)[number]): keyof TripDay {
+  return `${field}_pais` as keyof TripDay;
+}
+
+const GEO_FIELDS = ROUTE_FIELD_KEYS.flatMap((k) => [latKey(k), lonKey(k), paisKey(k)]);
 const EDITABLE_FIELDS = [...ROUTE_FIELD_KEYS, ...GEO_FIELDS];
 
 const WEEKDAY_LABELS = ["DO", "2A", "3A", "4A", "5A", "6A", "SA"];
@@ -92,7 +99,7 @@ export default function ItinerarioPage() {
   function applyCitySelection(
     dayId: string,
     field: (typeof ROUTE_FIELD_KEYS)[number],
-    city: { nome: string; lat: string; lon: string }
+    city: { nome: string; lat: string; lon: string; pais: string }
   ) {
     const normalized = city.nome.trim().toLowerCase();
     setDays((prev) =>
@@ -106,6 +113,7 @@ export default function ItinerarioPage() {
             next[f] = city.nome;
             next[latKey(f)] = city.lat;
             next[lonKey(f)] = city.lon;
+            next[paisKey(f)] = city.pais;
           }
         }
         return next ?? d;
@@ -122,9 +130,16 @@ export default function ItinerarioPage() {
     const value = sourceDay[field];
     const geoLat = sourceDay[latKey(field)];
     const geoLon = sourceDay[lonKey(field)];
+    const geoPais = sourceDay[paisKey(field)];
 
     function apply(d: TripDay): TripDay {
-      return { ...d, [field]: value, [latKey(field)]: geoLat, [lonKey(field)]: geoLon };
+      return {
+        ...d,
+        [field]: value,
+        [latKey(field)]: geoLat,
+        [lonKey(field)]: geoLon,
+        [paisKey(field)]: geoPais,
+      };
     }
 
     setDays((prev) => {
@@ -238,6 +253,7 @@ export default function ItinerarioPage() {
                         updateLocal(day.id, f.key, text);
                         updateLocal(day.id, latKey(f.key), "");
                         updateLocal(day.id, lonKey(f.key), "");
+                        updateLocal(day.id, paisKey(f.key), "");
                       }}
                       onSelect={(city) => applyCitySelection(day.id, f.key, city)}
                       onFocus={() => setFocusedCell({ dayId: day.id, field: f.key })}
