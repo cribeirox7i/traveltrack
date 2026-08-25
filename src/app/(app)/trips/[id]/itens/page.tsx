@@ -195,7 +195,6 @@ const CAMPOS_DETALHE: { campo: keyof Item; label: string }[] = [
   { campo: "endereco", label: "Endereço" },
   { campo: "tipo_documento", label: "Tipo de documento" },
   { campo: "url", label: "URL" },
-  { campo: "descricao", label: "Descrição" },
   { campo: "data_pagamento", label: "Data pagamento" },
 ];
 
@@ -244,28 +243,37 @@ function ItemDetalhes({
     }
   }
 
-  if (!pares.length && !item.anexo_file_id) {
-    return <p className="text-xs text-slate-400 dark:text-slate-500">Sem outros campos preenchidos.</p>;
+  if (!pares.length && !item.descricao && !item.anexo_file_id) {
+    return <p className="text-sm text-slate-400 dark:text-slate-500">Sem outros campos preenchidos.</p>;
   }
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-3">
       {item.anexo_file_id && (
         <a
           href={hrefAnexo(tripId, item.anexo_file_id)}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex w-fit items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:underline"
+          className="inline-flex w-fit items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:underline"
         >
           📎 {item.anexo_nome || "abrir anexo"}
         </a>
+      )}
+      {/* Descrição fica fora do grid de propósito: largura total e várias linhas, em vez de
+          truncar numa célula de metade da largura como os demais campos - costuma ser o texto
+          mais longo do item, truncado ficava ilegível. */}
+      {item.descricao && (
+        <div>
+          <dt className="text-xs uppercase text-slate-400 dark:text-slate-500">Descrição</dt>
+          <dd className="whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-300">{item.descricao}</dd>
+        </div>
       )}
       {pares.length > 0 && (
         <dl className="grid grid-cols-2 gap-x-8 gap-y-3">
           {pares.map((p) => (
             <div key={p.label} className="min-w-0">
-              <dt className="text-[10px] uppercase text-slate-400 dark:text-slate-500">{p.label}</dt>
-              <dd className="truncate text-xs text-slate-700 dark:text-slate-300" title={p.valor}>
+              <dt className="text-xs uppercase text-slate-400 dark:text-slate-500">{p.label}</dt>
+              <dd className="truncate text-sm text-slate-700 dark:text-slate-300" title={p.valor}>
                 {p.valor}
               </dd>
             </div>
