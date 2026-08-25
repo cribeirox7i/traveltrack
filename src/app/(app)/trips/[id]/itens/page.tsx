@@ -752,7 +752,7 @@ export default function ItensPage() {
           {(form.categoria === "repasse" || form.categoria === "documento" || form.categoria === "outro") && (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <Campo label="Data do item" compact>
-                <div className="flex gap-1">
+                <div className="flex flex-col gap-1">
                   <input type="date" required value={form.data} onChange={(e) => setField("data", e.target.value)} className={inputClass} />
                   <input type="time" value={form.horario} onChange={(e) => setField("horario", e.target.value)} className={inputClass} />
                 </div>
@@ -954,13 +954,13 @@ function CampoInicioFim({
   return (
     <>
       <Campo label={labelInicio} compact>
-        <div className="flex gap-1">
+        <div className="flex flex-col gap-1">
           <input type="date" required value={form.data_inicio} onChange={(e) => setField("data_inicio", e.target.value)} className={inputClass} />
           <input type="time" value={form.hora_inicio} onChange={(e) => setField("hora_inicio", e.target.value)} className={inputClass} />
         </div>
       </Campo>
       <Campo label={labelFim} compact>
-        <div className="flex gap-1">
+        <div className="flex flex-col gap-1">
           <input type="date" value={form.data_fim} onChange={(e) => setField("data_fim", e.target.value)} className={inputClass} />
           <input type="time" value={form.hora_fim} onChange={(e) => setField("hora_fim", e.target.value)} className={inputClass} />
         </div>
