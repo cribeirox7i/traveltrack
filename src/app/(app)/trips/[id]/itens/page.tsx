@@ -98,6 +98,17 @@ const CATEGORIA_LABEL: Record<CategoriaItem, string> = Object.fromEntries(
   CATEGORIAS_ITEM.map((c) => [c.value, c.label])
 ) as Record<CategoriaItem, string>;
 
+const CATEGORIA_ICONE: Record<CategoriaItem, string> = {
+  traslado: "🚐",
+  passagem: "✈️",
+  hospedagem: "🏨",
+  alimentacao: "🍽️",
+  atrativo: "🎟️",
+  repasse: "💸",
+  documento: "📄",
+  outro: "📦",
+};
+
 const emptyForm = {
   categoria: "traslado" as CategoriaItem,
   tipo: "",
@@ -509,7 +520,7 @@ export default function ItensPage() {
             <option value="">Todas</option>
             {CATEGORIAS_ITEM.map((c) => (
               <option key={c.value} value={c.value}>
-                {c.label}
+                {CATEGORIA_ICONE[c.value]} {c.label}
               </option>
             ))}
           </select>
@@ -861,7 +872,7 @@ export default function ItensPage() {
                   {formatDataBR(item.data)} {item.horario}
                 </span>
                 <span className="text-slate-400 dark:text-slate-500">
-                  {CATEGORIA_LABEL[item.categoria] ?? item.categoria}
+                  {CATEGORIA_ICONE[item.categoria]} {CATEGORIA_LABEL[item.categoria] ?? item.categoria}
                 </span>
               </div>
               <p className="truncate text-[11px] text-slate-500 dark:text-slate-400">
@@ -901,7 +912,7 @@ export default function ItensPage() {
           <div className="flex w-full max-w-lg flex-col gap-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-xl">
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                {CATEGORIA_LABEL[viewingItem.categoria] ?? viewingItem.categoria}
+                {CATEGORIA_ICONE[viewingItem.categoria]} {CATEGORIA_LABEL[viewingItem.categoria] ?? viewingItem.categoria}
               </h2>
               <button
                 type="button"

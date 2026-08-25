@@ -43,6 +43,17 @@ const CATEGORIA_LABEL: Record<CategoriaItem, string> = Object.fromEntries(
   CATEGORIAS_ITEM.map((c) => [c.value, c.label])
 ) as Record<CategoriaItem, string>;
 
+const CATEGORIA_ICONE: Record<CategoriaItem, string> = {
+  traslado: "🚐",
+  passagem: "✈️",
+  hospedagem: "🏨",
+  alimentacao: "🍽️",
+  atrativo: "🎟️",
+  repasse: "💸",
+  documento: "📄",
+  outro: "📦",
+};
+
 const WEEKDAY_LABELS = ["DO", "2A", "3A", "4A", "5A", "6A", "SA"];
 
 function weekdayLabel(iso: string): string {
@@ -239,7 +250,7 @@ export default function AgendaPage() {
                       >
                         <div className="min-w-0">
                           <p className="font-semibold uppercase tracking-wide text-slate-800 dark:text-slate-200">
-                            {item.horario} · {CATEGORIA_LABEL[item.categoria] ?? item.categoria}
+                            {item.horario} · {CATEGORIA_ICONE[item.categoria]} {CATEGORIA_LABEL[item.categoria] ?? item.categoria}
                           </p>
                           {(resumoItem(item) || item.descricao) && (
                             <p className="mt-0.5 whitespace-pre-wrap text-xs text-slate-500 dark:text-slate-400">
