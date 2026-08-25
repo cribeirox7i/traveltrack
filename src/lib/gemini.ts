@@ -4,7 +4,13 @@
  * `APPS_SCRIPT_SHARED_SECRET`, ver client.ts). `fetch` direto na REST API, sem SDK novo como
  * dependência - mesmo padrão que `weather.ts`/`exchangeRate.ts` já usam pra API externa.
  */
-const MODEL = "gemini-2.5-flash";
+// "gemini-2.5-flash" parou de aceitar chave nova em 2026-08 ("no longer available to new
+// users") - a própria API sugeriu "gemini-3.6-flash" no erro 404. Testado direto contra a REST
+// API (com responseSchema estruturado, igual ao uso real daqui) em 2026-08-25 antes de trocar.
+// O alias "gemini-flash-latest" existe e evitaria esse tipo de troca manual de novo, mas estava
+// retornando 503 (sobrecarga) nos testes - fica pra revisar depois se "gemini-3.6-flash" também
+// for descontinuado.
+const MODEL = "gemini-3.6-flash";
 const ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
 
 const CATEGORIAS = [

@@ -274,13 +274,21 @@ export default function AgendaPage() {
                             )}
                           </div>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => handleDelete(item.id)}
-                          className="shrink-0 text-xs font-medium text-red-500 dark:text-red-400 hover:text-red-700"
-                        >
-                          Excluir
-                        </button>
+                        <div className="flex shrink-0 items-center gap-3 text-xs font-medium">
+                          <Link
+                            href={`/trips/${tripId}/itens?editar=${item.id}`}
+                            className="text-slate-500 dark:text-slate-400 hover:text-slate-800"
+                          >
+                            Editar
+                          </Link>
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(item.id)}
+                            className="text-red-500 dark:text-red-400 hover:text-red-700"
+                          >
+                            Excluir
+                          </button>
+                        </div>
                       </li>
                     ))}
                   </ul>

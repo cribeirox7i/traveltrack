@@ -1,14 +1,14 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
-import { useParams } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
   useCollaborators,
   useMeiosPagamento,
   useOfflineCollection,
 } from "@/lib/offline/useOfflineData";
-import { createItemOffline, deleteItemOffline } from "@/lib/offline/sync";
+import { createItemOffline, deleteItemOffline, updateItemOffline } from "@/lib/offline/sync";
 import { CATEGORIAS_ITEM, CategoriaItem } from "@/lib/sheets/types";
 
 interface Item {
@@ -144,11 +144,16 @@ function resumoItem(item: Item, nomePorMeio: Record<string, string>): string {
 
 export default function ItensPage() {
   const { id: tripId } = useParams<{ id: string }>();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { data: session } = useSession();
   const { items, loading } = useOfflineCollection<Item>("itens", tripId);
   const collaborators = useCollaborators(tripId);
   const meiosPagamento = useMeiosPagamento().filter((m) => m.ativo === "true");
   const [formOpen, setFormOpen] = useState(false);
+  // null = criando um item novo; string = editando o item com este id.
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingAnexoNome, setEditingAnexoNome] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [file, setFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
@@ -156,6 +161,16 @@ export default function ItensPage() {
   const [analisando, setAnalisando] = useState(false);
   const [analisado, setAnalisado] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Suporta abrir direto num item pra editar via `?editar=<id>` (usado pelo link "Editar" da
+  // tela Roteiro > Agenda, que só lista itens, não tem formulário próprio).
+  useEffect(() => {
+    const id = searchParams.get("editar");
+    if (!id || formOpen) return;
+    const item = items.find((i) => i.id === id);
+    if (item) openEditForm(item);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, items]);
 
   const nomePorPessoa = useMemo(
     () => Object.fromEntries(collaborators.map((c) => [c.id, c.nome])),
@@ -176,6 +191,8 @@ export default function ItensPage() {
     setError(null);
     setFile(null);
     setAnalisado(false);
+    setEditingId(null);
+    setEditingAnexoNome(null);
     setForm({
       ...emptyForm,
       pagador_id: session?.user.id && collaborators.some((c) => c.id === session.user.id)
@@ -185,11 +202,51 @@ export default function ItensPage() {
     setFormOpen(true);
   }
 
+  /** `item` já vem com todo campo que existe em `FormState` (mesmos nomes de coluna) - o único
+   * ajuste é ignorar os campos que a tela não edita diretamente (natureza, anexo_*, que
+   * `updateItemOffline` preserva sozinho a menos que um arquivo novo seja escolhido aqui). */
+  function openEditForm(item: Item) {
+    setError(null);
+    setFile(null);
+    setAnalisado(false);
+    setEditingId(item.id);
+    setEditingAnexoNome(item.anexo_nome || null);
+    setForm({
+      categoria: item.categoria,
+      tipo: item.tipo,
+      localizador: item.localizador,
+      nome_companhia: item.nome_companhia,
+      numero: item.numero,
+      data: item.data,
+      horario: item.horario,
+      origem: item.origem,
+      destino: item.destino,
+      nome_local: item.nome_local,
+      endereco: item.endereco,
+      data_inicio: item.data_inicio,
+      hora_inicio: item.hora_inicio,
+      data_fim: item.data_fim,
+      hora_fim: item.hora_fim,
+      tipo_documento: item.tipo_documento,
+      passageiro_id: item.passageiro_id,
+      url: item.url,
+      descricao: item.descricao,
+      valor: item.valor,
+      data_pagamento: item.data_pagamento,
+      pagador_id: item.pagador_id,
+      meio_pagamento_id: item.meio_pagamento_id,
+    });
+    setFormOpen(true);
+  }
+
   function closeForm() {
     setFormOpen(false);
+    setEditingId(null);
+    setEditingAnexoNome(null);
     setFile(null);
     setAnalisado(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
+    if (searchParams.get("editar")) router.replace(`/trips/${tripId}/itens`);
   }
 
   /** Chamado pelo botão "Analisar voucher" - sobe o arquivo pro Gemini via
@@ -239,7 +296,11 @@ export default function ItensPage() {
 
     setSaving(true);
     try {
-      await createItemOffline(tripId, { ...form, data, horario }, file);
+      if (editingId) {
+        await updateItemOffline(tripId, editingId, { ...form, data, horario }, file);
+      } else {
+        await createItemOffline(tripId, { ...form, data, horario }, file);
+      }
       closeForm();
     } finally {
       setSaving(false);
@@ -284,7 +345,7 @@ export default function ItensPage() {
           >
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                Novo Item
+                {editingId ? "Editar Item" : "Novo Item"}
               </h2>
               <button
                 type="button"
@@ -313,6 +374,12 @@ export default function ItensPage() {
                   }}
                   className="block w-full text-sm text-slate-600 dark:text-slate-400 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-900 file:px-3 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-slate-800"
                 />
+                {editingAnexoNome && !file && (
+                  <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
+                    Já tem um anexo (📎 {editingAnexoNome}) - escolha outro arquivo só se quiser
+                    substituí-lo.
+                  </p>
+                )}
               </div>
               <button
                 type="button"
@@ -510,7 +577,7 @@ export default function ItensPage() {
               disabled={saving}
               className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
             >
-              {saving ? "Salvando..." : `Cadastrar ${CATEGORIA_LABEL[form.categoria]}`}
+              {saving ? "Salvando..." : editingId ? "Salvar" : `Cadastrar ${CATEGORIA_LABEL[form.categoria]}`}
             </button>
             <button
               type="button"
@@ -580,13 +647,22 @@ export default function ItensPage() {
                   )}
                 </td>
                 <td className="px-3 py-2 text-right">
-                  <button
-                    type="button"
-                    onClick={() => handleDelete(item)}
-                    className="text-xs font-medium text-red-600 dark:text-red-400 hover:underline"
-                  >
-                    Excluir
-                  </button>
+                  <div className="flex justify-end gap-3">
+                    <button
+                      type="button"
+                      onClick={() => openEditForm(item)}
+                      className="text-xs font-medium text-slate-600 dark:text-slate-400 hover:underline"
+                    >
+                      Editar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(item)}
+                      className="text-xs font-medium text-red-600 dark:text-red-400 hover:underline"
+                    >
+                      Excluir
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}

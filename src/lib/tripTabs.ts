@@ -29,11 +29,6 @@ export interface TripTabGroup {
 
 export const TRIP_TAB_GROUPS: TripTabGroup[] = [
   {
-    key: "itens",
-    label: "Itens",
-    tabs: [{ slug: "itens", label: "Itens" }],
-  },
-  {
     key: "roteiro",
     label: "Roteiro",
     tabs: [
@@ -49,6 +44,11 @@ export const TRIP_TAB_GROUPS: TripTabGroup[] = [
       { slug: "orcamento", label: "Orçamento" },
       { slug: "relatorio", label: "Relatório" },
     ],
+  },
+  {
+    key: "itens",
+    label: "Itens",
+    tabs: [{ slug: "itens", label: "Itens" }],
   },
 ];
 
