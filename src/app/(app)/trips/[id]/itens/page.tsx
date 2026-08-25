@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
@@ -149,6 +149,87 @@ function resumoItem(item: Item, nomePorMeio: Record<string, string>): string {
   }
 }
 
+const STATUS_LABEL: Record<string, string> = { pago: "Pago", a_pagar: "A pagar" };
+
+/** Rótulo de cada campo do Item, na ordem em que aparece no detalhe expandido - `null` marca um
+ * campo que precisa de tratamento especial (resolver id pra nome, ou rótulo variável por
+ * categoria) em vez do valor bruto. Campos vazios não aparecem (ver `ItemDetalhes`). */
+const CAMPOS_DETALHE: { campo: keyof Item; label: string }[] = [
+  { campo: "tipo", label: "Tipo" },
+  { campo: "localizador", label: "Localizador" },
+  { campo: "nome_companhia", label: "Companhia" },
+  { campo: "numero", label: "Número" },
+  { campo: "origem", label: "Origem" },
+  { campo: "destino", label: "Destino" },
+  { campo: "nome_local", label: "Local" },
+  { campo: "endereco", label: "Endereço" },
+  { campo: "tipo_documento", label: "Tipo de documento" },
+  { campo: "url", label: "URL" },
+  { campo: "descricao", label: "Descrição" },
+  { campo: "data_pagamento", label: "Data pagamento" },
+];
+
+/** Bloco de detalhe do acordeão (linha expandida) - lista só os campos preenchidos do item, num
+ * grid compacto de "rótulo: valor". Não reaproveita o JSX condicional-por-categoria do
+ * formulário de propósito: aqui é só leitura, então generalizar por "tem valor ou não" é mais
+ * simples de manter em dia do que replicar a lógica de qual campo pertence a qual categoria. */
+function ItemDetalhes({
+  item,
+  nomePorPessoa,
+  nomePorMeio,
+}: {
+  item: Item;
+  nomePorPessoa: Record<string, string>;
+  nomePorMeio: Record<string, string>;
+}) {
+  const [labelInicio, labelFim] = LABELS_INICIO_FIM[item.categoria] ?? ["Início", "Término"];
+  const pares: { label: string; valor: string }[] = [];
+
+  if (item.data_inicio || item.hora_inicio) {
+    pares.push({ label: labelInicio, valor: [item.data_inicio, item.hora_inicio].filter(Boolean).join(" ") });
+  }
+  if (item.data_fim || item.hora_fim) {
+    pares.push({ label: labelFim, valor: [item.data_fim, item.hora_fim].filter(Boolean).join(" ") });
+  }
+  for (const { campo, label } of CAMPOS_DETALHE) {
+    const valor = item[campo];
+    if (valor) pares.push({ label, valor });
+  }
+  if (item.passageiro_id) {
+    pares.push({ label: "Passageiro", valor: nomePorPessoa[item.passageiro_id] ?? item.passageiro_id });
+  }
+  if (item.valor) {
+    pares.push({ label: "Valor", valor: `R$ ${Number(item.valor).toFixed(2)}` });
+    if (item.status) pares.push({ label: "Status", valor: STATUS_LABEL[item.status] ?? item.status });
+    if (item.pagador_id) {
+      pares.push({
+        label: item.categoria === "repasse" ? "Quem contribuiu" : "Quem pagou",
+        valor: nomePorPessoa[item.pagador_id] ?? item.pagador_id,
+      });
+    }
+    if (item.meio_pagamento_id) {
+      pares.push({ label: "Meio de pagamento", valor: nomePorMeio[item.meio_pagamento_id] ?? item.meio_pagamento_id });
+    }
+  }
+
+  if (!pares.length) {
+    return <p className="text-xs text-slate-400 dark:text-slate-500">Sem outros campos preenchidos.</p>;
+  }
+
+  return (
+    <dl className="grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-4">
+      {pares.map((p) => (
+        <div key={p.label} className="min-w-0">
+          <dt className="text-[10px] uppercase text-slate-400 dark:text-slate-500">{p.label}</dt>
+          <dd className="truncate text-xs text-slate-700 dark:text-slate-300" title={p.valor}>
+            {p.valor}
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
 export default function ItensPage() {
   const { id: tripId } = useParams<{ id: string }>();
   const router = useRouter();
@@ -168,6 +249,7 @@ export default function ItensPage() {
   const [analisando, setAnalisando] = useState(false);
   const [analisado, setAnalisado] = useState(false);
   const [segundoTrecho, setSegundoTrecho] = useState<SegundoTrecho | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Suporta abrir direto num item pra editar via `?editar=<id>` (usado pelo link "Editar" da
@@ -656,94 +738,116 @@ export default function ItensPage() {
       )}
 
       <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-        <table className="w-full text-sm">
-          <thead className="bg-slate-50 dark:bg-slate-950 text-left text-xs uppercase text-slate-500 dark:text-slate-400">
+        <table className="w-full text-xs">
+          <thead className="bg-slate-50 dark:bg-slate-950 text-left text-[10px] uppercase text-slate-500 dark:text-slate-400">
             <tr>
-              <th className="px-3 py-2">Data</th>
-              <th className="px-3 py-2">Categoria</th>
-              <th className="px-3 py-2">Resumo</th>
-              <th className="px-3 py-2">Valor</th>
-              <th className="px-3 py-2">Status</th>
-              <th className="px-3 py-2">Pessoa</th>
-              <th className="px-3 py-2">Anexo</th>
-              <th className="px-3 py-2" />
+              <th className="px-2 py-1.5" />
+              <th className="px-2 py-1.5">Data</th>
+              <th className="px-2 py-1.5">Categoria</th>
+              <th className="px-2 py-1.5">Resumo</th>
+              <th className="px-2 py-1.5">Valor</th>
+              <th className="px-2 py-1.5">Status</th>
+              <th className="px-2 py-1.5">Pessoa</th>
+              <th className="px-2 py-1.5">Anexo</th>
+              <th className="px-2 py-1.5" />
             </tr>
           </thead>
           <tbody>
             {loading && (
               <tr>
-                <td className="px-3 py-3 text-slate-500 dark:text-slate-400" colSpan={8}>
+                <td className="px-2 py-2.5 text-slate-500 dark:text-slate-400" colSpan={9}>
                   Carregando...
                 </td>
               </tr>
             )}
             {!loading && ordenados.length === 0 && (
               <tr>
-                <td className="px-3 py-3 text-slate-500 dark:text-slate-400" colSpan={8}>
+                <td className="px-2 py-2.5 text-slate-500 dark:text-slate-400" colSpan={9}>
                   Nenhum item ainda.
                 </td>
               </tr>
             )}
-            {ordenados.map((item) => (
-              <tr key={item.id} className="border-t border-slate-100 dark:border-slate-800">
-                <td className="px-3 py-2">
-                  {item.data} {item.horario}
-                </td>
-                <td className="px-3 py-2">{CATEGORIA_LABEL[item.categoria] ?? item.categoria}</td>
-                <td className="px-3 py-2 text-slate-500 dark:text-slate-400">
-                  {resumoItem(item, nomePorMeio) || item.descricao}
-                </td>
-                <td className="px-3 py-2 text-right">{item.valor ? `R$ ${Number(item.valor).toFixed(2)}` : "-"}</td>
-                <td className="px-3 py-2">
-                  {item.status && (
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                        item.status === "pago"
-                          ? "bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400"
-                          : "bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-400"
-                      }`}
-                    >
-                      {item.status === "pago" ? "Pago" : "A pagar"}
-                    </span>
+            {ordenados.map((item) => {
+              const expandido = expandedId === item.id;
+              return (
+                <Fragment key={item.id}>
+                  <tr
+                    onClick={() => setExpandedId(expandido ? null : item.id)}
+                    className="cursor-pointer border-t border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                  >
+                    <td className="px-2 py-1.5 text-slate-400 dark:text-slate-500">
+                      <span className={`inline-block transition-transform ${expandido ? "rotate-90" : ""}`}>▸</span>
+                    </td>
+                    <td className="px-2 py-1.5 whitespace-nowrap">
+                      {item.data} {item.horario}
+                    </td>
+                    <td className="px-2 py-1.5">{CATEGORIA_LABEL[item.categoria] ?? item.categoria}</td>
+                    <td className="px-2 py-1.5 max-w-[220px] truncate text-slate-500 dark:text-slate-400">
+                      {resumoItem(item, nomePorMeio) || item.descricao}
+                    </td>
+                    <td className="px-2 py-1.5 text-right whitespace-nowrap">
+                      {item.valor ? `R$ ${Number(item.valor).toFixed(2)}` : "-"}
+                    </td>
+                    <td className="px-2 py-1.5">
+                      {item.status && (
+                        <span
+                          className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
+                            item.status === "pago"
+                              ? "bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400"
+                              : "bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-400"
+                          }`}
+                        >
+                          {item.status === "pago" ? "Pago" : "A pagar"}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-2 py-1.5">
+                      {nomePorPessoa[item.pagador_id] ?? nomePorPessoa[item.passageiro_id] ?? "-"}
+                    </td>
+                    <td className="px-2 py-1.5">
+                      {item.anexo_url ? (
+                        <a
+                          href={item.anexo_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="text-blue-600 dark:text-blue-400 hover:underline"
+                        >
+                          📎 {item.anexo_nome || "abrir"}
+                        </a>
+                      ) : (
+                        "-"
+                      )}
+                    </td>
+                    <td className="px-2 py-1.5 text-right" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => openEditForm(item)}
+                          className="text-[11px] font-medium text-slate-600 dark:text-slate-400 hover:underline"
+                        >
+                          Editar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(item)}
+                          className="text-[11px] font-medium text-red-600 dark:text-red-400 hover:underline"
+                        >
+                          Excluir
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                  {expandido && (
+                    <tr className="border-t border-dashed border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950/40">
+                      <td className="px-2 py-2" colSpan={9}>
+                        <ItemDetalhes item={item} nomePorPessoa={nomePorPessoa} nomePorMeio={nomePorMeio} />
+                      </td>
+                    </tr>
                   )}
-                </td>
-                <td className="px-3 py-2">
-                  {nomePorPessoa[item.pagador_id] ?? nomePorPessoa[item.passageiro_id] ?? "-"}
-                </td>
-                <td className="px-3 py-2">
-                  {item.anexo_url ? (
-                    <a
-                      href={item.anexo_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 dark:text-blue-400 hover:underline"
-                    >
-                      📎 {item.anexo_nome || "abrir"}
-                    </a>
-                  ) : (
-                    "-"
-                  )}
-                </td>
-                <td className="px-3 py-2 text-right">
-                  <div className="flex justify-end gap-3">
-                    <button
-                      type="button"
-                      onClick={() => openEditForm(item)}
-                      className="text-xs font-medium text-slate-600 dark:text-slate-400 hover:underline"
-                    >
-                      Editar
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDelete(item)}
-                      className="text-xs font-medium text-red-600 dark:text-red-400 hover:underline"
-                    >
-                      Excluir
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
+                </Fragment>
+              );
+            })}
           </tbody>
         </table>
       </div>
