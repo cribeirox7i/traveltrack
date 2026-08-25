@@ -54,7 +54,7 @@ documento.
 Campos:
 - tipo: em traslado/passagem, o meio de transporte - exatamente um destes, com a MESMA
   capitalização (primeira letra maiúscula): "Ônibus", "Van", "Carro", "Avião", "Embarcação",
-  "Trem"; em atrativo, "Excursão" ou "Ingresso".
+  "Trem"; em atrativo, um destes: "Excursão", "Ingresso", "Bar", "Ponto Turístico".
 - localizador: código de reserva/confirmação (geralmente letras+números, ex.: "ABC123").
 - nome_companhia: nome da companhia aérea/rodoviária/fornecedor.
 - numero: número do VOO/ÔNIBUS/EMBARCAÇÃO em si (ex.: "LA3420") - NUNCA o localizador, são campos

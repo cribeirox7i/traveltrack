@@ -55,7 +55,7 @@ const FINANCEIRAS = new Set<CategoriaItem>([
 
 const TIPOS_TRASLADO = ["Ônibus", "Van", "Carro", "Outros"];
 const TIPOS_PASSAGEM = ["Ônibus", "Van", "Carro", "Avião", "Embarcação", "Trem"];
-const TIPOS_ATRATIVO = ["Excursão", "Ingresso"];
+const TIPOS_ATRATIVO = ["Excursão", "Ingresso", "Bar", "Ponto Turístico"];
 const STATUS_PAGAMENTO = [
   { value: "a_pagar", label: "A pagar" },
   { value: "pago", label: "Pago" },
@@ -74,6 +74,25 @@ const TIPOS_DOCUMENTO = [
 ];
 
 const ACCEPT_VOUCHER = ".pdf,.jpg,.jpeg,.png,.bmp,application/pdf,image/jpeg,image/png,image/bmp";
+
+function formatDataBR(iso: string): string {
+  const [y, m, d] = iso.slice(0, 10).split("-");
+  return d && m && y ? `${d}/${m}/${y}` : iso;
+}
+
+function formatMoney(valor: string): string {
+  return `R$ ${Number(valor).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+/**
+ * URL do anexo servida pelo próprio app (`/api/trips/[id]/anexos/[fileId]`, que baixa os bytes
+ * via Apps Script e devolve direto, sem passar pelo Drive) - em vez do link cru do Drive
+ * (`item.anexo_url`), que exige o navegador estar logado numa conta Google com acesso ao
+ * arquivo (a pasta não é pública) e cai numa tela de login do Google em vez de abrir o anexo.
+ */
+function hrefAnexo(tripId: string, fileId: string): string {
+  return `/api/trips/${tripId}/anexos/${fileId}`;
+}
 
 const CATEGORIA_LABEL: Record<CategoriaItem, string> = Object.fromEntries(
   CATEGORIAS_ITEM.map((c) => [c.value, c.label])
@@ -174,10 +193,12 @@ const CAMPOS_DETALHE: { campo: keyof Item; label: string }[] = [
  * formulário de propósito: aqui é só leitura, então generalizar por "tem valor ou não" é mais
  * simples de manter em dia do que replicar a lógica de qual campo pertence a qual categoria. */
 function ItemDetalhes({
+  tripId,
   item,
   nomePorPessoa,
   nomePorMeio,
 }: {
+  tripId: string;
   item: Item;
   nomePorPessoa: Record<string, string>;
   nomePorMeio: Record<string, string>;
@@ -186,20 +207,20 @@ function ItemDetalhes({
   const pares: { label: string; valor: string }[] = [];
 
   if (item.data_inicio || item.hora_inicio) {
-    pares.push({ label: labelInicio, valor: [item.data_inicio, item.hora_inicio].filter(Boolean).join(" ") });
+    pares.push({ label: labelInicio, valor: [item.data_inicio && formatDataBR(item.data_inicio), item.hora_inicio].filter(Boolean).join(" ") });
   }
   if (item.data_fim || item.hora_fim) {
-    pares.push({ label: labelFim, valor: [item.data_fim, item.hora_fim].filter(Boolean).join(" ") });
+    pares.push({ label: labelFim, valor: [item.data_fim && formatDataBR(item.data_fim), item.hora_fim].filter(Boolean).join(" ") });
   }
   for (const { campo, label } of CAMPOS_DETALHE) {
     const valor = item[campo];
-    if (valor) pares.push({ label, valor });
+    if (valor) pares.push({ label, valor: campo === "data_pagamento" ? formatDataBR(valor) : valor });
   }
   if (item.passageiro_id) {
     pares.push({ label: "Passageiro", valor: nomePorPessoa[item.passageiro_id] ?? item.passageiro_id });
   }
   if (item.valor) {
-    pares.push({ label: "Valor", valor: `R$ ${Number(item.valor).toFixed(2)}` });
+    pares.push({ label: "Valor", valor: formatMoney(item.valor) });
     if (item.status) pares.push({ label: "Status", valor: STATUS_LABEL[item.status] ?? item.status });
     if (item.pagador_id) {
       pares.push({
@@ -212,21 +233,35 @@ function ItemDetalhes({
     }
   }
 
-  if (!pares.length) {
+  if (!pares.length && !item.anexo_file_id) {
     return <p className="text-xs text-slate-400 dark:text-slate-500">Sem outros campos preenchidos.</p>;
   }
 
   return (
-    <dl className="grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-4">
-      {pares.map((p) => (
-        <div key={p.label} className="min-w-0">
-          <dt className="text-[10px] uppercase text-slate-400 dark:text-slate-500">{p.label}</dt>
-          <dd className="truncate text-xs text-slate-700 dark:text-slate-300" title={p.valor}>
-            {p.valor}
-          </dd>
-        </div>
-      ))}
-    </dl>
+    <div className="flex flex-col gap-2">
+      {item.anexo_file_id && (
+        <a
+          href={hrefAnexo(tripId, item.anexo_file_id)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex w-fit items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:underline"
+        >
+          📎 {item.anexo_nome || "abrir anexo"}
+        </a>
+      )}
+      {pares.length > 0 && (
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-4">
+          {pares.map((p) => (
+            <div key={p.label} className="min-w-0">
+              <dt className="text-[10px] uppercase text-slate-400 dark:text-slate-500">{p.label}</dt>
+              <dd className="truncate text-xs text-slate-700 dark:text-slate-300" title={p.valor}>
+                {p.valor}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      )}
+    </div>
   );
 }
 
@@ -250,6 +285,9 @@ export default function ItensPage() {
   const [analisado, setAnalisado] = useState(false);
   const [segundoTrecho, setSegundoTrecho] = useState<SegundoTrecho | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [filtroCategoria, setFiltroCategoria] = useState<CategoriaItem | "">("");
+  const [filtroData, setFiltroData] = useState("");
+  const [filtroPessoa, setFiltroPessoa] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Suporta abrir direto num item pra editar via `?editar=<id>` (usado pelo link "Editar" da
@@ -435,7 +473,12 @@ export default function ItensPage() {
     await deleteItemOffline(tripId, item.id);
   }
 
-  const ordenados = [...items].sort((a, b) => (a.data + a.horario).localeCompare(b.data + b.horario));
+  const ordenados = [...items]
+    .filter((i) => !filtroCategoria || i.categoria === filtroCategoria)
+    .filter((i) => !filtroData || i.data === filtroData)
+    .filter((i) => !filtroPessoa || i.pagador_id === filtroPessoa || i.passageiro_id === filtroPessoa)
+    .sort((a, b) => (a.data + a.horario).localeCompare(b.data + b.horario));
+  const temFiltroAtivo = Boolean(filtroCategoria || filtroData || filtroPessoa);
 
   return (
     <div className="flex flex-col gap-4">
@@ -451,6 +494,61 @@ export default function ItensPage() {
             className="shrink-0 rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800"
           >
             + Novo Item
+          </button>
+        )}
+      </div>
+
+      <div className="flex flex-wrap items-end gap-2">
+        <div>
+          <label className="mb-1 block text-[11px] font-medium text-slate-600 dark:text-slate-400">Categoria</label>
+          <select
+            value={filtroCategoria}
+            onChange={(e) => setFiltroCategoria(e.target.value as CategoriaItem | "")}
+            className="rounded-lg border border-slate-300 dark:border-slate-700 px-2 py-1.5 text-xs"
+          >
+            <option value="">Todas</option>
+            {CATEGORIAS_ITEM.map((c) => (
+              <option key={c.value} value={c.value}>
+                {c.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="mb-1 block text-[11px] font-medium text-slate-600 dark:text-slate-400">Data</label>
+          <input
+            type="date"
+            value={filtroData}
+            onChange={(e) => setFiltroData(e.target.value)}
+            className="rounded-lg border border-slate-300 dark:border-slate-700 px-2 py-1.5 text-xs"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-[11px] font-medium text-slate-600 dark:text-slate-400">Pessoa</label>
+          <select
+            value={filtroPessoa}
+            onChange={(e) => setFiltroPessoa(e.target.value)}
+            className="rounded-lg border border-slate-300 dark:border-slate-700 px-2 py-1.5 text-xs"
+          >
+            <option value="">Todas</option>
+            {collaborators.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.nome}
+              </option>
+            ))}
+          </select>
+        </div>
+        {temFiltroAtivo && (
+          <button
+            type="button"
+            onClick={() => {
+              setFiltroCategoria("");
+              setFiltroData("");
+              setFiltroPessoa("");
+            }}
+            className="mb-0.5 text-xs font-medium text-slate-500 dark:text-slate-400 hover:underline"
+          >
+            Limpar filtros
           </button>
         )}
       </div>
@@ -555,8 +653,8 @@ export default function ItensPage() {
 
             {/* Campos específicos por categoria */}
           {(form.categoria === "traslado" || form.categoria === "passagem") && (
-            <div className="flex flex-wrap gap-3">
-              <Campo label="Tipo">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <Campo label="Tipo" compact>
                 <select
                   value={form.tipo}
                   onChange={(e) => setField("tipo", e.target.value)}
@@ -570,19 +668,19 @@ export default function ItensPage() {
                   ))}
                 </select>
               </Campo>
-              <Campo label="Companhia">
+              <Campo label="Companhia" compact>
                 <input value={form.nome_companhia} onChange={(e) => setField("nome_companhia", e.target.value)} className={inputClass} />
               </Campo>
-              <Campo label="Localizador">
+              <Campo label="Localizador" compact>
                 <input value={form.localizador} onChange={(e) => setField("localizador", e.target.value)} className={inputClass} />
               </Campo>
-              <Campo label="Número">
+              <Campo label="Número" compact>
                 <input value={form.numero} onChange={(e) => setField("numero", e.target.value)} className={inputClass} />
               </Campo>
-              <Campo label="Origem">
+              <Campo label="Origem" compact>
                 <input value={form.origem} onChange={(e) => setField("origem", e.target.value)} className={inputClass} />
               </Campo>
-              <Campo label="Destino">
+              <Campo label="Destino" compact>
                 <input value={form.destino} onChange={(e) => setField("destino", e.target.value)} className={inputClass} />
               </Campo>
               <CampoInicioFim form={form} setField={setField} />
@@ -590,11 +688,11 @@ export default function ItensPage() {
           )}
 
           {(form.categoria === "hospedagem" || form.categoria === "alimentacao") && (
-            <div className="flex flex-wrap gap-3">
-              <Campo label={form.categoria === "hospedagem" ? "Hospedagem" : "Estabelecimento"}>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <Campo label={form.categoria === "hospedagem" ? "Hospedagem" : "Estabelecimento"} compact>
                 <input value={form.nome_local} onChange={(e) => setField("nome_local", e.target.value)} className={inputClass} />
               </Campo>
-              <Campo label="Endereço" grow>
+              <Campo label="Endereço" compact>
                 <input value={form.endereco} onChange={(e) => setField("endereco", e.target.value)} className={inputClass} />
               </Campo>
               <CampoInicioFim form={form} setField={setField} />
@@ -602,8 +700,8 @@ export default function ItensPage() {
           )}
 
           {form.categoria === "atrativo" && (
-            <div className="flex flex-wrap gap-3">
-              <Campo label="Tipo">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <Campo label="Tipo" compact>
                 <select value={form.tipo} onChange={(e) => setField("tipo", e.target.value)} className={inputClass}>
                   <option value="">Selecione...</option>
                   {TIPOS_ATRATIVO.map((t) => (
@@ -613,13 +711,13 @@ export default function ItensPage() {
                   ))}
                 </select>
               </Campo>
-              <Campo label="Companhia">
+              <Campo label="Companhia" compact>
                 <input value={form.nome_companhia} onChange={(e) => setField("nome_companhia", e.target.value)} className={inputClass} />
               </Campo>
-              <Campo label="Localizador">
+              <Campo label="Localizador" compact>
                 <input value={form.localizador} onChange={(e) => setField("localizador", e.target.value)} className={inputClass} />
               </Campo>
-              <Campo label="Número">
+              <Campo label="Número" compact>
                 <input value={form.numero} onChange={(e) => setField("numero", e.target.value)} className={inputClass} />
               </Campo>
               <CampoInicioFim form={form} setField={setField} />
@@ -627,8 +725,8 @@ export default function ItensPage() {
           )}
 
           {form.categoria === "documento" && (
-            <div className="flex flex-wrap gap-3">
-              <Campo label="Tipo de documento">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <Campo label="Tipo de documento" compact>
                 <select value={form.tipo_documento} onChange={(e) => setField("tipo_documento", e.target.value)} className={inputClass}>
                   <option value="">Selecione...</option>
                   {TIPOS_DOCUMENTO.map((t) => (
@@ -638,7 +736,7 @@ export default function ItensPage() {
                   ))}
                 </select>
               </Campo>
-              <Campo label="Passageiro">
+              <Campo label="Passageiro" compact>
                 <select value={form.passageiro_id} onChange={(e) => setField("passageiro_id", e.target.value)} className={inputClass}>
                   <option value="">Selecione...</option>
                   {collaborators.map((c) => (
@@ -652,12 +750,14 @@ export default function ItensPage() {
           )}
 
           {(form.categoria === "repasse" || form.categoria === "documento" || form.categoria === "outro") && (
-            <Campo label="Data do item">
-              <div className="flex gap-1">
-                <input type="date" required value={form.data} onChange={(e) => setField("data", e.target.value)} className={inputClass} />
-                <input type="time" value={form.horario} onChange={(e) => setField("horario", e.target.value)} className={inputClass} />
-              </div>
-            </Campo>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <Campo label="Data do item" compact>
+                <div className="flex gap-1">
+                  <input type="date" required value={form.data} onChange={(e) => setField("data", e.target.value)} className={inputClass} />
+                  <input type="time" value={form.horario} onChange={(e) => setField("horario", e.target.value)} className={inputClass} />
+                </div>
+              </Campo>
+            </div>
           )}
 
           <div className="flex flex-wrap gap-3">
@@ -748,21 +848,20 @@ export default function ItensPage() {
               <th className="px-2 py-1.5">Valor</th>
               <th className="px-2 py-1.5">Status</th>
               <th className="px-2 py-1.5">Pessoa</th>
-              <th className="px-2 py-1.5">Anexo</th>
               <th className="px-2 py-1.5" />
             </tr>
           </thead>
           <tbody>
             {loading && (
               <tr>
-                <td className="px-2 py-2.5 text-slate-500 dark:text-slate-400" colSpan={9}>
+                <td className="px-2 py-2.5 text-slate-500 dark:text-slate-400" colSpan={8}>
                   Carregando...
                 </td>
               </tr>
             )}
             {!loading && ordenados.length === 0 && (
               <tr>
-                <td className="px-2 py-2.5 text-slate-500 dark:text-slate-400" colSpan={9}>
+                <td className="px-2 py-2.5 text-slate-500 dark:text-slate-400" colSpan={8}>
                   Nenhum item ainda.
                 </td>
               </tr>
@@ -779,14 +878,14 @@ export default function ItensPage() {
                       <span className={`inline-block transition-transform ${expandido ? "rotate-90" : ""}`}>▸</span>
                     </td>
                     <td className="px-2 py-1.5 whitespace-nowrap">
-                      {item.data} {item.horario}
+                      {formatDataBR(item.data)} {item.horario}
                     </td>
                     <td className="px-2 py-1.5">{CATEGORIA_LABEL[item.categoria] ?? item.categoria}</td>
                     <td className="px-2 py-1.5 max-w-[220px] truncate text-slate-500 dark:text-slate-400">
                       {resumoItem(item, nomePorMeio) || item.descricao}
                     </td>
                     <td className="px-2 py-1.5 text-right whitespace-nowrap">
-                      {item.valor ? `R$ ${Number(item.valor).toFixed(2)}` : "-"}
+                      {item.valor ? formatMoney(item.valor) : "-"}
                     </td>
                     <td className="px-2 py-1.5">
                       {item.status && (
@@ -803,21 +902,6 @@ export default function ItensPage() {
                     </td>
                     <td className="px-2 py-1.5">
                       {nomePorPessoa[item.pagador_id] ?? nomePorPessoa[item.passageiro_id] ?? "-"}
-                    </td>
-                    <td className="px-2 py-1.5">
-                      {item.anexo_url ? (
-                        <a
-                          href={item.anexo_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={(e) => e.stopPropagation()}
-                          className="text-blue-600 dark:text-blue-400 hover:underline"
-                        >
-                          📎 {item.anexo_nome || "abrir"}
-                        </a>
-                      ) : (
-                        "-"
-                      )}
                     </td>
                     <td className="px-2 py-1.5 text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="flex justify-end gap-2">
@@ -840,8 +924,8 @@ export default function ItensPage() {
                   </tr>
                   {expandido && (
                     <tr className="border-t border-dashed border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950/40">
-                      <td className="px-2 py-2" colSpan={9}>
-                        <ItemDetalhes item={item} nomePorPessoa={nomePorPessoa} nomePorMeio={nomePorMeio} />
+                      <td className="px-2 py-2" colSpan={8}>
+                        <ItemDetalhes tripId={tripId} item={item} nomePorPessoa={nomePorPessoa} nomePorMeio={nomePorMeio} />
                       </td>
                     </tr>
                   )}
@@ -869,13 +953,13 @@ function CampoInicioFim({
   const [labelInicio, labelFim] = LABELS_INICIO_FIM[form.categoria] ?? ["Início", "Término"];
   return (
     <>
-      <Campo label={labelInicio}>
+      <Campo label={labelInicio} compact>
         <div className="flex gap-1">
           <input type="date" required value={form.data_inicio} onChange={(e) => setField("data_inicio", e.target.value)} className={inputClass} />
           <input type="time" value={form.hora_inicio} onChange={(e) => setField("hora_inicio", e.target.value)} className={inputClass} />
         </div>
       </Campo>
-      <Campo label={labelFim}>
+      <Campo label={labelFim} compact>
         <div className="flex gap-1">
           <input type="date" value={form.data_fim} onChange={(e) => setField("data_fim", e.target.value)} className={inputClass} />
           <input type="time" value={form.hora_fim} onChange={(e) => setField("hora_fim", e.target.value)} className={inputClass} />

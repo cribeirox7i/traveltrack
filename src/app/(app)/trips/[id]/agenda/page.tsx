@@ -259,7 +259,7 @@ export default function AgendaPage() {
                             )}
                             {item.anexo_file_id && (
                               <a
-                                href={localUrls[item.anexo_file_id] ?? item.anexo_url}
+                                href={localUrls[item.anexo_file_id] ?? `/api/trips/${tripId}/anexos/${item.anexo_file_id}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="truncate text-slate-500 dark:text-slate-400 hover:text-blue-600 hover:underline"
