@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
@@ -284,7 +284,7 @@ export default function ItensPage() {
   const [analisando, setAnalisando] = useState(false);
   const [analisado, setAnalisado] = useState(false);
   const [segundoTrecho, setSegundoTrecho] = useState<SegundoTrecho | null>(null);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [viewingItem, setViewingItem] = useState<Item | null>(null);
   const [filtroCategoria, setFiltroCategoria] = useState<CategoriaItem | "">("");
   const [filtroData, setFiltroData] = useState("");
   const [filtroPessoa, setFiltroPessoa] = useState("");
@@ -841,100 +841,112 @@ export default function ItensPage() {
         <table className="w-full text-xs">
           <thead className="bg-slate-50 dark:bg-slate-950 text-left text-[10px] uppercase text-slate-500 dark:text-slate-400">
             <tr>
-              <th className="px-2 py-1.5" />
               <th className="px-2 py-1.5">Data</th>
-              <th className="px-2 py-1.5">Categoria</th>
-              <th className="px-2 py-1.5">Resumo</th>
-              <th className="px-2 py-1.5">Valor</th>
-              <th className="px-2 py-1.5">Status</th>
-              <th className="px-2 py-1.5">Pessoa</th>
+              <th className="px-2 py-1.5">Tipo</th>
+              <th className="px-2 py-1.5">Descrição</th>
               <th className="px-2 py-1.5" />
             </tr>
           </thead>
           <tbody>
             {loading && (
               <tr>
-                <td className="px-2 py-2.5 text-slate-500 dark:text-slate-400" colSpan={8}>
+                <td className="px-2 py-2.5 text-slate-500 dark:text-slate-400" colSpan={4}>
                   Carregando...
                 </td>
               </tr>
             )}
             {!loading && ordenados.length === 0 && (
               <tr>
-                <td className="px-2 py-2.5 text-slate-500 dark:text-slate-400" colSpan={8}>
+                <td className="px-2 py-2.5 text-slate-500 dark:text-slate-400" colSpan={4}>
                   Nenhum item ainda.
                 </td>
               </tr>
             )}
-            {ordenados.map((item) => {
-              const expandido = expandedId === item.id;
-              return (
-                <Fragment key={item.id}>
-                  <tr
-                    onClick={() => setExpandedId(expandido ? null : item.id)}
-                    className="cursor-pointer border-t border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50"
-                  >
-                    <td className="px-2 py-1.5 text-slate-400 dark:text-slate-500">
-                      <span className={`inline-block transition-transform ${expandido ? "rotate-90" : ""}`}>▸</span>
-                    </td>
-                    <td className="px-2 py-1.5 whitespace-nowrap">
-                      {formatDataBR(item.data)} {item.horario}
-                    </td>
-                    <td className="px-2 py-1.5">{CATEGORIA_LABEL[item.categoria] ?? item.categoria}</td>
-                    <td className="px-2 py-1.5 max-w-[220px] truncate text-slate-500 dark:text-slate-400">
-                      {resumoItem(item, nomePorMeio) || item.descricao}
-                    </td>
-                    <td className="px-2 py-1.5 text-right whitespace-nowrap">
-                      {item.valor ? formatMoney(item.valor) : "-"}
-                    </td>
-                    <td className="px-2 py-1.5">
-                      {item.status && (
-                        <span
-                          className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
-                            item.status === "pago"
-                              ? "bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400"
-                              : "bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-400"
-                          }`}
-                        >
-                          {item.status === "pago" ? "Pago" : "A pagar"}
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-2 py-1.5">
-                      {nomePorPessoa[item.pagador_id] ?? nomePorPessoa[item.passageiro_id] ?? "-"}
-                    </td>
-                    <td className="px-2 py-1.5 text-right" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex justify-end gap-2">
-                        <button
-                          type="button"
-                          onClick={() => openEditForm(item)}
-                          className="text-[11px] font-medium text-slate-600 dark:text-slate-400 hover:underline"
-                        >
-                          Editar
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDelete(item)}
-                          className="text-[11px] font-medium text-red-600 dark:text-red-400 hover:underline"
-                        >
-                          Excluir
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                  {expandido && (
-                    <tr className="border-t border-dashed border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950/40">
-                      <td className="px-2 py-2" colSpan={8}>
-                        <ItemDetalhes tripId={tripId} item={item} nomePorPessoa={nomePorPessoa} nomePorMeio={nomePorMeio} />
-                      </td>
-                    </tr>
-                  )}
-                </Fragment>
-              );
-            })}
+            {ordenados.map((item) => (
+              <tr
+                key={item.id}
+                onClick={() => setViewingItem(item)}
+                className="cursor-pointer border-t border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50"
+              >
+                <td className="px-2 py-1.5 whitespace-nowrap">
+                  {formatDataBR(item.data)} {item.horario}
+                </td>
+                <td className="px-2 py-1.5">{CATEGORIA_LABEL[item.categoria] ?? item.categoria}</td>
+                <td className="px-2 py-1.5 max-w-[280px] truncate text-slate-500 dark:text-slate-400">
+                  {resumoItem(item, nomePorMeio) || item.descricao}
+                </td>
+                <td className="px-2 py-1.5 text-right" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => openEditForm(item)}
+                      className="text-[11px] font-medium text-slate-600 dark:text-slate-400 hover:underline"
+                    >
+                      Editar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(item)}
+                      className="text-[11px] font-medium text-red-600 dark:text-red-400 hover:underline"
+                    >
+                      Excluir
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
+
+      {/* Pop-up read-only com todos os campos do item (o mesmo `ItemDetalhes` que já existia no
+          detalhe expandido) - clicar numa linha da tabela abre aqui, em vez de expandir dentro
+          da própria grade. */}
+      {viewingItem && (
+        <div
+          className="fixed inset-0 z-30 flex items-start justify-center overflow-y-auto bg-black/40 p-4 sm:items-center"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setViewingItem(null);
+          }}
+        >
+          <div className="flex w-full max-w-lg flex-col gap-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-xl">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                {CATEGORIA_LABEL[viewingItem.categoria] ?? viewingItem.categoria}
+              </h2>
+              <button
+                type="button"
+                onClick={() => setViewingItem(null)}
+                aria-label="Fechar"
+                className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+              >
+                ✕
+              </button>
+            </div>
+            <ItemDetalhes tripId={tripId} item={viewingItem} nomePorPessoa={nomePorPessoa} nomePorMeio={nomePorMeio} />
+            <div className="flex gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  const item = viewingItem;
+                  setViewingItem(null);
+                  openEditForm(item);
+                }}
+                className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+              >
+                Editar
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewingItem(null)}
+                className="rounded-lg border border-slate-300 dark:border-slate-700 px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
