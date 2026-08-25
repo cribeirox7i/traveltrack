@@ -10,6 +10,7 @@ import {
 } from "@/lib/offline/useOfflineData";
 import { createItemOffline, deleteItemOffline, updateItemOffline } from "@/lib/offline/sync";
 import { CATEGORIAS_ITEM, CategoriaItem } from "@/lib/sheets/types";
+import type { SegundoTrecho } from "@/lib/gemini";
 
 interface Item {
   id: string;
@@ -160,6 +161,7 @@ export default function ItensPage() {
   const [error, setError] = useState<string | null>(null);
   const [analisando, setAnalisando] = useState(false);
   const [analisado, setAnalisado] = useState(false);
+  const [segundoTrecho, setSegundoTrecho] = useState<SegundoTrecho | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Suporta abrir direto num item pra editar via `?editar=<id>` (usado pelo link "Editar" da
@@ -191,6 +193,7 @@ export default function ItensPage() {
     setError(null);
     setFile(null);
     setAnalisado(false);
+    setSegundoTrecho(null);
     setEditingId(null);
     setEditingAnexoNome(null);
     setForm({
@@ -209,6 +212,7 @@ export default function ItensPage() {
     setError(null);
     setFile(null);
     setAnalisado(false);
+    setSegundoTrecho(null);
     setEditingId(item.id);
     setEditingAnexoNome(item.anexo_nome || null);
     setForm({
@@ -245,6 +249,7 @@ export default function ItensPage() {
     setEditingAnexoNome(null);
     setFile(null);
     setAnalisado(false);
+    setSegundoTrecho(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
     if (searchParams.get("editar")) router.replace(`/trips/${tripId}/itens`);
   }
@@ -267,13 +272,34 @@ export default function ItensPage() {
         setError(data.error ?? "Não foi possível analisar o voucher");
         return;
       }
-      setForm((prev) => ({ ...prev, ...data }));
+      const { segundo_trecho, ...campos } = data;
+      setForm((prev) => ({ ...prev, ...campos }));
+      setSegundoTrecho(segundo_trecho ?? null);
       setAnalisado(true);
     } catch {
       setError("Falha de conexão ao tentar analisar o voucher");
     } finally {
       setAnalisando(false);
     }
+  }
+
+  /** Troca os campos de trecho (origem/destino/início/fim/número) do formulário pelos do 2º
+   * trecho identificado (normalmente a volta) - útil pra cadastrar um segundo Item a partir do
+   * mesmo PDF, sem digitar de novo. Categoria/anexo/descrição continuam como estavam. */
+  function usarSegundoTrecho() {
+    if (!segundoTrecho) return;
+    setForm((prev) => ({
+      ...prev,
+      numero: segundoTrecho.numero || prev.numero,
+      origem: segundoTrecho.origem || prev.origem,
+      destino: segundoTrecho.destino || prev.destino,
+      data_inicio: segundoTrecho.data_inicio || prev.data_inicio,
+      hora_inicio: segundoTrecho.hora_inicio || prev.hora_inicio,
+      data_fim: segundoTrecho.data_fim || prev.data_fim,
+      hora_fim: segundoTrecho.hora_fim || prev.hora_fim,
+      descricao: segundoTrecho.descricao || prev.descricao,
+    }));
+    setSegundoTrecho(null);
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -298,10 +324,18 @@ export default function ItensPage() {
     try {
       if (editingId) {
         await updateItemOffline(tripId, editingId, { ...form, data, horario }, file);
+        closeForm();
       } else {
         await createItemOffline(tripId, { ...form, data, horario }, file);
+        // Documento com 2 trechos (ida e volta): em vez de fechar, já deixa o formulário pronto
+        // pra cadastrar o segundo Item (mesmo anexo, campos trocados pelo trecho da volta) - sem
+        // isso o usuário teria que reabrir e reanalisar o mesmo PDF de novo.
+        if (segundoTrecho) {
+          usarSegundoTrecho();
+        } else {
+          closeForm();
+        }
       }
-      closeForm();
     } finally {
       setSaving(false);
     }
@@ -395,6 +429,22 @@ export default function ItensPage() {
                 Preenchi o que consegui identificar no voucher - confira os campos abaixo antes de
                 cadastrar.
               </p>
+            )}
+            {segundoTrecho && (
+              <div className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
+                <span>
+                  ✈️ O documento parece ter um <strong>2º trecho</strong> (ida e volta):{" "}
+                  {[segundoTrecho.origem, segundoTrecho.destino].filter(Boolean).join(" → ") || segundoTrecho.descricao || "sem detalhe"}
+                  {segundoTrecho.data_inicio && ` · ${segundoTrecho.data_inicio} ${segundoTrecho.hora_inicio}`}
+                </span>
+                <button
+                  type="button"
+                  onClick={usarSegundoTrecho}
+                  className="shrink-0 rounded-full bg-amber-200 dark:bg-amber-900 px-2 py-0.5 font-medium text-amber-900 dark:text-amber-200 hover:bg-amber-300"
+                >
+                  Usar este trecho
+                </button>
+              </div>
             )}
 
             <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
