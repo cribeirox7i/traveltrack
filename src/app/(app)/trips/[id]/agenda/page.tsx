@@ -48,7 +48,7 @@ const CATEGORIA_ICONE: Record<CategoriaItem, string> = {
   passagem: "✈️",
   hospedagem: "🏨",
   alimentacao: "🍽️",
-  atrativo: "🎟️",
+  atrativo: "🗼",
   repasse: "💸",
   documento: "📄",
   outro: "📦",

@@ -103,7 +103,7 @@ const CATEGORIA_ICONE: Record<CategoriaItem, string> = {
   passagem: "✈️",
   hospedagem: "🏨",
   alimentacao: "🍽️",
-  atrativo: "🎟️",
+  atrativo: "🗼",
   repasse: "💸",
   documento: "📄",
   outro: "📦",
@@ -866,13 +866,16 @@ export default function ItensPage() {
             onClick={() => setViewingItem(item)}
             className="flex cursor-pointer items-center gap-2 px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/50"
           >
+            <span className="shrink-0 text-lg leading-none" aria-hidden="true">
+              {CATEGORIA_ICONE[item.categoria]}
+            </span>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-baseline gap-x-2 text-xs">
                 <span className="whitespace-nowrap font-medium text-slate-800 dark:text-slate-200">
                   {formatDataBR(item.data)} {item.horario}
                 </span>
                 <span className="text-slate-400 dark:text-slate-500">
-                  {CATEGORIA_ICONE[item.categoria]} {CATEGORIA_LABEL[item.categoria] ?? item.categoria}
+                  {CATEGORIA_LABEL[item.categoria] ?? item.categoria}
                 </span>
               </div>
               <p className="truncate text-[11px] text-slate-500 dark:text-slate-400">
