@@ -46,6 +46,19 @@ function isStaticImage(entrada: (typeof defaultCache)[number]) {
   return cacheNameDe(entrada) === "static-image-assets";
 }
 
+/**
+ * `defaultCache` também termina com uma rota curinga própria (`matcher: /.*\/i`, sem `cacheName`
+ * - handler `NetworkOnly` puro) que casa com QUALQUER requisição GET, de qualquer origem, como
+ * fallback final do roteador do Workbox. Corrigir só "static-image-assets"/"cross-origin" não
+ * bastou: depois delas passarem a exigir mesma-origem, era ESTA regra curinga que continuava
+ * pegando a imagem externa - mesmo com handler `NetworkOnly` (sem cache nenhum), o Service
+ * Worker ainda intercepta e faz o fetch ele mesmo, e é exatamente esse fetch que a CSP
+ * `connect-src` barra (ver comentário de `isStaticImage`). Confirmado direto no `sw.js`
+ * publicado antes de mexer aqui - via chamada real, não suposição. */
+function isCatchAllGenerico(entrada: (typeof defaultCache)[number]) {
+  return entrada.matcher instanceof RegExp && entrada.matcher.source === ".*";
+}
+
 const serwist = new Serwist({
   precacheEntries: self.__SW_MANIFEST,
   skipWaiting: true,
@@ -120,6 +133,13 @@ const serwist = new Serwist({
           ...entrada,
           matcher: ({ url, sameOrigin }: { url: URL; sameOrigin: boolean }) =>
             sameOrigin && REGEX_IMAGEM.test(url.href),
+        };
+      }
+      if (isCatchAllGenerico(entrada)) {
+        return {
+          ...entrada,
+          matcher: ({ url, sameOrigin }: { url: URL; sameOrigin: boolean }) =>
+            sameOrigin || hostPermitido(url.hostname),
         };
       }
       return entrada;
