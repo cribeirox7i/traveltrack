@@ -5,12 +5,15 @@
  * dependência - mesmo padrão que `weather.ts`/`exchangeRate.ts` já usam pra API externa.
  */
 // "gemini-2.5-flash" parou de aceitar chave nova em 2026-08 ("no longer available to new
-// users") - a própria API sugeriu "gemini-3.6-flash" no erro 404. Testado direto contra a REST
-// API (com responseSchema estruturado, igual ao uso real daqui) em 2026-08-25 antes de trocar.
-// O alias "gemini-flash-latest" existe e evitaria esse tipo de troca manual de novo, mas estava
-// retornando 503 (sobrecarga) nos testes - fica pra revisar depois se "gemini-3.6-flash" também
-// for descontinuado.
-const MODEL = "gemini-3.6-flash";
+// users"). Testei o catálogo inteiro de modelos "flash" contra a API real em 2026-08-25: só a
+// geração 3.x responde pra essa chave. Entre os que respondem, o painel de cota do AI Studio
+// mostrou "Gemini 3.6 Flash" com só 20 requisições/dia (RPD) no free tier, contra 500 RPD do
+// "Gemini 3.5 Flash Lite" - 25x mais teto. O motivo de eu não ter ido de Lite direto: com o
+// schema antigo (campos "opcionais" no responseSchema) o Lite pulava metade dos campos, mesmo
+// a informação estando no documento. Forçando todo campo como "required" no schema (ver abaixo),
+// ele passou a extrair tão bem quanto o Flash "cheio" nos testes - o problema nunca foi o modelo,
+// era o schema deixando campo em branco parecer uma opção válida.
+const MODEL = "gemini-3.5-flash-lite";
 const ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
 
 const CATEGORIAS = [
@@ -43,12 +46,19 @@ Categorias:
   vacina) ou comprovante de taxa/pedágio.
 - "outro": não se encaixa em nenhuma acima.
 
-Campos (preencha só os que fizerem sentido pra categoria escolhida, o resto fica ""):
+O schema pede TODOS os campos abaixo (o formato exige a chave presente) - preencha com "" os que
+não fizerem sentido pra categoria escolhida ou que não aparecerem no documento, mas SEMPRE tente
+preencher os que fizerem sentido: não deixe em branco um campo cuja informação está no
+documento.
+
+Campos:
 - tipo: em traslado/passagem, o meio de transporte - exatamente um destes, com a MESMA
   capitalização (primeira letra maiúscula): "Ônibus", "Van", "Carro", "Avião", "Embarcação",
   "Trem"; em atrativo, "Excursão" ou "Ingresso".
-- localizador, nome_companhia, numero: código de reserva, nome da companhia/fornecedor, número
-  do voo/ônibus/pedido.
+- localizador: código de reserva/confirmação (geralmente letras+números, ex.: "ABC123").
+- nome_companhia: nome da companhia aérea/rodoviária/fornecedor.
+- numero: número do VOO/ÔNIBUS/EMBARCAÇÃO em si (ex.: "LA3420") - NUNCA o localizador, são campos
+  diferentes mesmo quando parecidos.
 - origem, destino: cidades de partida/chegada (traslado/passagem).
 - nome_local, endereco: nome e endereço do hotel/restaurante.
 - data_inicio, hora_inicio, data_fim, hora_fim: partida/chegada (traslado/passagem), check-in/
@@ -69,6 +79,13 @@ segundo trecho, preencha o objeto "segundo_trecho" com os dados dele (mesmo sign
 campo, só que desse segundo trecho); se não houver, deixe "segundo_trecho" com todos os campos
 em "".`;
 
+// Todo campo marcado "required" no responseSchema - não significa "precisa ter valor não-vazio",
+// só força o modelo a incluir a CHAVE na resposta em vez de omiti-la. Testado em 2026-08-25:
+// com os campos como "opcionais" (sem required), o gemini-3.5-flash-lite pulava campos cuja
+// informação estava claramente no documento; forçado a sempre responder todos, ele passou a
+// preencher tão bem quanto o Flash "cheio" - o Flash "cheio" já fazia isso por conta própria,
+// então marcar required não piora nada pra ele.
+
 /** Mesma forma de origem/destino/horários do trecho principal, pra um eventual 2º trecho (ex.:
  * volta) que o documento também descreva - ver `analisarVoucher`. */
 const SEGUNDO_TRECHO_SCHEMA = {
@@ -83,6 +100,16 @@ const SEGUNDO_TRECHO_SCHEMA = {
     hora_fim: { type: "STRING" },
     descricao: { type: "STRING" },
   },
+  required: [
+    "numero",
+    "origem",
+    "destino",
+    "data_inicio",
+    "hora_inicio",
+    "data_fim",
+    "hora_fim",
+    "descricao",
+  ],
 };
 
 const RESPONSE_SCHEMA = {
@@ -109,7 +136,28 @@ const RESPONSE_SCHEMA = {
     data_pagamento: { type: "STRING" },
     segundo_trecho: SEGUNDO_TRECHO_SCHEMA,
   },
-  required: ["categoria"],
+  required: [
+    "categoria",
+    "tipo",
+    "localizador",
+    "nome_companhia",
+    "numero",
+    "data",
+    "horario",
+    "origem",
+    "destino",
+    "nome_local",
+    "endereco",
+    "data_inicio",
+    "hora_inicio",
+    "data_fim",
+    "hora_fim",
+    "tipo_documento",
+    "descricao",
+    "valor",
+    "data_pagamento",
+    "segundo_trecho",
+  ],
 };
 
 export interface SegundoTrecho {
