@@ -250,7 +250,7 @@ function ItemDetalhes({
         </a>
       )}
       {pares.length > 0 && (
-        <dl className="grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-4">
+        <dl className="grid grid-cols-2 gap-x-8 gap-y-3">
           {pares.map((p) => (
             <div key={p.label} className="min-w-0">
               <dt className="text-[10px] uppercase text-slate-400 dark:text-slate-500">{p.label}</dt>
@@ -837,66 +837,55 @@ export default function ItensPage() {
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-        <table className="w-full text-xs">
-          <thead className="bg-slate-50 dark:bg-slate-950 text-left text-[10px] uppercase text-slate-500 dark:text-slate-400">
-            <tr>
-              <th className="px-2 py-1.5">Data</th>
-              <th className="px-2 py-1.5">Tipo</th>
-              <th className="px-2 py-1.5">Descrição</th>
-              <th className="px-2 py-1.5" />
-            </tr>
-          </thead>
-          <tbody>
-            {loading && (
-              <tr>
-                <td className="px-2 py-2.5 text-slate-500 dark:text-slate-400" colSpan={4}>
-                  Carregando...
-                </td>
-              </tr>
-            )}
-            {!loading && ordenados.length === 0 && (
-              <tr>
-                <td className="px-2 py-2.5 text-slate-500 dark:text-slate-400" colSpan={4}>
-                  Nenhum item ainda.
-                </td>
-              </tr>
-            )}
-            {ordenados.map((item) => (
-              <tr
-                key={item.id}
-                onClick={() => setViewingItem(item)}
-                className="cursor-pointer border-t border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50"
-              >
-                <td className="px-2 py-1.5 whitespace-nowrap">
+      {/* Lista sem `<table>` de propósito - uma tabela de verdade não reflui, então em telas
+          estreitas ela força rolagem lateral pra caber Data/Tipo/Descrição/Ações lado a lado.
+          Aqui cada item é uma linha flex que QUEBRA em 2 sub-linhas (data+tipo em cima, descrição
+          embaixo, truncada) em vez de estourar a largura - nunca precisa de scroll horizontal,
+          em nenhum tamanho de tela. */}
+      <div className="divide-y divide-slate-100 dark:divide-slate-800 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+        {loading && (
+          <p className="px-3 py-3 text-xs text-slate-500 dark:text-slate-400">Carregando...</p>
+        )}
+        {!loading && ordenados.length === 0 && (
+          <p className="px-3 py-3 text-xs text-slate-500 dark:text-slate-400">Nenhum item ainda.</p>
+        )}
+        {ordenados.map((item) => (
+          <div
+            key={item.id}
+            onClick={() => setViewingItem(item)}
+            className="flex cursor-pointer items-center gap-2 px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/50"
+          >
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-baseline gap-x-2 text-xs">
+                <span className="whitespace-nowrap font-medium text-slate-800 dark:text-slate-200">
                   {formatDataBR(item.data)} {item.horario}
-                </td>
-                <td className="px-2 py-1.5">{CATEGORIA_LABEL[item.categoria] ?? item.categoria}</td>
-                <td className="px-2 py-1.5 max-w-[280px] truncate text-slate-500 dark:text-slate-400">
-                  {resumoItem(item, nomePorMeio) || item.descricao}
-                </td>
-                <td className="px-2 py-1.5 text-right" onClick={(e) => e.stopPropagation()}>
-                  <div className="flex justify-end gap-2">
-                    <button
-                      type="button"
-                      onClick={() => openEditForm(item)}
-                      className="text-[11px] font-medium text-slate-600 dark:text-slate-400 hover:underline"
-                    >
-                      Editar
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDelete(item)}
-                      className="text-[11px] font-medium text-red-600 dark:text-red-400 hover:underline"
-                    >
-                      Excluir
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                </span>
+                <span className="text-slate-400 dark:text-slate-500">
+                  {CATEGORIA_LABEL[item.categoria] ?? item.categoria}
+                </span>
+              </div>
+              <p className="truncate text-[11px] text-slate-500 dark:text-slate-400">
+                {resumoItem(item, nomePorMeio) || item.descricao}
+              </p>
+            </div>
+            <div className="flex shrink-0 gap-2" onClick={(e) => e.stopPropagation()}>
+              <button
+                type="button"
+                onClick={() => openEditForm(item)}
+                className="text-[11px] font-medium text-slate-600 dark:text-slate-400 hover:underline"
+              >
+                Editar
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDelete(item)}
+                className="text-[11px] font-medium text-red-600 dark:text-red-400 hover:underline"
+              >
+                Excluir
+              </button>
+            </div>
+          </div>
+        ))}
       </div>
 
       {/* Pop-up read-only com todos os campos do item (o mesmo `ItemDetalhes` que já existia no
