@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { urlHttpSchema } from "@/lib/urlSegura";
 import { errorResponse, requireSession } from "@/lib/api-helpers";
 import { deleteAgenda, getAgenda, updateAgenda } from "@/lib/sheets/agenda";
 import { deleteAnexo, uploadAnexo } from "@/lib/sheets/anexos";
@@ -12,7 +13,7 @@ const patchSchema = z.object({
   horario: z.string().regex(/^\d{2}:\d{2}$/, "Horário deve estar no formato HH:MM"),
   titulo: z.string().min(1, "Título é obrigatório"),
   descricao: z.string().optional().default(""),
-  url: z.string().url("URL inválida").or(z.literal("")).optional(),
+  url: urlHttpSchema.or(z.literal("")).optional(),
 });
 
 export async function PATCH(
@@ -91,7 +92,7 @@ export async function PATCH(
     // lição de `deleteTrip`/DELETE deste arquivo: uma limpeza acessória é best-effort).
     if (agenda.anexo_file_id) {
       try {
-        await deleteAnexo(agenda.anexo_file_id);
+        await deleteAnexo(agenda.anexo_file_id, trip.id, trip.nome);
       } catch (err) {
         avisoAnexo = err instanceof Error ? err.message : String(err);
       }
@@ -120,6 +121,9 @@ export async function DELETE(
     return errorResponse("Compromisso não encontrado", 404);
   }
 
+  const trip = await getTrip(id);
+  if (!trip) return errorResponse("Viagem não encontrada", 404);
+
   await deleteAgenda(agendaId);
 
   // O anexo vai junto, mas sem poder derrubar a exclusão do compromisso - mesma lição da
@@ -128,7 +132,7 @@ export async function DELETE(
   if (!agenda.anexo_file_id) return NextResponse.json({ ok: true, anexoRemovido: true });
 
   try {
-    await deleteAnexo(agenda.anexo_file_id);
+    await deleteAnexo(agenda.anexo_file_id, trip.id, trip.nome);
     return NextResponse.json({ ok: true, anexoRemovido: true });
   } catch (err) {
     return NextResponse.json({

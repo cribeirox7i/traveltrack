@@ -7,6 +7,7 @@ import { useSession } from "next-auth/react";
 import { useOfflineCollection, useOfflineTrip, useCountries } from "@/lib/offline/useOfflineData";
 import { findCountry } from "@/lib/countryMatch";
 import { distinctCities } from "@/lib/tripCities";
+import { hrefSeguro } from "@/lib/urlSegura";
 
 interface TripMeta {
   id: string;
@@ -149,10 +150,10 @@ export default function TripDashboardPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      {trip?.capa_url && (
+      {hrefSeguro(trip?.capa_url) && (
         // eslint-disable-next-line @next/next/no-img-element -- URL externa qualquer, escolhida pelo usuário, sem domínio fixo pra next/image
         <img
-          src={trip.capa_url}
+          src={hrefSeguro(trip?.capa_url)}
           alt=""
           className="h-40 w-full rounded-2xl object-cover sm:h-56"
           onError={(e) => {

@@ -44,6 +44,11 @@ interface AgendaPayload {
   url: string;
 }
 
+/** Campos de texto de um Item de viagem - mesma ideia de `AgendaPayload`, com `file` fora (vai à
+ * parte no FormData de reenvio). Tipado solto (`Record<string, string>`) porque o conjunto de
+ * campos usados varia por categoria - o servidor é quem decide o que é relevante. */
+type ItemPayload = Record<string, string> & { id: string };
+
 export function isOnline(): boolean {
   return typeof navigator === "undefined" ? true : navigator.onLine;
 }
@@ -95,11 +100,12 @@ export async function pullTrips(): Promise<void> {
 /** Atualiza dias/despesas/receitas/agenda de UMA viagem no cache local - chamado ao abrir a viagem. */
 export async function pullTripDetail(tripId: string): Promise<void> {
   if (!isOnline()) return;
-  const [days, despesas, receitas, agenda] = await Promise.all([
+  const [days, despesas, receitas, agenda, itens] = await Promise.all([
     getJson<Record<string, unknown>[]>(`/api/trips/${tripId}/days`),
     getJson<Record<string, unknown>[]>(`/api/trips/${tripId}/despesas`),
     getJson<Record<string, unknown>[]>(`/api/trips/${tripId}/receitas`),
     getJson<Record<string, unknown>[]>(`/api/trips/${tripId}/agenda`),
+    getJson<Record<string, unknown>[]>(`/api/trips/${tripId}/itens`),
   ]);
   if (days) await putAllReplacing("tripDays", days as never, tripId);
   if (despesas) {
@@ -113,6 +119,10 @@ export async function pullTripDetail(tripId: string): Promise<void> {
   if (agenda) {
     const protectedIds = await pendingCreateIds("createAgenda", tripId);
     await putAllReplacing("agenda", agenda as never, tripId, protectedIds);
+  }
+  if (itens) {
+    const protectedIds = await pendingCreateIds("createItem", tripId);
+    await putAllReplacing("itens", itens as never, tripId, protectedIds);
   }
   notifyChange();
 }
@@ -658,6 +668,49 @@ async function sendOutboxEntry(entry: OutboxEntry): Promise<"ok" | "network-erro
         });
         break;
       }
+      case "createItem": {
+        const { file, ...fields } = entry.payload as ItemPayload & { file?: File };
+        if (file) {
+          const form = new FormData();
+          for (const [key, value] of Object.entries(fields)) form.set(key, value);
+          form.set("file", file);
+          res = await fetch(`/api/trips/${entry.tripId}/itens`, { method: "POST", body: form });
+        } else {
+          res = await fetch(`/api/trips/${entry.tripId}/itens`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(fields),
+          });
+        }
+        break;
+      }
+      case "updateItem": {
+        const { itemId, file, ...fields } = entry.payload as Omit<ItemPayload, "id"> & {
+          itemId: string;
+          file?: File;
+        };
+        if (file) {
+          const form = new FormData();
+          for (const [key, value] of Object.entries(fields)) form.set(key, value);
+          form.set("file", file);
+          res = await fetch(`/api/trips/${entry.tripId}/itens/${itemId}`, {
+            method: "PATCH",
+            body: form,
+          });
+        } else {
+          res = await fetch(`/api/trips/${entry.tripId}/itens/${itemId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(fields),
+          });
+        }
+        break;
+      }
+      case "deleteItem": {
+        const { itemId } = entry.payload as { itemId: string };
+        res = await fetch(`/api/trips/${entry.tripId}/itens/${itemId}`, { method: "DELETE" });
+        break;
+      }
       default:
         return "Ação desconhecida na fila";
     }
@@ -765,6 +818,7 @@ export async function deleteTripOffline(
   await deleteByTrip("anexos", tripId);
   await deleteByTrip("anexoFiles", tripId);
   await deleteByTrip("agenda", tripId);
+  await deleteByTrip("itens", tripId);
   await deleteTripImage(tripId);
   await removeOutboxByTrip(tripId);
 
@@ -989,6 +1043,65 @@ export async function deleteAgendaOffline(tripId: string, agendaId: string): Pro
     tripId,
     payload: { agendaId },
   });
+  notifyChange();
+  void pushOutbox();
+}
+
+/** Cria um Item de viagem otimista - `input` é o mesmo conjunto de campos aceito pela API (ver
+ * `ITEM_EDITABLE_FIELDS` em lib/sheets/itens.ts), fora `file`. `natureza` não entra aqui: é
+ * calculado no servidor a partir da categoria; a linha local fica sem ela até `pullTripDetail`
+ * trazer a linha completa de volta - a tela lê `natureza` só para exibição/relatório, não pra
+ * decidir o que enviar. */
+export async function createItemOffline(
+  tripId: string,
+  fields: Record<string, string> & { categoria: string },
+  file?: File | null
+): Promise<void> {
+  const id = uuid();
+  await putOne("itens", {
+    id,
+    trip_id: tripId,
+    natureza: "",
+    anexo_file_id: "",
+    anexo_nome: file?.name ?? "",
+    anexo_url: "",
+    criado_por: "",
+    criado_em: new Date().toISOString(),
+    ...fields,
+  });
+  const payload: ItemPayload & { file?: File } = { id, ...fields };
+  if (file) payload.file = file;
+  await enqueueOutbox({ localId: uuid(), kind: "createItem", tripId, payload });
+  notifyChange();
+  void pushOutbox();
+}
+
+export async function updateItemOffline(
+  tripId: string,
+  itemId: string,
+  fields: Record<string, string> & { categoria: string },
+  file?: File | null
+): Promise<void> {
+  const existing = await getOne("itens", itemId);
+  await putOne("itens", {
+    ...(existing ?? { trip_id: tripId }),
+    id: itemId,
+    ...fields,
+    ...(file ? { anexo_nome: file.name } : {}),
+  });
+  const payload: Omit<ItemPayload, "id"> & { itemId: string; file?: File } = {
+    itemId,
+    ...fields,
+  };
+  if (file) payload.file = file;
+  await enqueueOutbox({ localId: uuid(), kind: "updateItem", tripId, payload });
+  notifyChange();
+  void pushOutbox();
+}
+
+export async function deleteItemOffline(tripId: string, itemId: string): Promise<void> {
+  await deleteOne("itens", itemId);
+  await enqueueOutbox({ localId: uuid(), kind: "deleteItem", tripId, payload: { itemId } });
   notifyChange();
   void pushOutbox();
 }

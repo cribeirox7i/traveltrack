@@ -1,6 +1,6 @@
 import { DBSchema, IDBPDatabase, openDB } from "idb";
 
-export type DataTab = "trips" | "tripDays" | "despesas" | "receitas" | "anexos" | "agenda";
+export type DataTab = "trips" | "tripDays" | "despesas" | "receitas" | "anexos" | "agenda" | "itens";
 
 export interface OutboxEntry {
   localId: string;
@@ -13,7 +13,10 @@ export interface OutboxEntry {
     | "updateAgenda"
     | "deleteAgenda"
     | "updateDespesaStatus"
-    | "updateReceitaStatus";
+    | "updateReceitaStatus"
+    | "createItem"
+    | "updateItem"
+    | "deleteItem";
   tripId?: string;
   payload: unknown;
   createdAt: number;
@@ -54,15 +57,17 @@ interface TravelTrackDB extends DBSchema {
   anexos: { key: string; value: RowBase; indexes: { trip_id: string } };
   anexoFiles: { key: string; value: AnexoFileRow; indexes: { trip_id: string } };
   agenda: { key: string; value: RowBase; indexes: { trip_id: string } };
+  itens: { key: string; value: RowBase; indexes: { trip_id: string } };
   tripImages: { key: string; value: TripImageRow };
   outbox: { key: string; value: OutboxEntry };
   meta: { key: string; value: { key: string; value: unknown } };
 }
 
 const DB_NAME = "traveltrack-offline";
-// 4: store `tripImages`. O `upgrade` abaixo é aditivo (só cria o que falta), então subir a
-// versão não descarta nada já baixado nos aparelhos que estavam na 3.
-const DB_VERSION = 4;
+// 5: store `itens` (ver plano "Itens de Viagem + OCR de vouchers"). O `upgrade` abaixo é aditivo
+// (só cria o que falta), então subir a versão não descarta nada já baixado nos aparelhos que
+// estavam em versões anteriores.
+const DB_VERSION = 5;
 
 let dbPromise: Promise<IDBPDatabase<TravelTrackDB>> | null = null;
 
@@ -97,6 +102,9 @@ export function getDB(): Promise<IDBPDatabase<TravelTrackDB>> {
         if (!db.objectStoreNames.contains("agenda")) {
           db.createObjectStore("agenda", { keyPath: "id" }).createIndex("trip_id", "trip_id");
         }
+        if (!db.objectStoreNames.contains("itens")) {
+          db.createObjectStore("itens", { keyPath: "id" }).createIndex("trip_id", "trip_id");
+        }
         if (!db.objectStoreNames.contains("tripImages")) {
           db.createObjectStore("tripImages", { keyPath: "trip_id" });
         }
@@ -128,7 +136,7 @@ export async function putAll(tab: DataTab, rows: RowBase[]): Promise<void> {
  * para reconciliar a store inteira (trips).
  */
 export async function putAllReplacing(
-  tab: "trips" | "tripDays" | "despesas" | "receitas" | "agenda",
+  tab: "trips" | "tripDays" | "despesas" | "receitas" | "agenda" | "itens",
   rows: RowBase[],
   tripId?: string,
   // Ids que nunca devem ser apagados mesmo se ausentes de `rows` - a linha criada offline há
@@ -146,7 +154,10 @@ export async function putAllReplacing(
   // ao mesmo tempo - o `idb` não permite `.index("trip_id")` num union que inclui uma store sem
   // esse índice.
   if (tripId) {
-    const tx = db.transaction(tab as "tripDays" | "despesas" | "receitas" | "agenda", "readwrite");
+    const tx = db.transaction(
+      tab as "tripDays" | "despesas" | "receitas" | "agenda" | "itens",
+      "readwrite"
+    );
     const existingKeys = await tx.store.index("trip_id").getAllKeys(IDBKeyRange.only(tripId));
     const staleKeys = existingKeys.filter(
       (k) => !incomingIds.has(String(k)) && !protectedIds?.has(String(k))
@@ -182,7 +193,7 @@ export async function putAnexoFile(row: AnexoFileRow): Promise<void> {
 }
 
 export async function listByTrip(
-  tab: "tripDays" | "despesas" | "receitas" | "anexos" | "agenda",
+  tab: "tripDays" | "despesas" | "receitas" | "anexos" | "agenda" | "itens",
   tripId: string
 ) {
   const db = await getDB();
@@ -215,7 +226,7 @@ export async function deleteOne(tab: DataTab, id: string): Promise<void> {
 }
 
 export async function deleteByTrip(
-  tab: "tripDays" | "despesas" | "receitas" | "anexos" | "anexoFiles" | "agenda",
+  tab: "tripDays" | "despesas" | "receitas" | "anexos" | "anexoFiles" | "agenda" | "itens",
   tripId: string
 ): Promise<void> {
   const db = await getDB();
@@ -280,6 +291,31 @@ export async function updateOutboxEntry(entry: OutboxEntry) {
 export async function deleteTripImage(tripId: string): Promise<void> {
   const db = await getDB();
   await db.delete("tripImages", tripId);
+}
+
+/**
+ * Apaga tudo que o app guardou neste aparelho: todas as stores do IndexedDB (dados de viagem,
+ * blobs de anexo, fila de sincronização) e os caches de conteúdo do Service Worker. Usado no
+ * logout - sem isso, os dados de quem saiu continuavam legíveis para o próximo login no mesmo
+ * aparelho, inclusive viagens às quais o novo usuário não tem acesso (a reconciliação só
+ * sobrescreve o que o novo usuário também vê).
+ *
+ * O precache do Serwist é preservado de propósito: ele guarda só o app em si (JS/CSS/shell), sem
+ * dado de usuário, e apagá-lo deixaria o app sem conseguir abrir offline até a próxima visita
+ * com internet.
+ */
+export async function wipeLocalData(): Promise<void> {
+  const db = await getDB();
+  const stores = Array.from(db.objectStoreNames);
+  const tx = db.transaction(stores, "readwrite");
+  await Promise.all(stores.map((s) => tx.objectStore(s).clear()));
+  await tx.done;
+
+  if (typeof caches === "undefined") return;
+  const nomes = await caches.keys();
+  await Promise.all(
+    nomes.filter((n) => !n.includes("precache")).map((n) => caches.delete(n))
+  );
 }
 
 export async function getMeta(key: string): Promise<unknown> {

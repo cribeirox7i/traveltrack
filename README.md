@@ -58,6 +58,7 @@ Vercel (Project Settings → Environment Variables) para produção:
 | `APPS_SCRIPT_SHARED_SECRET` | O mesmo valor colado em `SHARED_SECRET` no `Codigo.gs` |
 | `NEXTAUTH_SECRET` | String aleatória longa (`openssl rand -base64 32`) |
 | `NEXTAUTH_URL` | URL da aplicação (`http://localhost:3000` local, URL do Vercel em produção) |
+| `GEMINI_API_KEY` | Chave do Google AI Studio (free tier), usada pra ler vouchers na tela Itens (ver seção 6) |
 
 Nunca commite `.env.local` - já está no `.gitignore`.
 
@@ -92,6 +93,24 @@ Abra [http://localhost:3000](http://localhost:3000).
 2. Importe o repositório no [Vercel](https://vercel.com/new).
 3. Configure as variáveis de ambiente da seção 2 no projeto Vercel.
 4. Deploy.
+
+## 6. Análise automática de voucher (Gemini)
+
+A tela **Itens** lê PDF/imagem de um voucher e pré-preenche o formulário via
+[Google AI Studio](https://aistudio.google.com/) (free tier - uso pessoal, sem cobrança).
+
+1. Acesse [aistudio.google.com](https://aistudio.google.com/), faça login com sua conta Google e
+   clique em **Get API key → Create API key** (num projeto novo ou existente).
+2. Copie a chave gerada e cole em `GEMINI_API_KEY` no `.env.local` (e na env var equivalente do
+   Vercel, em produção).
+3. **Nunca** cole a chave em código versionado nem a exponha ao navegador - o botão "Analisar" da
+   tela Itens chama uma rota própria (`/api/trips/{id}/itens/analisar`) que faz a chamada ao
+   Gemini no servidor; o cliente nunca vê a chave.
+
+No plano gratuito, o Google pode usar o conteúdo enviado (imagem/PDF do voucher) para melhorar os
+modelos - avalie isso antes de subir documento com dado sensível de terceiros. Se isso for um
+problema, ative faturamento (pay-as-you-go) no mesmo projeto do Google AI Studio: o código não
+muda, só o comportamento de retenção de dado do lado do Google.
 
 ## Estrutura de dados na planilha
 

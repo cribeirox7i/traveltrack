@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, requireSession } from "@/lib/api-helpers";
 import { createTrip, listTripsForUser } from "@/lib/sheets/trips";
+import { urlHttpSchema } from "@/lib/urlSegura";
 
 const createTripSchema = z.object({
   id: z.string().min(1).optional(),
@@ -12,7 +13,7 @@ const createTripSchema = z.object({
   cidade_origem: z.string().optional(),
   cidade_origem_lat: z.string().optional(),
   cidade_origem_lon: z.string().optional(),
-  capa_url: z.string().optional(),
+  capa_url: urlHttpSchema.or(z.literal("")).optional(),
   custo_modo: z.enum(["por_pessoa", "total"]).optional(),
   dayIds: z.array(z.string().min(1)).optional(),
 });

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { urlHttpSchema } from "@/lib/urlSegura";
 import { errorResponse, requireSession } from "@/lib/api-helpers";
 import { createAgenda, listAgendaByTrip } from "@/lib/sheets/agenda";
 import { uploadAnexo } from "@/lib/sheets/anexos";
@@ -33,7 +34,7 @@ const createSchema = z.object({
     .regex(/^\d{2}:\d{2}$/, "Horário deve estar no formato HH:MM"),
   titulo: z.string().min(1, "Título é obrigatório"),
   descricao: z.string().optional().default(""),
-  url: z.string().url("URL inválida").or(z.literal("")).optional(),
+  url: urlHttpSchema.or(z.literal("")).optional(),
 });
 
 /**

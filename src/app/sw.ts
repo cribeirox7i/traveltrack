@@ -10,6 +10,25 @@ declare global {
 
 declare const self: ServiceWorkerGlobalScope;
 
+/** Hosts externos que o app consulta - todos servem dado público, sem credencial: geocoding e
+ * clima (open-meteo), datasets de país e bandeiras (jsdelivr), cotação (frankfurter) e os tiles
+ * do mapa (openstreetmap). Ver a regra "cross-origin" mais abaixo. */
+const CROSS_ORIGIN_PERMITIDOS = [
+  "open-meteo.com",
+  "cdn.jsdelivr.net",
+  "api.frankfurter.dev",
+  "tile.openstreetmap.org",
+];
+
+function hostPermitido(hostname: string) {
+  return CROSS_ORIGIN_PERMITIDOS.some((h) => hostname === h || hostname.endsWith(`.${h}`));
+}
+
+function isCrossOrigin(entrada: (typeof defaultCache)[number]) {
+  const handler = entrada.handler as { cacheName?: string };
+  return handler.cacheName === "cross-origin";
+}
+
 const serwist = new Serwist({
   precacheEntries: self.__SW_MANIFEST,
   skipWaiting: true,
@@ -66,7 +85,20 @@ const serwist = new Serwist({
     // defaultCache cobre o resto: assets estáticos, payloads RSC e demais navegações. Dados de
     // viagem (dias/despesas/receitas) offline são responsabilidade da camada IndexedDB em
     // src/lib/offline, não deste cache.
-    ...defaultCache,
+    //
+    // A regra "cross-origin" nativa do defaultCache é trocada por uma versão com allowlist: a
+    // original casa com QUALQUER host de fora (`!sameOrigin`) e guardaria no cache do aparelho a
+    // resposta de qualquer API externa que o app venha a chamar, inclusive uma autenticada. Só os
+    // hosts abaixo são consultados hoje, e todos servem dado público sem credencial.
+    ...defaultCache.map((entrada) =>
+      isCrossOrigin(entrada)
+        ? {
+            ...entrada,
+            matcher: ({ url, sameOrigin }: { url: URL; sameOrigin: boolean }) =>
+              !sameOrigin && hostPermitido(url.hostname),
+          }
+        : entrada
+    ),
   ],
   fallbacks: {
     entries: [

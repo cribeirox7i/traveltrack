@@ -18,18 +18,14 @@ export default function RelatorioPage() {
   const { items: days, loading: loadingDays } = useOfflineCollection<
     { id: string } & Record<string, unknown>
   >("tripDays", tripId);
-  const { items: despesas, loading: loadingDespesas } = useOfflineCollection<{
+  const { items: itens, loading: loadingItens } = useOfflineCollection<{
     id: string;
     categoria: string;
     valor: string;
     natureza?: string;
-  }>("despesas", tripId);
-  const { items: receitas, loading: loadingReceitas } = useOfflineCollection<{
-    id: string;
-    valor: string;
-  }>("receitas", tripId);
+  }>("itens", tripId);
 
-  const loading = loadingTrip || loadingDays || loadingDespesas || loadingReceitas;
+  const loading = loadingTrip || loadingDays || loadingItens;
 
   if (loading) return <p className="text-sm text-slate-500 dark:text-slate-400">Carregando...</p>;
   if (!trip) return <p className="text-sm text-red-600 dark:text-red-400">Erro ao carregar relatório.</p>;
@@ -38,8 +34,7 @@ export default function RelatorioPage() {
     tripId,
     Number(trip.qtd_pessoas) || 0,
     days,
-    despesas,
-    receitas,
+    itens,
     trip.custo_modo
   );
 

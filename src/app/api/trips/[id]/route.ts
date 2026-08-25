@@ -8,6 +8,7 @@ import {
   updateTrip,
   userCanAccessTrip,
 } from "@/lib/sheets/trips";
+import { urlHttpSchema } from "@/lib/urlSegura";
 
 export async function GET(
   _req: NextRequest,
@@ -33,7 +34,7 @@ const patchSchema = z.object({
   cidade_origem: z.string().optional(),
   cidade_origem_lat: z.string().optional(),
   cidade_origem_lon: z.string().optional(),
-  capa_url: z.string().optional(),
+  capa_url: urlHttpSchema.or(z.literal("")).optional(),
   custo_modo: z.enum(["por_pessoa", "total"]).optional(),
   // Não é um campo qualquer da linha - mudar isso desloca a grade inteira de dias (e a Agenda
   // junto), ver `changeTripStartDate`. Tratado à parte abaixo, não entra no `updateTrip` genérico.

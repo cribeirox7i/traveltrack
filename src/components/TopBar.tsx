@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { signOut, useSession } from "next-auth/react";
+import { listOutbox, wipeLocalData } from "@/lib/offline/db";
 import { DownloadOfflineButton } from "./DownloadOfflineButton";
 import { RefreshButton } from "./RefreshButton";
 import { ThemeToggle } from "./ThemeToggle";
@@ -14,6 +15,30 @@ import { CogIcon, LogoutIcon } from "./icons";
  * (Viagens/Usuários/Acessos) continua no NavBar - esta barra é só para as ações globais. */
 export function TopBar({ initialDark }: { initialDark: boolean }) {
   const { data: session, status } = useSession();
+
+  /**
+   * Sair também limpa o que ficou salvo no aparelho (IndexedDB e caches do Service Worker),
+   * senão os dados desta sessão continuariam legíveis para o próximo login aqui. Se ainda houver
+   * lançamento feito offline esperando subir, isso seria perda de dado - então aí a saída pede
+   * confirmação em vez de apagar por conta própria.
+   */
+  async function sair() {
+    try {
+      const pendentes = await listOutbox();
+      if (pendentes.length > 0) {
+        const ok = window.confirm(
+          `Há ${pendentes.length} lançamento(s) feito(s) offline que ainda não subiram. ` +
+            "Sair agora apaga esses dados deste aparelho, sem recuperação. " +
+            "Conecte-se à internet antes de sair para não perdê-los.\n\nSair mesmo assim?"
+        );
+        if (!ok) return;
+      }
+      await wipeLocalData();
+    } catch {
+      // Falha na limpeza não pode prender o usuário logado - segue para o signOut de qualquer forma.
+    }
+    await signOut({ callbackUrl: "/login" });
+  }
 
   if (status === "loading" || !session) return null;
 
@@ -43,7 +68,7 @@ export function TopBar({ initialDark }: { initialDark: boolean }) {
           <ThemeToggle initialDark={initialDark} />
           <button
             type="button"
-            onClick={() => signOut({ callbackUrl: "/login" })}
+            onClick={sair}
             aria-label="Sair"
             title="Sair"
             className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-full text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"

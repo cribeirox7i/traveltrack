@@ -28,7 +28,10 @@ const ESTRUTURA = {
   // a aba pra "Countries" na planilha (bota direito na aba > Renomear) e o app passa a
   // completá-la sozinho com o resto (moeda, capital, DDI, lado de direção, fuso, cotação) na
   // primeira vez que cada país for necessário.
-  Countries: ['id', 'country', 'plug_type', 'volts', 'hertz', 'currency_code', 'currency_name', 'currency_symbol', 'capital', 'ddi', 'driving_side', 'timezone', 'flag_emoji', 'language', 'rate_brl', 'rate_date']
+  Countries: ['id', 'country', 'plug_type', 'volts', 'hertz', 'currency_code', 'currency_name', 'currency_symbol', 'capital', 'ddi', 'driving_side', 'timezone', 'flag_emoji', 'language', 'rate_brl', 'rate_date'],
+  // Tabela genérica que substitui Despesas/Receitas/Agenda/Anexos (ver plano "Itens de Viagem +
+  // OCR de vouchers") - precisa bater exatamente com Itens em src/lib/sheets/types.ts.
+  Itens: ['id', 'trip_id', 'categoria', 'tipo', 'localizador', 'nome_companhia', 'numero', 'data', 'horario', 'origem', 'destino', 'nome_local', 'endereco', 'data_inicio', 'hora_inicio', 'data_fim', 'hora_fim', 'tipo_documento', 'passageiro_id', 'url', 'anexo_file_id', 'anexo_nome', 'anexo_url', 'descricao', 'valor', 'natureza', 'data_pagamento', 'pagador_id', 'meio_pagamento_id', 'criado_por', 'criado_em']
 };
 
 // ---------- PONTO DE ENTRADA DO WEB APP ----------
@@ -41,30 +44,47 @@ function doPost(e) {
   var resultado;
   try {
     var body = JSON.parse(e.postData.contents);
-    if (body.secret !== SHARED_SECRET) {
+    if (!segredosIguais(body.secret, SHARED_SECRET)) {
       resultado = erro('Segredo inválido');
     } else {
       resultado = api(body.action, body.payload || {});
     }
   } catch (err) {
-    resultado = erro(err && err.message ? err.message : String(err));
+    Logger.log('doPost error: ' + (err && err.stack ? err.stack : err));
+    resultado = erro('Erro ao processar a requisição');
   }
   return ContentService.createTextOutput(JSON.stringify(resultado))
     .setMimeType(ContentService.MimeType.JSON);
+}
+
+/**
+ * Compara dois segredos em tempo constante (via digest SHA-256 de tamanho fixo, comparado
+ * byte a byte sem short-circuit) para não vazar, por diferença de tempo de resposta, quanto do
+ * SHARED_SECRET o chamador acertou - `!==` direto abortaria na primeira diferença de caractere.
+ */
+function segredosIguais(a, b) {
+  var da = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, String(a == null ? '' : a));
+  var db = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, String(b == null ? '' : b));
+  var diff = 0;
+  for (var i = 0; i < da.length; i++) diff |= da[i] ^ db[i];
+  return diff === 0;
 }
 
 function api(action, payload) {
   try {
     switch (action) {
       case 'ensureStructure': return ok(ensureStructure());
-      case 'read':            return ok(lerTabela(payload.tab));
-      case 'append':           return ok(inserirLinhas(payload.tab, payload.rows || []));
-      case 'updateById':       return ok(atualizarPorId(payload.tab, payload.id, payload.patch || {}));
-      case 'updateManyById':   return ok(atualizarVariosPorId(payload.tab, payload.updates || []));
-      case 'updateByField':    return ok(atualizarPorCampo(payload.tab, payload.campo, payload.valor, payload.patch || {}));
-      case 'deleteById':       return ok(excluirPorId(payload.tab, payload.id));
-      case 'deleteByField':    return ok(excluirPorCampo(payload.tab, payload.campo, payload.valor));
-      case 'resetTab':         return ok(resetarAba(payload.tab));
+      case 'read':            return ok(lerTabela(abaValida(payload.tab)));
+      case 'append':           return ok(inserirLinhas(abaValida(payload.tab), payload.rows || []));
+      case 'updateById':       return ok(atualizarPorId(abaValida(payload.tab), payload.id, payload.patch || {}));
+      case 'updateManyById':   return ok(atualizarVariosPorId(abaValida(payload.tab), payload.updates || []));
+      case 'updateByField':    return ok(atualizarPorCampo(abaValida(payload.tab), payload.campo, payload.valor, payload.patch || {}));
+      case 'deleteById':       return ok(excluirPorId(abaValida(payload.tab), payload.id));
+      case 'deleteByField':    return ok(excluirPorCampo(abaValida(payload.tab), payload.campo, payload.valor));
+      // 'resetTab' foi removido do dispatcher (checklist de segurança): é destrutivo (apaga a
+      // aba inteira), não é usado por nenhuma rota do app e, com o segredo compartilhado sendo
+      // a única credencial aceita aqui, ficava alcançável por qualquer chamador que o conheça.
+      // A função `resetarAba` continua existindo no arquivo só para uso manual pelo editor.
       case 'driveUploadFile':  return ok(driveUploadFile(payload));
       case 'driveListFiles':   return ok(driveListFiles(payload));
       case 'driveDeleteFile':  return ok(driveDeleteFile(payload));
@@ -73,12 +93,23 @@ function api(action, payload) {
       default:                 return erro('Ação desconhecida: ' + action);
     }
   } catch (err) {
-    return erro(err && err.message ? err.message : String(err));
+    Logger.log('api(' + action + ') error: ' + (err && err.stack ? err.stack : err));
+    return erro('Erro ao executar a ação');
   }
 }
 
 function ok(data) { return { ok: true, data: data }; }
 function erro(msg) { return { ok: false, error: msg }; }
+
+/**
+ * Só deixa passar nomes de aba que o app realmente usa (as chaves de ESTRUTURA). Sem isso,
+ * `payload.tab` chegava direto ao getSheet, que cria a aba se não existir - então uma chamada
+ * podia ler, escrever ou esvaziar qualquer aba da planilha, inclusive uma alheia ao app.
+ */
+function abaValida(nome) {
+  if (!ESTRUTURA[nome]) throw new Error('Aba não permitida: ' + nome);
+  return nome;
+}
 
 // ---------- ACESSO À PLANILHA ----------
 function abrirPlanilha() {
@@ -489,9 +520,33 @@ function driveListFiles(payload) {
   return resultado;
 }
 
+/**
+ * Confirma que o arquivo pedido está de fato dentro da pasta da viagem informada, e devolve o
+ * File. Sem essa checagem, `fileId` era aceito solto: quem tivesse acesso a *uma* viagem podia
+ * baixar ou mandar pra lixeira qualquer arquivo do Drive da conta que publicou o Web App,
+ * bastando descobrir o id. A hierarquia esperada é {raiz}/{nome} - {tripId}/{categoria}/arquivo,
+ * então o pai do arquivo é a pasta de categoria e o avô é a pasta da viagem.
+ */
+function arquivoDaViagem(fileId, tripId, tripName) {
+  if (!tripId || !tripName) throw new Error('tripId/tripName obrigatórios');
+  const tripFolder = findTripFolder(tripId, tripName);
+  if (!tripFolder) throw new Error('Anexo não encontrado nesta viagem');
+
+  const file = DriveApp.getFileById(fileId);
+  const pais = file.getParents();
+  while (pais.hasNext()) {
+    const categoria = pais.next();
+    const avos = categoria.getParents();
+    while (avos.hasNext()) {
+      if (avos.next().getId() === tripFolder.getId()) return file;
+    }
+  }
+  throw new Error('Anexo não encontrado nesta viagem');
+}
+
 /** Move para a lixeira do Drive (reversível) em vez de apagar de vez. */
 function driveDeleteFile(payload) {
-  DriveApp.getFileById(payload.fileId).setTrashed(true);
+  arquivoDaViagem(payload.fileId, payload.tripId, payload.tripName).setTrashed(true);
   return null;
 }
 
@@ -510,7 +565,7 @@ function driveDeleteTripFolder(payload) {
 
 /** Devolve os bytes (base64) de um anexo já enviado - usado pelo download para uso offline. */
 function driveDownloadFile(payload) {
-  const file = DriveApp.getFileById(payload.fileId);
+  const file = arquivoDaViagem(payload.fileId, payload.tripId, payload.tripName);
   const blob = file.getBlob();
   return {
     name: file.getName(),

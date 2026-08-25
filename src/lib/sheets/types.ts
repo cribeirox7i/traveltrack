@@ -8,7 +8,8 @@ export type SheetTab =
   | "Receitas"
   | "MeiosPagamento"
   | "Agenda"
-  | "Countries";
+  | "Countries"
+  | "Itens";
 
 export const SHEET_HEADERS: Record<SheetTab, string[]> = {
   Users: ["id", "nome", "email", "senha_hash", "role", "ativo"],
@@ -105,6 +106,44 @@ export const SHEET_HEADERS: Record<SheetTab, string[]> = {
     "language",
     "rate_brl",
     "rate_date",
+  ],
+  // Tabela genérica que substitui Despesas/Receitas/Agenda/Anexos (ver plano "Itens de Viagem +
+  // OCR de vouchers"): um item de viagem, de uma das 8 categorias, com todos os campos possíveis
+  // numa linha só - cada categoria só preenche o subconjunto que faz sentido pra ela, o resto
+  // fica vazio (mesmo padrão de TripDays/Despesas). Fase 1: convive com as abas antigas, não as
+  // substitui ainda - `migrate-itens.js` copia o que já existe pra cá.
+  Itens: [
+    "id",
+    "trip_id",
+    "categoria",
+    "tipo",
+    "localizador",
+    "nome_companhia",
+    "numero",
+    "data",
+    "horario",
+    "origem",
+    "destino",
+    "nome_local",
+    "endereco",
+    "data_inicio",
+    "hora_inicio",
+    "data_fim",
+    "hora_fim",
+    "tipo_documento",
+    "passageiro_id",
+    "url",
+    "anexo_file_id",
+    "anexo_nome",
+    "anexo_url",
+    "descricao",
+    "valor",
+    "natureza",
+    "data_pagamento",
+    "pagador_id",
+    "meio_pagamento_id",
+    "criado_por",
+    "criado_em",
   ],
 };
 
@@ -292,6 +331,102 @@ export interface CountryRow {
   /** Cotação de 1 unidade da moeda do país em Real, na data de `rate_date` (yyyy-MM-dd). */
   rate_brl: string;
   rate_date: string;
+}
+
+/**
+ * Categoria de um Item de viagem. Natureza financeira é FIXA por categoria (não é um campo que o
+ * usuário escolhe, ao contrário do antigo `Natureza` de Despesas): 1-5 são sempre débito, Repasse
+ * é sempre crédito, Documento/Outro não têm campo financeiro nenhum - ver `categoriaNatureza`.
+ */
+export type CategoriaItem =
+  | "traslado"
+  | "passagem"
+  | "hospedagem"
+  | "alimentacao"
+  | "atrativo"
+  | "repasse"
+  | "documento"
+  | "outro";
+
+export const CATEGORIAS_ITEM: { value: CategoriaItem; label: string }[] = [
+  { value: "traslado", label: "Traslado" },
+  { value: "passagem", label: "Passagem" },
+  { value: "hospedagem", label: "Hospedagem" },
+  { value: "alimentacao", label: "Alimentação" },
+  { value: "atrativo", label: "Atrativo" },
+  { value: "repasse", label: "Repasse" },
+  { value: "documento", label: "Documentos" },
+  { value: "outro", label: "Outros" },
+];
+
+/** Débito, crédito, ou `null` se a categoria não tem campo financeiro (Documento/Outro). */
+export function categoriaNatureza(categoria: CategoriaItem): Natureza | null {
+  if (categoria === "repasse") return "credito";
+  if (categoria === "documento" || categoria === "outro") return null;
+  return "debito";
+}
+
+/** Categorias com campo financeiro (valor/pagador/meio de pagamento) - as outras duas (Documento
+ * e Outro) são só anexo+URL+descrição. */
+export const CATEGORIAS_ITEM_FINANCEIRAS = new Set<CategoriaItem>([
+  "traslado",
+  "passagem",
+  "hospedagem",
+  "alimentacao",
+  "atrativo",
+  "repasse",
+]);
+
+export interface ItemRow {
+  [key: string]: string;
+  id: string;
+  trip_id: string;
+  categoria: CategoriaItem;
+  /** Subtipo, varia por categoria: traslado/passagem = meio de transporte (ônibus, van, carro,
+   * avião, embarcação, trem); atrativo = excursão/ingresso. Vazio nas demais categorias. */
+  tipo: string;
+  localizador: string;
+  nome_companhia: string;
+  numero: string;
+  /** Data/horário canônicos do item, sempre obrigatórios (usados pra ordenar a visão Agenda) -
+   * em Traslado/Passagem/Hospedagem/Alimentação/Atrativo é preenchido junto com `data_inicio`;
+   * nas demais categorias (Repasse/Documento/Outro, que não têm início/fim) é digitado direto. */
+  data: string;
+  horario: string;
+  origem: string;
+  destino: string;
+  /** Nome do estabelecimento (hospedagem/alimentação). */
+  nome_local: string;
+  endereco: string;
+  /** Início/fim do item - o RÓTULO muda conforme a categoria (Partida/Chegada em Traslado e
+   * Passagem, Check-in/Check-out em Hospedagem e Alimentação, Início/Término em Atrativo), mas é
+   * o mesmo par de colunas nas 5 categorias que têm essa noção - evita duplicar campo por
+   * categoria só pra trocar o nome. */
+  data_inicio: string;
+  hora_inicio: string;
+  data_fim: string;
+  hora_fim: string;
+  /** Categoria "documento": Taxa, Pedágio, RG, CPF, Passaporte, Visto, CNH, PID, Seguro, Cartão
+   * de Vacina - lista livre, não um enum fechado no schema (nomes podem crescer sem migração). */
+  tipo_documento: string;
+  /** Usuário (colaborador da viagem) a quem o documento pertence - só na categoria "documento". */
+  passageiro_id: string;
+  url: string;
+  anexo_file_id: string;
+  anexo_nome: string;
+  anexo_url: string;
+  descricao: string;
+  /** Vazio se o item não tem valor lançado (comum em Documento/Outro, e possível em qualquer
+   * categoria financeira sem custo, ex. atrativo gratuito). */
+  valor: string;
+  /** Calculado a partir da categoria no momento da criação (ver `categoriaNatureza`), não um
+   * campo livre - guardado na linha só pra não recalcular toda leitura do relatório. */
+  natureza: Natureza | "";
+  data_pagamento: string;
+  pagador_id: string;
+  meio_pagamento_id: string;
+  criado_por: string;
+  criado_em: string;
 }
 
 /** Um compromisso do roteiro, ancorado numa das datas da grade de diárias da viagem. */

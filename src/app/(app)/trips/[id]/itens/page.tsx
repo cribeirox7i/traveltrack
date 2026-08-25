@@ -1,0 +1,645 @@
+"use client";
+
+import { useMemo, useRef, useState } from "react";
+import { useParams } from "next/navigation";
+import { useSession } from "next-auth/react";
+import {
+  useCollaborators,
+  useMeiosPagamento,
+  useOfflineCollection,
+} from "@/lib/offline/useOfflineData";
+import { createItemOffline, deleteItemOffline } from "@/lib/offline/sync";
+import { CATEGORIAS_ITEM, CategoriaItem } from "@/lib/sheets/types";
+
+interface Item {
+  id: string;
+  categoria: CategoriaItem;
+  tipo: string;
+  localizador: string;
+  nome_companhia: string;
+  numero: string;
+  data: string;
+  horario: string;
+  origem: string;
+  destino: string;
+  nome_local: string;
+  endereco: string;
+  data_inicio: string;
+  hora_inicio: string;
+  data_fim: string;
+  hora_fim: string;
+  tipo_documento: string;
+  passageiro_id: string;
+  url: string;
+  anexo_file_id: string;
+  anexo_nome: string;
+  anexo_url: string;
+  descricao: string;
+  valor: string;
+  natureza: string;
+  data_pagamento: string;
+  pagador_id: string;
+  meio_pagamento_id: string;
+}
+
+const FINANCEIRAS = new Set<CategoriaItem>([
+  "traslado",
+  "passagem",
+  "hospedagem",
+  "alimentacao",
+  "atrativo",
+  "repasse",
+]);
+
+const TIPOS_TRASLADO = ["ônibus", "van", "carro", "outros"];
+const TIPOS_PASSAGEM = ["ônibus", "van", "carro", "avião", "embarcação", "trem"];
+const TIPOS_ATRATIVO = ["excursão", "ingresso"];
+const TIPOS_DOCUMENTO = [
+  "Taxa",
+  "Pedágio",
+  "RG",
+  "CPF",
+  "Passaporte",
+  "Visto",
+  "CNH",
+  "PID",
+  "Seguro",
+  "Cartão de Vacina",
+];
+
+const ACCEPT_VOUCHER = ".pdf,.jpg,.jpeg,.png,.bmp,application/pdf,image/jpeg,image/png,image/bmp";
+
+const CATEGORIA_LABEL: Record<CategoriaItem, string> = Object.fromEntries(
+  CATEGORIAS_ITEM.map((c) => [c.value, c.label])
+) as Record<CategoriaItem, string>;
+
+const emptyForm = {
+  categoria: "traslado" as CategoriaItem,
+  tipo: "",
+  localizador: "",
+  nome_companhia: "",
+  numero: "",
+  data: "",
+  horario: "",
+  origem: "",
+  destino: "",
+  nome_local: "",
+  endereco: "",
+  data_inicio: "",
+  hora_inicio: "",
+  data_fim: "",
+  hora_fim: "",
+  tipo_documento: "",
+  passageiro_id: "",
+  url: "",
+  descricao: "",
+  valor: "",
+  data_pagamento: "",
+  pagador_id: "",
+  meio_pagamento_id: "",
+};
+
+type FormState = typeof emptyForm;
+
+/** Rótulos de `data_inicio`/`data_fim` por categoria - mesmo par de colunas, nome diferente na
+ * tela conforme o que a categoria representa. `null` = categoria não tem início/fim (usa
+ * `data`/`horario` direto). */
+const LABELS_INICIO_FIM: Partial<Record<CategoriaItem, [string, string]>> = {
+  traslado: ["Partida", "Chegada"],
+  passagem: ["Partida", "Chegada"],
+  hospedagem: ["Check-in", "Check-out"],
+  alimentacao: ["Check-in", "Check-out"],
+  atrativo: ["Início", "Término"],
+};
+
+/** A "data do item" (usada pra ordenar a lista) é derivada do `data_inicio`/`hora_inicio` nas
+ * categorias que têm essa noção (ver `LABELS_INICIO_FIM`) - evita pedir a mesma data duas vezes.
+ * Nas categorias sem início/fim (Repasse/Documento/Outro), o usuário digita direto em
+ * `data`/`horario`. */
+function derivarDataHorario(form: FormState): { data: string; horario: string } {
+  if (LABELS_INICIO_FIM[form.categoria]) {
+    return { data: form.data_inicio, horario: form.hora_inicio };
+  }
+  return { data: form.data, horario: form.horario };
+}
+
+function resumoItem(item: Item, nomePorMeio: Record<string, string>): string {
+  switch (item.categoria) {
+    case "traslado":
+    case "passagem":
+      return [item.nome_companhia, item.numero, item.origem && item.destino ? `${item.origem} → ${item.destino}` : ""]
+        .filter(Boolean)
+        .join(" · ");
+    case "hospedagem":
+    case "alimentacao":
+      return [item.nome_local, item.endereco].filter(Boolean).join(" · ");
+    case "atrativo":
+      return [item.tipo, item.nome_companhia].filter(Boolean).join(" · ");
+    case "documento":
+      return item.tipo_documento || "-";
+    default:
+      return nomePorMeio[item.meio_pagamento_id] ?? "";
+  }
+}
+
+export default function ItensPage() {
+  const { id: tripId } = useParams<{ id: string }>();
+  const { data: session } = useSession();
+  const { items, loading } = useOfflineCollection<Item>("itens", tripId);
+  const collaborators = useCollaborators(tripId);
+  const meiosPagamento = useMeiosPagamento().filter((m) => m.ativo === "true");
+  const [formOpen, setFormOpen] = useState(false);
+  const [form, setForm] = useState<FormState>(emptyForm);
+  const [file, setFile] = useState<File | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [analisando, setAnalisando] = useState(false);
+  const [analisado, setAnalisado] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const nomePorPessoa = useMemo(
+    () => Object.fromEntries(collaborators.map((c) => [c.id, c.nome])),
+    [collaborators]
+  );
+  const nomePorMeio = useMemo(
+    () => Object.fromEntries(meiosPagamento.map((m) => [m.id, m.nome])),
+    [meiosPagamento]
+  );
+
+  const isFinanceira = FINANCEIRAS.has(form.categoria);
+
+  function setField<K extends keyof FormState>(key: K, value: FormState[K]) {
+    setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function openNewForm() {
+    setError(null);
+    setFile(null);
+    setAnalisado(false);
+    setForm({
+      ...emptyForm,
+      pagador_id: session?.user.id && collaborators.some((c) => c.id === session.user.id)
+        ? session.user.id
+        : "",
+    });
+    setFormOpen(true);
+  }
+
+  function closeForm() {
+    setFormOpen(false);
+    setFile(null);
+    setAnalisado(false);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  /** Chamado pelo botão "Analisar voucher" - sobe o arquivo pro Gemini via
+   * `/api/trips/{id}/itens/analisar` e pré-preenche o formulário com o que ele identificar.
+   * Best-effort: se falhar (rede, cota do free tier, documento ilegível), o formulário continua
+   * vazio pra preenchimento manual - o upload em si só acontece de fato ao "Cadastrar", então
+   * nada se perde aqui além de uma tentativa de leitura. */
+  async function handleAnalisar() {
+    if (!file) return;
+    setError(null);
+    setAnalisando(true);
+    try {
+      const body = new FormData();
+      body.set("file", file);
+      const res = await fetch(`/api/trips/${tripId}/itens/analisar`, { method: "POST", body });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? "Não foi possível analisar o voucher");
+        return;
+      }
+      setForm((prev) => ({ ...prev, ...data }));
+      setAnalisado(true);
+    } catch {
+      setError("Falha de conexão ao tentar analisar o voucher");
+    } finally {
+      setAnalisando(false);
+    }
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+
+    const { data, horario } = derivarDataHorario(form);
+    if (!data) {
+      setError("Preencha a data do item");
+      return;
+    }
+    if (!form.descricao.trim()) {
+      setError("Descrição é obrigatória");
+      return;
+    }
+    if (isFinanceira && form.valor && (!form.pagador_id || !form.meio_pagamento_id)) {
+      setError("Informando o valor, é preciso indicar quem pagou e o meio de pagamento");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await createItemOffline(tripId, { ...form, data, horario }, file);
+      closeForm();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete(item: Item) {
+    if (!confirm(`Excluir este item (${CATEGORIA_LABEL[item.categoria]})?`)) return;
+    await deleteItemOffline(tripId, item.id);
+  }
+
+  const ordenados = [...items].sort((a, b) => (a.data + a.horario).localeCompare(b.data + b.horario));
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-slate-500 dark:text-slate-400">
+          Traslados, passagens, hospedagem, alimentação, atrativos, repasses e documentos da
+          viagem, num lugar só. Substitui as antigas telas de Lançamentos e Anexos.
+        </p>
+        {!formOpen && (
+          <button
+            type="button"
+            onClick={openNewForm}
+            className="shrink-0 rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800"
+          >
+            + Novo Item
+          </button>
+        )}
+      </div>
+
+      {formOpen && (
+        <div
+          className="fixed inset-0 z-30 flex items-start justify-center overflow-y-auto bg-black/40 p-4 sm:items-center"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) closeForm();
+          }}
+        >
+          <form
+            onSubmit={handleSubmit}
+            className="flex w-full max-w-2xl flex-col gap-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-xl"
+          >
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                Novo Item
+              </h2>
+              <button
+                type="button"
+                onClick={closeForm}
+                aria-label="Fechar"
+                className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Primeira opção: anexo (ver spec) - escolher o arquivo habilita "Analisar", que
+                tenta pré-preencher o resto do formulário lendo o voucher via Gemini. */}
+            <div className="flex flex-wrap items-end gap-3 rounded-xl border border-dashed border-slate-200 dark:border-slate-800 p-3">
+              <div className="flex-1 min-w-[220px]">
+                <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">
+                  Anexo (PDF ou imagem)
+                </label>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept={ACCEPT_VOUCHER}
+                  onChange={(e) => {
+                    setFile(e.target.files?.[0] ?? null);
+                    setAnalisado(false);
+                  }}
+                  className="block w-full text-sm text-slate-600 dark:text-slate-400 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-900 file:px-3 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-slate-800"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={handleAnalisar}
+                disabled={!file || analisando}
+                className="rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50"
+              >
+                {analisando ? "Analisando..." : "🔎 Analisar voucher"}
+              </button>
+            </div>
+            {analisado && (
+              <p className="text-xs text-emerald-600 dark:text-emerald-400">
+                Preenchi o que consegui identificar no voucher - confira os campos abaixo antes de
+                cadastrar.
+              </p>
+            )}
+
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              Dados do item
+            </h3>
+            <div className="min-w-[160px]">
+              <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">
+                Categoria
+              </label>
+              <select
+                value={form.categoria}
+                onChange={(e) => setField("categoria", e.target.value as CategoriaItem)}
+                className="w-full max-w-xs rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
+              >
+                {CATEGORIAS_ITEM.map((c) => (
+                  <option key={c.value} value={c.value}>
+                    {c.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Campos específicos por categoria */}
+          {(form.categoria === "traslado" || form.categoria === "passagem") && (
+            <div className="flex flex-wrap gap-3">
+              <Campo label="Tipo">
+                <select
+                  value={form.tipo}
+                  onChange={(e) => setField("tipo", e.target.value)}
+                  className={inputClass}
+                >
+                  <option value="">Selecione...</option>
+                  {(form.categoria === "traslado" ? TIPOS_TRASLADO : TIPOS_PASSAGEM).map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+              </Campo>
+              <Campo label="Companhia">
+                <input value={form.nome_companhia} onChange={(e) => setField("nome_companhia", e.target.value)} className={inputClass} />
+              </Campo>
+              <Campo label="Localizador">
+                <input value={form.localizador} onChange={(e) => setField("localizador", e.target.value)} className={inputClass} />
+              </Campo>
+              <Campo label="Número">
+                <input value={form.numero} onChange={(e) => setField("numero", e.target.value)} className={inputClass} />
+              </Campo>
+              <Campo label="Origem">
+                <input value={form.origem} onChange={(e) => setField("origem", e.target.value)} className={inputClass} />
+              </Campo>
+              <Campo label="Destino">
+                <input value={form.destino} onChange={(e) => setField("destino", e.target.value)} className={inputClass} />
+              </Campo>
+              <CampoInicioFim form={form} setField={setField} />
+            </div>
+          )}
+
+          {(form.categoria === "hospedagem" || form.categoria === "alimentacao") && (
+            <div className="flex flex-wrap gap-3">
+              <Campo label={form.categoria === "hospedagem" ? "Hospedagem" : "Estabelecimento"}>
+                <input value={form.nome_local} onChange={(e) => setField("nome_local", e.target.value)} className={inputClass} />
+              </Campo>
+              <Campo label="Endereço" grow>
+                <input value={form.endereco} onChange={(e) => setField("endereco", e.target.value)} className={inputClass} />
+              </Campo>
+              <CampoInicioFim form={form} setField={setField} />
+            </div>
+          )}
+
+          {form.categoria === "atrativo" && (
+            <div className="flex flex-wrap gap-3">
+              <Campo label="Tipo">
+                <select value={form.tipo} onChange={(e) => setField("tipo", e.target.value)} className={inputClass}>
+                  <option value="">Selecione...</option>
+                  {TIPOS_ATRATIVO.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+              </Campo>
+              <Campo label="Companhia">
+                <input value={form.nome_companhia} onChange={(e) => setField("nome_companhia", e.target.value)} className={inputClass} />
+              </Campo>
+              <Campo label="Localizador">
+                <input value={form.localizador} onChange={(e) => setField("localizador", e.target.value)} className={inputClass} />
+              </Campo>
+              <Campo label="Número">
+                <input value={form.numero} onChange={(e) => setField("numero", e.target.value)} className={inputClass} />
+              </Campo>
+              <CampoInicioFim form={form} setField={setField} />
+            </div>
+          )}
+
+          {form.categoria === "documento" && (
+            <div className="flex flex-wrap gap-3">
+              <Campo label="Tipo de documento">
+                <select value={form.tipo_documento} onChange={(e) => setField("tipo_documento", e.target.value)} className={inputClass}>
+                  <option value="">Selecione...</option>
+                  {TIPOS_DOCUMENTO.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+              </Campo>
+              <Campo label="Passageiro">
+                <select value={form.passageiro_id} onChange={(e) => setField("passageiro_id", e.target.value)} className={inputClass}>
+                  <option value="">Selecione...</option>
+                  {collaborators.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.nome}
+                    </option>
+                  ))}
+                </select>
+              </Campo>
+            </div>
+          )}
+
+          {(form.categoria === "repasse" || form.categoria === "documento" || form.categoria === "outro") && (
+            <Campo label="Data do item">
+              <div className="flex gap-1">
+                <input type="date" required value={form.data} onChange={(e) => setField("data", e.target.value)} className={inputClass} />
+                <input type="time" value={form.horario} onChange={(e) => setField("horario", e.target.value)} className={inputClass} />
+              </div>
+            </Campo>
+          )}
+
+          <div className="flex flex-wrap gap-3">
+            <Campo label="URL" grow>
+              <input type="url" value={form.url} onChange={(e) => setField("url", e.target.value)} placeholder="https://..." className={inputClass} />
+            </Campo>
+            <Campo label="Descrição" grow>
+              <input required value={form.descricao} onChange={(e) => setField("descricao", e.target.value)} className={inputClass} />
+            </Campo>
+          </div>
+
+          {isFinanceira && (
+            <div className="flex flex-col gap-2 border-t border-slate-200 dark:border-slate-800 pt-3">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                Dados financeiros
+              </h3>
+              <div className="flex flex-wrap gap-3">
+              <Campo label="Valor">
+                <input type="number" min={0} step="0.01" value={form.valor} onChange={(e) => setField("valor", e.target.value)} className={inputClass} />
+              </Campo>
+              <Campo label="Data pagamento">
+                <input type="date" value={form.data_pagamento} onChange={(e) => setField("data_pagamento", e.target.value)} className={inputClass} />
+              </Campo>
+              <Campo label={form.categoria === "repasse" ? "Quem contribuiu" : "Quem pagou"}>
+                <select value={form.pagador_id} onChange={(e) => setField("pagador_id", e.target.value)} className={inputClass}>
+                  <option value="">Selecione...</option>
+                  {collaborators.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.nome}
+                    </option>
+                  ))}
+                </select>
+              </Campo>
+              <Campo label="Meio de pagamento">
+                <select value={form.meio_pagamento_id} onChange={(e) => setField("meio_pagamento_id", e.target.value)} className={inputClass}>
+                  <option value="">Selecione...</option>
+                  {meiosPagamento.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.nome}
+                    </option>
+                  ))}
+                </select>
+              </Campo>
+              </div>
+            </div>
+          )}
+
+          {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              disabled={saving}
+              className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+            >
+              {saving ? "Salvando..." : `Cadastrar ${CATEGORIA_LABEL[form.categoria]}`}
+            </button>
+            <button
+              type="button"
+              onClick={closeForm}
+              className="rounded-lg border border-slate-300 dark:border-slate-700 px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"
+            >
+              Cancelar
+            </button>
+          </div>
+          </form>
+        </div>
+      )}
+
+      <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+        <table className="w-full text-sm">
+          <thead className="bg-slate-50 dark:bg-slate-950 text-left text-xs uppercase text-slate-500 dark:text-slate-400">
+            <tr>
+              <th className="px-3 py-2">Data</th>
+              <th className="px-3 py-2">Categoria</th>
+              <th className="px-3 py-2">Resumo</th>
+              <th className="px-3 py-2">Valor</th>
+              <th className="px-3 py-2">Pessoa</th>
+              <th className="px-3 py-2">Anexo</th>
+              <th className="px-3 py-2" />
+            </tr>
+          </thead>
+          <tbody>
+            {loading && (
+              <tr>
+                <td className="px-3 py-3 text-slate-500 dark:text-slate-400" colSpan={7}>
+                  Carregando...
+                </td>
+              </tr>
+            )}
+            {!loading && ordenados.length === 0 && (
+              <tr>
+                <td className="px-3 py-3 text-slate-500 dark:text-slate-400" colSpan={7}>
+                  Nenhum item ainda.
+                </td>
+              </tr>
+            )}
+            {ordenados.map((item) => (
+              <tr key={item.id} className="border-t border-slate-100 dark:border-slate-800">
+                <td className="px-3 py-2">
+                  {item.data} {item.horario}
+                </td>
+                <td className="px-3 py-2">{CATEGORIA_LABEL[item.categoria] ?? item.categoria}</td>
+                <td className="px-3 py-2 text-slate-500 dark:text-slate-400">
+                  {resumoItem(item, nomePorMeio) || item.descricao}
+                </td>
+                <td className="px-3 py-2">{item.valor ? `R$ ${Number(item.valor).toFixed(2)}` : "-"}</td>
+                <td className="px-3 py-2">
+                  {nomePorPessoa[item.pagador_id] ?? nomePorPessoa[item.passageiro_id] ?? "-"}
+                </td>
+                <td className="px-3 py-2">
+                  {item.anexo_url ? (
+                    <a
+                      href={item.anexo_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 dark:text-blue-400 hover:underline"
+                    >
+                      📎 {item.anexo_nome || "abrir"}
+                    </a>
+                  ) : (
+                    "-"
+                  )}
+                </td>
+                <td className="px-3 py-2 text-right">
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(item)}
+                    className="text-xs font-medium text-red-600 dark:text-red-400 hover:underline"
+                  >
+                    Excluir
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+const inputClass = "w-full rounded-lg border border-slate-300 dark:border-slate-700 px-2 py-2 text-sm";
+
+/** Par de campos início/fim (data+hora cada) - mesmas colunas `data_inicio`/`data_fim` em toda
+ * categoria que os usa, só o RÓTULO muda (ver `LABELS_INICIO_FIM`). */
+function CampoInicioFim({
+  form,
+  setField,
+}: {
+  form: FormState;
+  setField: <K extends keyof FormState>(key: K, value: FormState[K]) => void;
+}) {
+  const [labelInicio, labelFim] = LABELS_INICIO_FIM[form.categoria] ?? ["Início", "Término"];
+  return (
+    <>
+      <Campo label={labelInicio}>
+        <div className="flex gap-1">
+          <input type="date" required value={form.data_inicio} onChange={(e) => setField("data_inicio", e.target.value)} className={inputClass} />
+          <input type="time" value={form.hora_inicio} onChange={(e) => setField("hora_inicio", e.target.value)} className={inputClass} />
+        </div>
+      </Campo>
+      <Campo label={labelFim}>
+        <div className="flex gap-1">
+          <input type="date" value={form.data_fim} onChange={(e) => setField("data_fim", e.target.value)} className={inputClass} />
+          <input type="time" value={form.hora_fim} onChange={(e) => setField("hora_fim", e.target.value)} className={inputClass} />
+        </div>
+      </Campo>
+    </>
+  );
+}
+
+function Campo({
+  label,
+  grow,
+  children,
+}: {
+  label: string;
+  grow?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className={grow ? "flex-1 min-w-[200px]" : "min-w-[160px]"}>
+      <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">{label}</label>
+      {children}
+    </div>
+  );
+}

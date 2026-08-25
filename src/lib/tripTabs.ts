@@ -14,10 +14,9 @@ export const TRIP_TAB_SLUGS = [
   "itinerario",
   "agenda",
   "mapa",
+  "itens",
   "orcamento",
-  "lancamentos",
   "relatorio",
-  "anexos",
 ] as const;
 
 export type TripTabSlug = (typeof TRIP_TAB_SLUGS)[number];
@@ -29,6 +28,11 @@ export interface TripTabGroup {
 }
 
 export const TRIP_TAB_GROUPS: TripTabGroup[] = [
+  {
+    key: "itens",
+    label: "Itens",
+    tabs: [{ slug: "itens", label: "Itens" }],
+  },
   {
     key: "roteiro",
     label: "Roteiro",
@@ -43,14 +47,8 @@ export const TRIP_TAB_GROUPS: TripTabGroup[] = [
     label: "Financeiro",
     tabs: [
       { slug: "orcamento", label: "Orçamento" },
-      { slug: "lancamentos", label: "Lançamentos" },
       { slug: "relatorio", label: "Relatório" },
     ],
-  },
-  {
-    key: "anexos",
-    label: "Anexos",
-    tabs: [{ slug: "anexos", label: "Anexos" }],
   },
 ];
 

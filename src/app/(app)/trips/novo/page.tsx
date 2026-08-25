@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createTripOffline } from "@/lib/offline/sync";
 import { CityAutocomplete } from "@/components/CityAutocomplete";
+import { hrefSeguro } from "@/lib/urlSegura";
 
 export default function NovaViagemPage() {
   const router = useRouter();
@@ -24,6 +25,12 @@ export default function NovaViagemPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    // Mesma regra do schema do servidor - criada offline, a viagem vai pro IndexedDB antes de
+    // chegar ao servidor, e uma capa que ele vai recusar prenderia a mutação na fila.
+    if (form.capa_url && !hrefSeguro(form.capa_url)) {
+      setError("A URL da capa precisa começar com http:// ou https://");
+      return;
+    }
     setSaving(true);
     const tripId = await createTripOffline(form);
     setSaving(false);

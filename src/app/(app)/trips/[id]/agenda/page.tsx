@@ -1,9 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { getLocalAnexoUrl, useOfflineCollection } from "@/lib/offline/useOfflineData";
-import { createAgendaOffline, deleteAgendaOffline, updateAgendaOffline } from "@/lib/offline/sync";
+import { deleteItemOffline } from "@/lib/offline/sync";
+import { hrefSeguro } from "@/lib/urlSegura";
+import { CATEGORIAS_ITEM, CategoriaItem } from "@/lib/sheets/types";
 
 interface TripDay {
   id: string;
@@ -17,17 +20,28 @@ interface TripDay {
   vento_kmh: string;
 }
 
-interface AgendaItem {
+/** Mesmos campos de `Item` em itens/page.tsx - repetido aqui porque é uma projeção de leitura
+ * (esta tela não cria/edita Item, só lista por data/horário e navega pra Itens pra isso). */
+interface Item {
   id: string;
+  categoria: CategoriaItem;
+  tipo: string;
+  nome_companhia: string;
+  origem: string;
+  destino: string;
+  nome_local: string;
   data: string;
   horario: string;
-  titulo: string;
   descricao: string;
   url: string;
   anexo_file_id: string;
   anexo_nome: string;
   anexo_url: string;
 }
+
+const CATEGORIA_LABEL: Record<CategoriaItem, string> = Object.fromEntries(
+  CATEGORIAS_ITEM.map((c) => [c.value, c.label])
+) as Record<CategoriaItem, string>;
 
 const WEEKDAY_LABELS = ["DO", "2A", "3A", "4A", "5A", "6A", "SA"];
 
@@ -55,52 +69,47 @@ function isForecastReal(dataISO: string): boolean {
   return dias >= 0 && dias <= FORECAST_MAX_DIAS;
 }
 
-const emptyForm = { data: "", horario: "", titulo: "", descricao: "", url: "" };
+/** Linha de resumo do item na lista - mesma lógica de `resumoItem` em itens/page.tsx, sem
+ * depender do nome do meio de pagamento (não é relevante aqui). */
+function resumoItem(item: Item): string {
+  switch (item.categoria) {
+    case "traslado":
+    case "passagem":
+      return [item.nome_companhia, item.origem && item.destino ? `${item.origem} → ${item.destino}` : ""]
+        .filter(Boolean)
+        .join(" · ");
+    case "hospedagem":
+    case "alimentacao":
+      return item.nome_local;
+    case "atrativo":
+      return [item.tipo, item.nome_companhia].filter(Boolean).join(" · ");
+    default:
+      return "";
+  }
+}
 
 export default function AgendaPage() {
   const { id: tripId } = useParams<{ id: string }>();
   const { items: days, loading: loadingDays } = useOfflineCollection<TripDay>("tripDays", tripId);
-  const { items: agenda, loading: loadingAgenda } = useOfflineCollection<AgendaItem>(
-    "agenda",
-    tripId
-  );
+  const { items: itens, loading: loadingItens } = useOfflineCollection<Item>("itens", tripId);
 
   const [openDay, setOpenDay] = useState<string | null>(null);
-  const [formOpen, setFormOpen] = useState(false);
-  // null = criando um compromisso novo; string = editando o compromisso com este id.
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState(emptyForm);
-  const [file, setFile] = useState<File | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [localUrls, setLocalUrls] = useState<Record<string, string>>({});
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const formRef = useRef<HTMLFormElement>(null);
-  const tituloInputRef = useRef<HTMLInputElement>(null);
 
-  // Ao abrir o formulário (novo ou editar), o clique costuma ter sido num botão lá embaixo, num
-  // acordeão já aberto - sem isso a tela fica exatamente onde estava, com o formulário
-  // aparecendo fora da vista lá em cima. Rola até ele e já foca o Título.
-  useEffect(() => {
-    if (!formOpen) return;
-    formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    tituloInputRef.current?.focus();
-  }, [formOpen]);
-
-  // Mesmo padrão da tela de Anexos: resolve, pra cada anexo de compromisso já baixado neste
-  // aparelho, um object URL que abre offline - os que ainda não foram baixados caem pro link ao
-  // vivo do Drive (anexo_url) na renderização.
+  // Mesmo padrão da tela de Itens: resolve, pra cada anexo já baixado neste aparelho, um object
+  // URL que abre offline - os que ainda não foram baixados caem pro link ao vivo do Drive
+  // (anexo_url) na renderização.
   useEffect(() => {
     let cancelled = false;
     const created: string[] = [];
     (async () => {
       const entries = await Promise.all(
-        agenda
-          .filter((a) => a.anexo_file_id)
-          .map(async (a) => {
-            const url = await getLocalAnexoUrl(a.anexo_file_id);
+        itens
+          .filter((i) => i.anexo_file_id)
+          .map(async (i) => {
+            const url = await getLocalAnexoUrl(i.anexo_file_id);
             if (url) created.push(url);
-            return [a.anexo_file_id, url] as const;
+            return [i.anexo_file_id, url] as const;
           })
       );
       if (cancelled) {
@@ -113,205 +122,55 @@ export default function AgendaPage() {
       cancelled = true;
       created.forEach((u) => URL.revokeObjectURL(u));
     };
-  }, [agenda]);
+  }, [itens]);
 
   const sortedDays = [...days].sort((a, b) => a.data.localeCompare(b.data));
-  const agendaPorDia = new Map<string, AgendaItem[]>();
-  for (const item of agenda) {
-    const lista = agendaPorDia.get(item.data) ?? [];
+  const itensPorDia = new Map<string, Item[]>();
+  for (const item of itens) {
+    const lista = itensPorDia.get(item.data) ?? [];
     lista.push(item);
-    agendaPorDia.set(item.data, lista);
+    itensPorDia.set(item.data, lista);
   }
-  for (const lista of agendaPorDia.values()) {
+  for (const lista of itensPorDia.values()) {
     lista.sort((a, b) => a.horario.localeCompare(b.horario));
   }
 
-  function openNewForm(data?: string) {
-    setEditingId(null);
-    setForm({ ...emptyForm, data: data ?? sortedDays[0]?.data ?? "" });
-    setFile(null);
-    setError(null);
-    setFormOpen(true);
+  async function handleDelete(itemId: string) {
+    if (!confirm("Excluir este item?")) return;
+    await deleteItemOffline(tripId, itemId);
   }
 
-  function openEditForm(item: AgendaItem) {
-    setEditingId(item.id);
-    setForm({
-      data: item.data,
-      horario: item.horario,
-      titulo: item.titulo,
-      descricao: item.descricao,
-      url: item.url,
-    });
-    setFile(null);
-    setError(null);
-    setFormOpen(true);
-  }
-
-  function closeForm() {
-    setFormOpen(false);
-    setEditingId(null);
-    setForm(emptyForm);
-    setFile(null);
-    if (fileInputRef.current) fileInputRef.current.value = "";
-  }
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    if (!form.data || !form.horario || !form.titulo) {
-      setError("Data, horário e título são obrigatórios");
-      return;
-    }
-    setSaving(true);
-    if (editingId) {
-      await updateAgendaOffline(tripId, editingId, { ...form, file });
-    } else {
-      await createAgendaOffline(tripId, { ...form, file });
-    }
-    setSaving(false);
-    setOpenDay(form.data);
-    closeForm();
-  }
-
-  async function handleDelete(agendaId: string) {
-    if (!confirm("Excluir este compromisso da agenda?")) return;
-    await deleteAgendaOffline(tripId, agendaId);
-  }
-
-  const loading = loadingDays || loadingAgenda;
+  const loading = loadingDays || loadingItens;
 
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-slate-500 dark:text-slate-400">
-          Temperatura e compromissos do roteiro, por data. Origem/destino/pernoite ficam na aba
-          Itinerário; dados de país (moeda, fuso, tomada...) ficam no Dashboard da viagem.
-          &ldquo;Atualizar&rdquo; na barra superior busca a temperatura. Toque numa data pra abrir.
+          Temperatura e itens do roteiro, por data. Traslados, passagens, hospedagem e atrativos
+          aparecem aqui automaticamente pela data de início/check-in/partida - cadastre-os na aba
+          Itens. Origem/destino/pernoite ficam na aba Itinerário; dados de país (moeda, fuso,
+          tomada...) ficam no Dashboard da viagem. &ldquo;Atualizar&rdquo; na barra superior busca
+          a temperatura. Toque numa data pra abrir.
         </p>
-        {!formOpen && (
-          <button
-            type="button"
-            onClick={() => openNewForm()}
-            className="shrink-0 rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800"
-          >
-            + Nova agenda
-          </button>
-        )}
-      </div>
-
-      {formOpen && (
-        <form
-          ref={formRef}
-          onSubmit={handleSubmit}
-          className="flex flex-col gap-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:flex-row sm:flex-wrap sm:items-end"
+        <Link
+          href={`/trips/${tripId}/itens`}
+          className="shrink-0 rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800"
         >
-          {editingId && (
-            <p className="w-full text-xs font-medium uppercase text-slate-400 dark:text-slate-500">
-              Editando compromisso
-            </p>
-          )}
-          <div className="min-w-[160px]">
-            <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">Data</label>
-            <select
-              required
-              value={form.data}
-              onChange={(e) => setForm({ ...form, data: e.target.value })}
-              className="w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
-            >
-              {sortedDays.map((d) => (
-                <option key={d.id} value={d.data}>
-                  {formatDateBR(d.data)} ({weekdayLabel(d.data)})
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="min-w-[120px]">
-            <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">Horário</label>
-            <input
-              type="time"
-              required
-              value={form.horario}
-              onChange={(e) => setForm({ ...form, horario: e.target.value })}
-              className="w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
-            />
-          </div>
-          <div className="flex-1 min-w-[200px]">
-            <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">Título</label>
-            <input
-              ref={tituloInputRef}
-              required
-              value={form.titulo}
-              onChange={(e) => setForm({ ...form, titulo: e.target.value })}
-              className="w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
-            />
-          </div>
-          <div className="flex-1 min-w-[200px]">
-            <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">
-              Descrição <span className="font-normal text-slate-400 dark:text-slate-500">(opcional)</span>
-            </label>
-            <input
-              value={form.descricao}
-              onChange={(e) => setForm({ ...form, descricao: e.target.value })}
-              className="w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
-            />
-          </div>
-          <div className="flex-1 min-w-[200px]">
-            <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">
-              URL <span className="font-normal text-slate-400 dark:text-slate-500">(opcional)</span>
-            </label>
-            <input
-              type="url"
-              placeholder="https://..."
-              value={form.url}
-              onChange={(e) => setForm({ ...form, url: e.target.value })}
-              className="w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
-            />
-          </div>
-          <div className="min-w-[200px]">
-            <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">
-              Anexo{" "}
-              <span className="font-normal text-slate-400 dark:text-slate-500">
-                {editingId ? "(opcional - envie um novo pra substituir o atual)" : "(opcional)"}
-              </span>
-            </label>
-            <input
-              ref={fileInputRef}
-              type="file"
-              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-              className="block w-full text-xs text-slate-600 dark:text-slate-400 file:mr-2 file:rounded-lg file:border-0 file:bg-slate-900 file:px-2.5 file:py-1.5 file:text-xs file:font-medium file:text-white hover:file:bg-slate-800"
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="submit"
-              disabled={saving}
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-            >
-              {saving ? "Salvando..." : "Salvar"}
-            </button>
-            <button
-              type="button"
-              onClick={closeForm}
-              disabled={saving}
-              className="rounded-lg border border-slate-300 dark:border-slate-700 px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-50 disabled:opacity-50"
-            >
-              Cancelar
-            </button>
-          </div>
-          {error && <p className="w-full text-sm text-red-600 dark:text-red-400">{error}</p>}
-        </form>
-      )}
+          + Novo Item
+        </Link>
+      </div>
 
       {loading && <p className="text-sm text-slate-500 dark:text-slate-400">Carregando...</p>}
       {!loading && sortedDays.length === 0 && (
-        <p className="text-sm text-slate-500 dark:text-slate-400">Esta viagem ainda não tem diárias.</p>
+        <p className="text-sm text-slate-500 dark:text-slate-400">
+          Esta viagem ainda não tem diárias - vá em Itinerário pra criar a grade de dias.
+        </p>
       )}
 
       <div className="flex flex-col gap-2">
         {sortedDays.map((day) => {
           const isOpen = openDay === day.data;
-          const itens = agendaPorDia.get(day.data) ?? [];
+          const itensDoDia = itensPorDia.get(day.data) ?? [];
           return (
             <div key={day.id} className="overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
               <button
@@ -326,9 +185,9 @@ export default function AgendaPage() {
                   <span className="text-xs uppercase text-slate-500 dark:text-slate-400">
                     {weekdayLabel(day.data)}
                   </span>
-                  {itens.length > 0 && (
+                  {itensDoDia.length > 0 && (
                     <span className="rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-xs text-slate-500 dark:text-slate-400">
-                      {itens.length} {itens.length === 1 ? "item" : "itens"}
+                      {itensDoDia.length} {itensDoDia.length === 1 ? "item" : "itens"}
                     </span>
                   )}
                 </div>
@@ -368,29 +227,29 @@ export default function AgendaPage() {
                     </div>
                   )}
 
-                  {itens.length === 0 && (
-                    <p className="text-sm text-slate-400 dark:text-slate-500">Nenhum compromisso nesta data ainda.</p>
+                  {itensDoDia.length === 0 && (
+                    <p className="text-sm text-slate-400 dark:text-slate-500">Nenhum item nesta data ainda.</p>
                   )}
 
                   <ul className="flex flex-col gap-2">
-                    {itens.map((item) => (
+                    {itensDoDia.map((item) => (
                       <li
                         key={item.id}
                         className="flex items-start justify-between gap-2 rounded-lg border border-slate-100 dark:border-slate-800 px-3 py-2 text-sm"
                       >
                         <div className="min-w-0">
                           <p className="font-semibold uppercase tracking-wide text-slate-800 dark:text-slate-200">
-                            {item.horario} · {item.titulo}
+                            {item.horario} · {CATEGORIA_LABEL[item.categoria] ?? item.categoria}
                           </p>
-                          {item.descricao && (
+                          {(resumoItem(item) || item.descricao) && (
                             <p className="mt-0.5 whitespace-pre-wrap text-xs text-slate-500 dark:text-slate-400">
-                              {item.descricao}
+                              {resumoItem(item) || item.descricao}
                             </p>
                           )}
                           <div className="mt-1 flex flex-wrap gap-3 text-xs">
-                            {item.url && (
+                            {hrefSeguro(item.url) && (
                               <a
-                                href={item.url}
+                                href={hrefSeguro(item.url)}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="text-blue-600 dark:text-blue-400 hover:underline"
@@ -415,33 +274,23 @@ export default function AgendaPage() {
                             )}
                           </div>
                         </div>
-                        <div className="flex shrink-0 items-center gap-3 text-xs font-medium">
-                          <button
-                            type="button"
-                            onClick={() => openEditForm(item)}
-                            className="text-slate-500 dark:text-slate-400 hover:text-slate-800"
-                          >
-                            Editar
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDelete(item.id)}
-                            className="text-red-500 dark:text-red-400 hover:text-red-700"
-                          >
-                            Excluir
-                          </button>
-                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(item.id)}
+                          className="shrink-0 text-xs font-medium text-red-500 dark:text-red-400 hover:text-red-700"
+                        >
+                          Excluir
+                        </button>
                       </li>
                     ))}
                   </ul>
 
-                  <button
-                    type="button"
-                    onClick={() => openNewForm(day.data)}
-                    className="mt-3 text-xs font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800"
+                  <Link
+                    href={`/trips/${tripId}/itens`}
+                    className="mt-3 inline-block text-xs font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800"
                   >
-                    + Novo compromisso nesta data
-                  </button>
+                    + Novo item nesta data
+                  </Link>
                 </div>
               )}
             </div>

@@ -1,5 +1,5 @@
 import { computeRelatorio, Relatorio } from "../relatorioCalc";
-import { listDespesasByTrip, listReceitasByTrip } from "./financas";
+import { listItensByTrip } from "./itens";
 import { getTrip, listTripDays } from "./trips";
 
 export type { Relatorio, RelatorioCategoria, Categoria } from "../relatorioCalc";
@@ -10,8 +10,7 @@ export async function buildRelatorio(tripId: string): Promise<Relatorio | null> 
 
   const qtdPessoas = Number(trip.qtd_pessoas) || 0;
   const days = await listTripDays(tripId);
-  const despesas = await listDespesasByTrip(tripId);
-  const receitas = await listReceitasByTrip(tripId);
+  const itens = await listItensByTrip(tripId);
 
-  return computeRelatorio(tripId, qtdPessoas, days, despesas, receitas, trip.custo_modo);
+  return computeRelatorio(tripId, qtdPessoas, days, itens, trip.custo_modo);
 }

@@ -41,8 +41,17 @@ export async function uploadAnexo(input: {
   return callAppsScript<AnexoInfo>("driveUploadFile", input);
 }
 
-export async function deleteAnexo(fileId: string): Promise<void> {
-  await callAppsScript<null>("driveDeleteFile", { fileId });
+/**
+ * Exclusão e download exigem a viagem: o Apps Script confirma que o `fileId` está mesmo dentro
+ * da pasta dessa viagem antes de agir. Sem isso, ter acesso a uma viagem qualquer bastava para
+ * mexer em anexo de outra (ou em qualquer arquivo do Drive da conta) só sabendo o id.
+ */
+export async function deleteAnexo(
+  fileId: string,
+  tripId: string,
+  tripName: string
+): Promise<void> {
+  await callAppsScript<null>("driveDeleteFile", { fileId, tripId, tripName });
 }
 
 /** Move a pasta inteira de anexos da viagem pra lixeira do Drive - usado ao excluir a viagem. */
@@ -51,7 +60,9 @@ export async function deleteTripFolder(tripId: string, tripName: string): Promis
 }
 
 export async function downloadAnexo(
-  fileId: string
+  fileId: string,
+  tripId: string,
+  tripName: string
 ): Promise<{ name: string; mimeType: string; base64Data: string }> {
-  return callAppsScript("driveDownloadFile", { fileId });
+  return callAppsScript("driveDownloadFile", { fileId, tripId, tripName });
 }

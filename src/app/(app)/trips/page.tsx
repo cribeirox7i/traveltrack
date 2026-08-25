@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { useOfflineTrips } from "@/lib/offline/useOfflineData";
 import { deleteTripOffline, listOfflineTripIds, setTripOffline, syncEvents } from "@/lib/offline/sync";
+import { hrefSeguro } from "@/lib/urlSegura";
 
 interface TripItem {
   id: string;
@@ -42,11 +43,11 @@ function TripCard({
 }) {
   return (
     <div className="flex flex-col overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-slate-400">
-      {trip.capa_url && (
+      {hrefSeguro(trip.capa_url) && (
         <Link href={`/trips/${trip.id}`}>
           {/* eslint-disable-next-line @next/next/no-img-element -- URL externa qualquer, escolhida pelo usuário, sem domínio fixo pra next/image */}
           <img
-            src={trip.capa_url}
+            src={hrefSeguro(trip.capa_url)}
             alt=""
             className="h-28 w-full rounded-t-2xl object-cover"
             onError={(e) => {

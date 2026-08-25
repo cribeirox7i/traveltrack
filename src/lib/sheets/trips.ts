@@ -417,7 +417,7 @@ export async function deleteTripDay(tripId: string, dayId: string): Promise<void
   for (const item of doDiaExcluido) {
     if (item.anexo_file_id) {
       try {
-        await deleteAnexo(item.anexo_file_id);
+        await deleteAnexo(item.anexo_file_id, trip.id, trip.nome);
       } catch {
         // best-effort - a limpeza do anexo não pode travar a exclusão do dia em si
       }
