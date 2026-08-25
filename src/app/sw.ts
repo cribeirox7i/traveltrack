@@ -24,9 +24,26 @@ function hostPermitido(hostname: string) {
   return CROSS_ORIGIN_PERMITIDOS.some((h) => hostname === h || hostname.endsWith(`.${h}`));
 }
 
+function cacheNameDe(entrada: (typeof defaultCache)[number]) {
+  return (entrada.handler as { cacheName?: string }).cacheName;
+}
+
 function isCrossOrigin(entrada: (typeof defaultCache)[number]) {
-  const handler = entrada.handler as { cacheName?: string };
-  return handler.cacheName === "cross-origin";
+  return cacheNameDe(entrada) === "cross-origin";
+}
+
+/** Regra nativa do Serwist que cacheia `.jpg/.jpeg/.gif/.png/.svg/.ico/.webp` - o matcher
+ * original é um RegExp puro testado contra QUALQUER URL, sem checar origem. Isso inclui a capa
+ * da viagem (`Trips.capa_url`, URL externa escolhida pelo usuário, sem domínio fixo - ver
+ * next.config.ts) - o Service Worker intercepta o `<img>`, tenta buscar ele mesmo, e essa busca
+ * feita PELO SERVICE WORKER é avaliada pela CSP `connect-src` (não `img-src`, que é só pro
+ * `<img>` original) - como o domínio da capa nunca está em `connect-src` (é arbitrário, não dá
+ * pra prever), a busca falhava com `net::ERR_FAILED` sem sequer aparecer na aba de rede.
+ * Restringe a mesma-origem: imagem externa passa direto pelo navegador (sob `img-src`, que já
+ * libera qualquer `https:`), sem o Service Worker interceptar. */
+const REGEX_IMAGEM = /\.(?:jpg|jpeg|gif|png|svg|ico|webp)$/i;
+function isStaticImage(entrada: (typeof defaultCache)[number]) {
+  return cacheNameDe(entrada) === "static-image-assets";
 }
 
 const serwist = new Serwist({
@@ -90,15 +107,23 @@ const serwist = new Serwist({
     // original casa com QUALQUER host de fora (`!sameOrigin`) e guardaria no cache do aparelho a
     // resposta de qualquer API externa que o app venha a chamar, inclusive uma autenticada. Só os
     // hosts abaixo são consultados hoje, e todos servem dado público sem credencial.
-    ...defaultCache.map((entrada) =>
-      isCrossOrigin(entrada)
-        ? {
-            ...entrada,
-            matcher: ({ url, sameOrigin }: { url: URL; sameOrigin: boolean }) =>
-              !sameOrigin && hostPermitido(url.hostname),
-          }
-        : entrada
-    ),
+    ...defaultCache.map((entrada) => {
+      if (isCrossOrigin(entrada)) {
+        return {
+          ...entrada,
+          matcher: ({ url, sameOrigin }: { url: URL; sameOrigin: boolean }) =>
+            !sameOrigin && hostPermitido(url.hostname),
+        };
+      }
+      if (isStaticImage(entrada)) {
+        return {
+          ...entrada,
+          matcher: ({ url, sameOrigin }: { url: URL; sameOrigin: boolean }) =>
+            sameOrigin && REGEX_IMAGEM.test(url.href),
+        };
+      }
+      return entrada;
+    }),
   ],
   fallbacks: {
     entries: [

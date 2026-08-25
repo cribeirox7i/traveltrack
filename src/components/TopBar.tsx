@@ -43,7 +43,7 @@ export function TopBar({ initialDark }: { initialDark: boolean }) {
   if (status === "loading" || !session) return null;
 
   return (
-    <header className="sticky top-0 z-20 flex border-b border-slate-200 bg-white print:hidden dark:border-slate-800 dark:bg-slate-900">
+    <header className="fixed inset-x-0 top-0 z-20 flex h-14 border-b border-slate-200 bg-white print:hidden dark:border-slate-800 dark:bg-slate-900">
       {/* Reserva o mesmo espaço da sidebar (NavBar, md:w-56) que fica abaixo, senão o conteúdo
           desta barra centraliza no viewport inteiro em vez de alinhar com main - que centraliza
           só no espaço que sobra ao lado da sidebar. Ver AppLayout em (app)/layout.tsx. */}

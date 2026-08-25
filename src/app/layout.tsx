@@ -23,6 +23,11 @@ export const metadata: Metadata = {
 
 export const viewport = {
   themeColor: "#0f172a",
+  // Sem zoom por pinça - comportamento padrão de app instalado (PWA), não de página web comum.
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
