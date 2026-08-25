@@ -48,6 +48,7 @@ const patchSchema = z
     url: urlHttpSchema.or(z.literal("")).optional().default(""),
     descricao: z.string().min(1, "Descrição é obrigatória"),
     valor: optionalStr,
+    status: z.enum(["pago", "a_pagar"]).or(z.literal("")).optional().default(""),
     data_pagamento: optionalStr,
     pagador_id: optionalStr,
     meio_pagamento_id: optionalStr,
@@ -68,7 +69,7 @@ const patchSchema = z
 
 function limparCamposNaoFinanceiros(data: ItemEditableInput): ItemEditableInput {
   if (CATEGORIAS_ITEM_FINANCEIRAS.has(data.categoria)) return data;
-  return { ...data, valor: "", pagador_id: "", meio_pagamento_id: "", data_pagamento: "" };
+  return { ...data, valor: "", status: "", pagador_id: "", meio_pagamento_id: "", data_pagamento: "" };
 }
 
 const CATEGORIA_DRIVE: Record<CategoriaItem, CategoriaAnexo> = {

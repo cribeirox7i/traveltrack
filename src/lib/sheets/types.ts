@@ -138,6 +138,7 @@ export const SHEET_HEADERS: Record<SheetTab, string[]> = {
     "anexo_url",
     "descricao",
     "valor",
+    "status",
     "natureza",
     "data_pagamento",
     "pagador_id",
@@ -419,6 +420,9 @@ export interface ItemRow {
   /** Vazio se o item não tem valor lançado (comum em Documento/Outro, e possível em qualquer
    * categoria financeira sem custo, ex. atrativo gratuito). */
   valor: string;
+  /** Situação de pagamento - só relevante nas categorias com `valor` (ver
+   * `CATEGORIAS_ITEM_FINANCEIRAS`). Vazio nas demais e em linhas antigas sem essa coluna. */
+  status: "pago" | "a_pagar" | "";
   /** Calculado a partir da categoria no momento da criação (ver `categoriaNatureza`), não um
    * campo livre - guardado na linha só pra não recalcular toda leitura do relatório. */
   natureza: Natureza | "";

@@ -44,8 +44,9 @@ Categorias:
 - "outro": não se encaixa em nenhuma acima.
 
 Campos (preencha só os que fizerem sentido pra categoria escolhida, o resto fica ""):
-- tipo: em traslado/passagem, o meio de transporte (ônibus, van, carro, avião, embarcação, trem);
-  em atrativo, "excursão" ou "ingresso".
+- tipo: em traslado/passagem, o meio de transporte - exatamente um destes, com a MESMA
+  capitalização (primeira letra maiúscula): "Ônibus", "Van", "Carro", "Avião", "Embarcação",
+  "Trem"; em atrativo, "Excursão" ou "Ingresso".
 - localizador, nome_companhia, numero: código de reserva, nome da companhia/fornecedor, número
   do voo/ônibus/pedido.
 - origem, destino: cidades de partida/chegada (traslado/passagem).

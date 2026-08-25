@@ -51,6 +51,7 @@ const createSchema = z
     url: urlHttpSchema.or(z.literal("")).optional().default(""),
     descricao: z.string().min(1, "Descrição é obrigatória"),
     valor: optionalStr,
+    status: z.enum(["pago", "a_pagar"]).or(z.literal("")).optional().default(""),
     data_pagamento: optionalStr,
     pagador_id: optionalStr,
     meio_pagamento_id: optionalStr,
@@ -74,7 +75,7 @@ const createSchema = z
  * categoria no meio do preenchimento falhar por um campo que já não é mais exibido). */
 function limparCamposNaoFinanceiros(data: ItemEditableInput): ItemEditableInput {
   if (CATEGORIAS_ITEM_FINANCEIRAS.has(data.categoria)) return data;
-  return { ...data, valor: "", pagador_id: "", meio_pagamento_id: "", data_pagamento: "" };
+  return { ...data, valor: "", status: "", pagador_id: "", meio_pagamento_id: "", data_pagamento: "" };
 }
 
 /** Categoria de Item -> categoria de pasta no Drive (`CATEGORIAS_ANEXO` em lib/sheets/anexos.ts) -

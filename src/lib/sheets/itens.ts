@@ -29,6 +29,7 @@ export const ITEM_EDITABLE_FIELDS = [
   "anexo_url",
   "descricao",
   "valor",
+  "status",
   "data_pagamento",
   "pagador_id",
   "meio_pagamento_id",

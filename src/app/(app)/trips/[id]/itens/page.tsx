@@ -37,6 +37,7 @@ interface Item {
   anexo_url: string;
   descricao: string;
   valor: string;
+  status: string;
   natureza: string;
   data_pagamento: string;
   pagador_id: string;
@@ -52,9 +53,13 @@ const FINANCEIRAS = new Set<CategoriaItem>([
   "repasse",
 ]);
 
-const TIPOS_TRASLADO = ["ônibus", "van", "carro", "outros"];
-const TIPOS_PASSAGEM = ["ônibus", "van", "carro", "avião", "embarcação", "trem"];
-const TIPOS_ATRATIVO = ["excursão", "ingresso"];
+const TIPOS_TRASLADO = ["Ônibus", "Van", "Carro", "Outros"];
+const TIPOS_PASSAGEM = ["Ônibus", "Van", "Carro", "Avião", "Embarcação", "Trem"];
+const TIPOS_ATRATIVO = ["Excursão", "Ingresso"];
+const STATUS_PAGAMENTO = [
+  { value: "a_pagar", label: "A pagar" },
+  { value: "pago", label: "Pago" },
+];
 const TIPOS_DOCUMENTO = [
   "Taxa",
   "Pedágio",
@@ -95,6 +100,7 @@ const emptyForm = {
   url: "",
   descricao: "",
   valor: "",
+  status: "" as "" | "pago" | "a_pagar",
   data_pagamento: "",
   pagador_id: "",
   meio_pagamento_id: "",
@@ -236,6 +242,7 @@ export default function ItensPage() {
       url: item.url,
       descricao: item.descricao,
       valor: item.valor,
+      status: item.status === "pago" || item.status === "a_pagar" ? item.status : "",
       data_pagamento: item.data_pagamento,
       pagador_id: item.pagador_id,
       meio_pagamento_id: item.meio_pagamento_id,
@@ -367,15 +374,12 @@ export default function ItensPage() {
       </div>
 
       {formOpen && (
-        <div
-          className="fixed inset-0 z-30 flex items-start justify-center overflow-y-auto bg-black/40 p-4 sm:items-center"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) closeForm();
-          }}
-        >
+        // Modal fixo de propósito: clicar fora NÃO fecha (padrão pra todo modal do app, evita
+        // perder o preenchimento com um clique sem querer) - só o "✕" e o "Cancelar" fecham.
+        <div className="fixed inset-0 z-30 flex items-start justify-center overflow-y-auto bg-black/40 p-4 sm:items-center">
           <form
             onSubmit={handleSubmit}
-            className="flex w-full max-w-2xl flex-col gap-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-xl"
+            className="flex w-full max-w-[50rem] flex-col gap-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-xl"
           >
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
@@ -588,14 +592,24 @@ export default function ItensPage() {
               <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                 Dados financeiros
               </h3>
-              <div className="flex flex-wrap gap-3">
-              <Campo label="Valor">
-                <input type="number" min={0} step="0.01" value={form.valor} onChange={(e) => setField("valor", e.target.value)} className={inputClass} />
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+              <Campo label="Valor" compact>
+                <input type="number" min={0} step="0.01" value={form.valor} onChange={(e) => setField("valor", e.target.value)} className={`${inputClass} text-right`} />
               </Campo>
-              <Campo label="Data pagamento">
+              <Campo label="Status" compact>
+                <select value={form.status} onChange={(e) => setField("status", e.target.value as FormState["status"])} className={inputClass}>
+                  <option value="">Selecione...</option>
+                  {STATUS_PAGAMENTO.map((s) => (
+                    <option key={s.value} value={s.value}>
+                      {s.label}
+                    </option>
+                  ))}
+                </select>
+              </Campo>
+              <Campo label="Data pagamento" compact>
                 <input type="date" value={form.data_pagamento} onChange={(e) => setField("data_pagamento", e.target.value)} className={inputClass} />
               </Campo>
-              <Campo label={form.categoria === "repasse" ? "Quem contribuiu" : "Quem pagou"}>
+              <Campo label={form.categoria === "repasse" ? "Quem contribuiu" : "Quem pagou"} compact>
                 <select value={form.pagador_id} onChange={(e) => setField("pagador_id", e.target.value)} className={inputClass}>
                   <option value="">Selecione...</option>
                   {collaborators.map((c) => (
@@ -605,7 +619,7 @@ export default function ItensPage() {
                   ))}
                 </select>
               </Campo>
-              <Campo label="Meio de pagamento">
+              <Campo label="Meio de pagamento" compact>
                 <select value={form.meio_pagamento_id} onChange={(e) => setField("meio_pagamento_id", e.target.value)} className={inputClass}>
                   <option value="">Selecione...</option>
                   {meiosPagamento.map((m) => (
@@ -627,7 +641,7 @@ export default function ItensPage() {
               disabled={saving}
               className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
             >
-              {saving ? "Salvando..." : editingId ? "Salvar" : `Cadastrar ${CATEGORIA_LABEL[form.categoria]}`}
+              {saving ? "Salvando..." : "Salvar"}
             </button>
             <button
               type="button"
@@ -649,6 +663,7 @@ export default function ItensPage() {
               <th className="px-3 py-2">Categoria</th>
               <th className="px-3 py-2">Resumo</th>
               <th className="px-3 py-2">Valor</th>
+              <th className="px-3 py-2">Status</th>
               <th className="px-3 py-2">Pessoa</th>
               <th className="px-3 py-2">Anexo</th>
               <th className="px-3 py-2" />
@@ -657,14 +672,14 @@ export default function ItensPage() {
           <tbody>
             {loading && (
               <tr>
-                <td className="px-3 py-3 text-slate-500 dark:text-slate-400" colSpan={7}>
+                <td className="px-3 py-3 text-slate-500 dark:text-slate-400" colSpan={8}>
                   Carregando...
                 </td>
               </tr>
             )}
             {!loading && ordenados.length === 0 && (
               <tr>
-                <td className="px-3 py-3 text-slate-500 dark:text-slate-400" colSpan={7}>
+                <td className="px-3 py-3 text-slate-500 dark:text-slate-400" colSpan={8}>
                   Nenhum item ainda.
                 </td>
               </tr>
@@ -678,7 +693,20 @@ export default function ItensPage() {
                 <td className="px-3 py-2 text-slate-500 dark:text-slate-400">
                   {resumoItem(item, nomePorMeio) || item.descricao}
                 </td>
-                <td className="px-3 py-2">{item.valor ? `R$ ${Number(item.valor).toFixed(2)}` : "-"}</td>
+                <td className="px-3 py-2 text-right">{item.valor ? `R$ ${Number(item.valor).toFixed(2)}` : "-"}</td>
+                <td className="px-3 py-2">
+                  {item.status && (
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                        item.status === "pago"
+                          ? "bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400"
+                          : "bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-400"
+                      }`}
+                    >
+                      {item.status === "pago" ? "Pago" : "A pagar"}
+                    </span>
+                  )}
+                </td>
                 <td className="px-3 py-2">
                   {nomePorPessoa[item.pagador_id] ?? nomePorPessoa[item.passageiro_id] ?? "-"}
                 </td>
@@ -756,14 +784,18 @@ function CampoInicioFim({
 function Campo({
   label,
   grow,
+  compact,
   children,
 }: {
   label: string;
   grow?: boolean;
+  /** Pra usar dentro de um grid de colunas fixas (ex.: a linha de Dados financeiros) - sem
+   * min-width próprio, senão força a coluna a estourar a largura que o grid já reservou. */
+  compact?: boolean;
   children: React.ReactNode;
 }) {
   return (
-    <div className={grow ? "flex-1 min-w-[200px]" : "min-w-[160px]"}>
+    <div className={compact ? "min-w-0" : grow ? "flex-1 min-w-[200px]" : "min-w-[160px]"}>
       <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">{label}</label>
       {children}
     </div>
