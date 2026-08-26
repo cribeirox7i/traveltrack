@@ -126,7 +126,7 @@ function IconeItem({ item, className }: { item: Pick<Item, "categoria" | "tipo">
     ((item.categoria === "traslado" || item.categoria === "passagem") && TIPO_TRANSPORTE_ICONE[item.tipo]) ||
     CATEGORIA_ICONE[item.categoria];
   return (
-    <span className={`shrink-0 text-lg leading-none ${className ?? ""}`} aria-hidden="true">
+    <span className={`shrink-0 text-[1.3rem] leading-none ${className ?? ""}`} aria-hidden="true">
       {emoji}
     </span>
   );
