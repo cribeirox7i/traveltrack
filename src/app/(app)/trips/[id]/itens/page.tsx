@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ComponentType } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
@@ -11,7 +11,6 @@ import {
 import { createItemOffline, deleteItemOffline, updateItemOffline } from "@/lib/offline/sync";
 import { CATEGORIAS_ITEM, CategoriaItem } from "@/lib/sheets/types";
 import type { SegundoTrecho } from "@/lib/gemini";
-import { BusIcon, CarIcon, PlaneIcon, ShipIcon, TrainIcon, VanIcon } from "@/components/icons";
 
 interface Item {
   id: string;
@@ -110,27 +109,25 @@ const CATEGORIA_ICONE: Record<CategoriaItem, string> = {
   outro: "📦",
 };
 
-/** Ícone de contorno (mesmo padrão da barra de ícones do topo, ver `components/icons.tsx`) por
- * tipo de transporte - só se aplica a Traslado/Passagem, que são as únicas categorias com esse
- * campo `tipo` preenchido com um meio de transporte (`TIPOS_TRASLADO`/`TIPOS_PASSAGEM`). Tipo sem
- * mapeamento (ex. "Outros" do Traslado, ou campo ainda vazio) cai no emoji de categoria. */
-const TIPO_TRANSPORTE_ICONE: Partial<Record<string, ComponentType<{ className?: string }>>> = {
-  "Ônibus": BusIcon,
-  Van: VanIcon,
-  Carro: CarIcon,
-  "Avião": PlaneIcon,
-  "Embarcação": ShipIcon,
-  Trem: TrainIcon,
+/** Emoji por tipo de transporte - só se aplica a Traslado/Passagem, que são as únicas categorias
+ * com esse campo `tipo` preenchido com um meio de transporte (`TIPOS_TRASLADO`/`TIPOS_PASSAGEM`).
+ * Tipo sem mapeamento (ex. "Outros" do Traslado, ou campo ainda vazio) cai no emoji de categoria. */
+const TIPO_TRANSPORTE_ICONE: Partial<Record<string, string>> = {
+  "Ônibus": "🚌",
+  Van: "🚐",
+  Carro: "🚗",
+  "Avião": "✈️",
+  "Embarcação": "🚢",
+  Trem: "🚆",
 };
 
-/** `className` dimensiona a caixa do ícone (ex. `h-5 w-5`) - por dentro, o SVG de contorno ocupa
- * a caixa inteira e o emoji de fallback usa `text-lg` pra ficar visualmente do mesmo tamanho. */
 function IconeItem({ item, className }: { item: Pick<Item, "categoria" | "tipo">; className?: string }) {
-  const IconeTransporte =
-    (item.categoria === "traslado" || item.categoria === "passagem") && TIPO_TRANSPORTE_ICONE[item.tipo];
+  const emoji =
+    ((item.categoria === "traslado" || item.categoria === "passagem") && TIPO_TRANSPORTE_ICONE[item.tipo]) ||
+    CATEGORIA_ICONE[item.categoria];
   return (
-    <span className={`inline-flex shrink-0 items-center justify-center text-slate-500 dark:text-slate-400 ${className ?? ""}`} aria-hidden="true">
-      {IconeTransporte ? <IconeTransporte className="h-full w-full" /> : <span className="text-lg leading-none">{CATEGORIA_ICONE[item.categoria]}</span>}
+    <span className={`shrink-0 text-lg leading-none ${className ?? ""}`} aria-hidden="true">
+      {emoji}
     </span>
   );
 }
@@ -948,7 +945,7 @@ export default function ItensPage() {
             onClick={() => setViewingItem(item)}
             className="flex cursor-pointer items-center gap-2 px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/50"
           >
-            <IconeItem item={item} className="h-5 w-5" />
+            <IconeItem item={item} />
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-baseline gap-x-2 text-xs">
                 <span className="whitespace-nowrap font-medium text-slate-800 dark:text-slate-200">
@@ -995,7 +992,7 @@ export default function ItensPage() {
           <div className="flex w-full max-w-lg flex-col gap-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-xl">
             <div className="flex items-center justify-between">
               <h2 className="flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                <IconeItem item={viewingItem} className="h-4 w-4" />
+                <IconeItem item={viewingItem} />
                 {CATEGORIA_LABEL[viewingItem.categoria] ?? viewingItem.categoria}
               </h2>
               <button

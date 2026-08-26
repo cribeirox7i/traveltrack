@@ -55,69 +55,6 @@ export function DownloadIcon({ className }: IconProps) {
   );
 }
 
-export function BusIcon({ className }: IconProps) {
-  return (
-    <svg {...common} className={className} aria-hidden="true">
-      <rect x="3.5" y="4.5" width="17" height="12" rx="2" />
-      <path d="M3.5 11h17M7.5 4.5v6.5M13 4.5v6.5" />
-      <circle cx="7.5" cy="19" r="1.5" />
-      <circle cx="16.5" cy="19" r="1.5" />
-    </svg>
-  );
-}
-
-export function VanIcon({ className }: IconProps) {
-  return (
-    <svg {...common} className={className} aria-hidden="true">
-      <path d="M3 16V9.5a1 1 0 0 1 1-1h8a1 1 0 0 1 .8.4l3 3.6H20a1 1 0 0 1 1 1V16" />
-      <path d="M3 16h18M12.5 8.5V12" />
-      <circle cx="7.5" cy="18" r="1.5" />
-      <circle cx="17" cy="18" r="1.5" />
-    </svg>
-  );
-}
-
-export function CarIcon({ className }: IconProps) {
-  return (
-    <svg {...common} className={className} aria-hidden="true">
-      <path d="M4 16.5l1.3-4.5A2 2 0 0 1 7.2 10.5h9.6a2 2 0 0 1 1.9 1.5l1.3 4.5" />
-      <path d="M3 16.5h18M6 13.5h12" />
-      <circle cx="7.5" cy="18.5" r="1.4" />
-      <circle cx="16.5" cy="18.5" r="1.4" />
-    </svg>
-  );
-}
-
-export function PlaneIcon({ className }: IconProps) {
-  return (
-    <svg {...common} className={className} aria-hidden="true">
-      <path d="M12 2.5l1.6 6.2h5.6a1 1 0 0 1 .6 1.8l-4.6 3.6.8 5-3.5-2-1 2.4h-.9l-1-2.4-3.5 2 .8-5-4.6-3.6a1 1 0 0 1 .6-1.8h5.6L12 2.5Z" />
-    </svg>
-  );
-}
-
-export function ShipIcon({ className }: IconProps) {
-  return (
-    <svg {...common} className={className} aria-hidden="true">
-      <path d="M4 15l1.6 4.1a2 2 0 0 0 1.9 1.3h8.9a2 2 0 0 0 1.9-1.3L20 15" />
-      <path d="M6.5 15V9.5a1 1 0 0 1 1-1H10V4.5h2V8.5h3.5a1 1 0 0 1 1 1V15" />
-      <path d="M3 15h18" />
-    </svg>
-  );
-}
-
-export function TrainIcon({ className }: IconProps) {
-  return (
-    <svg {...common} className={className} aria-hidden="true">
-      <rect x="5.5" y="3.5" width="13" height="13" rx="4" />
-      <path d="M5.5 10h13M9 3.5v6.5M15 3.5v6.5" />
-      <circle cx="9" cy="13" r="1" />
-      <circle cx="15" cy="13" r="1" />
-      <path d="M7.5 19.5l-1.8 2.2M16.5 19.5l1.8 2.2" />
-    </svg>
-  );
-}
-
 export function RefreshIcon({ className }: IconProps) {
   return (
     <svg {...common} className={className} aria-hidden="true">
