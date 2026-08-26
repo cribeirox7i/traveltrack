@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ComponentType } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
@@ -11,6 +11,7 @@ import {
 import { createItemOffline, deleteItemOffline, updateItemOffline } from "@/lib/offline/sync";
 import { CATEGORIAS_ITEM, CategoriaItem } from "@/lib/sheets/types";
 import type { SegundoTrecho } from "@/lib/gemini";
+import { BusIcon, CarIcon, PlaneIcon, ShipIcon, TrainIcon, VanIcon } from "@/components/icons";
 
 interface Item {
   id: string;
@@ -108,6 +109,31 @@ const CATEGORIA_ICONE: Record<CategoriaItem, string> = {
   documento: "📄",
   outro: "📦",
 };
+
+/** Ícone de contorno (mesmo padrão da barra de ícones do topo, ver `components/icons.tsx`) por
+ * tipo de transporte - só se aplica a Traslado/Passagem, que são as únicas categorias com esse
+ * campo `tipo` preenchido com um meio de transporte (`TIPOS_TRASLADO`/`TIPOS_PASSAGEM`). Tipo sem
+ * mapeamento (ex. "Outros" do Traslado, ou campo ainda vazio) cai no emoji de categoria. */
+const TIPO_TRANSPORTE_ICONE: Partial<Record<string, ComponentType<{ className?: string }>>> = {
+  "Ônibus": BusIcon,
+  Van: VanIcon,
+  Carro: CarIcon,
+  "Avião": PlaneIcon,
+  "Embarcação": ShipIcon,
+  Trem: TrainIcon,
+};
+
+/** `className` dimensiona a caixa do ícone (ex. `h-5 w-5`) - por dentro, o SVG de contorno ocupa
+ * a caixa inteira e o emoji de fallback usa `text-lg` pra ficar visualmente do mesmo tamanho. */
+function IconeItem({ item, className }: { item: Pick<Item, "categoria" | "tipo">; className?: string }) {
+  const IconeTransporte =
+    (item.categoria === "traslado" || item.categoria === "passagem") && TIPO_TRANSPORTE_ICONE[item.tipo];
+  return (
+    <span className={`inline-flex shrink-0 items-center justify-center text-slate-500 dark:text-slate-400 ${className ?? ""}`} aria-hidden="true">
+      {IconeTransporte ? <IconeTransporte className="h-full w-full" /> : <span className="text-lg leading-none">{CATEGORIA_ICONE[item.categoria]}</span>}
+    </span>
+  );
+}
 
 const emptyForm = {
   categoria: "traslado" as CategoriaItem,
@@ -307,6 +333,7 @@ export default function ItensPage() {
   const [filtroCategoria, setFiltroCategoria] = useState<CategoriaItem | "">("");
   const [filtroData, setFiltroData] = useState("");
   const [filtroPessoa, setFiltroPessoa] = useState("");
+  const [ordenarPor, setOrdenarPor] = useState<"data" | "tipo" | "descricao">("data");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Suporta abrir direto num item pra editar via `?editar=<id>` (usado pelo link "Editar" da
@@ -514,7 +541,24 @@ export default function ItensPage() {
     .filter((i) => !filtroCategoria || i.categoria === filtroCategoria)
     .filter((i) => !filtroData || i.data === filtroData)
     .filter((i) => !filtroPessoa || i.pagador_id === filtroPessoa || i.passageiro_id === filtroPessoa)
-    .sort((a, b) => (a.data + a.horario).localeCompare(b.data + b.horario));
+    .sort((a, b) => {
+      // Data+hora é sempre o desempate final, mesmo ordenando por tipo/descrição - dentro do
+      // mesmo grupo, a ordem cronológica continua fazendo sentido.
+      const porDataHora = (a.data + a.horario).localeCompare(b.data + b.horario);
+      if (ordenarPor === "tipo") {
+        return (
+          (CATEGORIA_LABEL[a.categoria] ?? a.categoria).localeCompare(CATEGORIA_LABEL[b.categoria] ?? b.categoria) ||
+          porDataHora
+        );
+      }
+      if (ordenarPor === "descricao") {
+        return (
+          (resumoItem(a, nomePorMeio) || a.descricao).localeCompare(resumoItem(b, nomePorMeio) || b.descricao) ||
+          porDataHora
+        );
+      }
+      return porDataHora;
+    });
   const temFiltroAtivo = Boolean(filtroCategoria || filtroData || filtroPessoa);
 
   return (
@@ -573,6 +617,18 @@ export default function ItensPage() {
                 {c.nome}
               </option>
             ))}
+          </select>
+        </div>
+        <div>
+          <label className="mb-1 block text-[11px] font-medium text-slate-600 dark:text-slate-400">Ordenar por</label>
+          <select
+            value={ordenarPor}
+            onChange={(e) => setOrdenarPor(e.target.value as "data" | "tipo" | "descricao")}
+            className="rounded-lg border border-slate-300 dark:border-slate-700 px-2 py-1.5 text-xs"
+          >
+            <option value="data">Data</option>
+            <option value="tipo">Tipo</option>
+            <option value="descricao">Descrição</option>
           </select>
         </div>
         {temFiltroAtivo && (
@@ -892,9 +948,7 @@ export default function ItensPage() {
             onClick={() => setViewingItem(item)}
             className="flex cursor-pointer items-center gap-2 px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/50"
           >
-            <span className="shrink-0 text-lg leading-none" aria-hidden="true">
-              {CATEGORIA_ICONE[item.categoria]}
-            </span>
+            <IconeItem item={item} className="h-5 w-5" />
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-baseline gap-x-2 text-xs">
                 <span className="whitespace-nowrap font-medium text-slate-800 dark:text-slate-200">
@@ -940,8 +994,9 @@ export default function ItensPage() {
         >
           <div className="flex w-full max-w-lg flex-col gap-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-xl">
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                {CATEGORIA_ICONE[viewingItem.categoria]} {CATEGORIA_LABEL[viewingItem.categoria] ?? viewingItem.categoria}
+              <h2 className="flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                <IconeItem item={viewingItem} className="h-4 w-4" />
+                {CATEGORIA_LABEL[viewingItem.categoria] ?? viewingItem.categoria}
               </h2>
               <button
                 type="button"
