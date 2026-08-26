@@ -334,6 +334,24 @@ export default function ItensPage() {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
+  /** Troca de categoria no formulário. Quando a categoria de origem não tinha início/fim
+   * (Repasse/Documento/Outro, só `data`/`horario`) e a de destino tem (`LABELS_INICIO_FIM`),
+   * transporta o que já foi digitado em `data`/`horario` pra `data_inicio`/`hora_inicio` - evita
+   * o usuário redigitar a mesma data ao só ajustar a categoria. Só preenche campo ainda vazio,
+   * nunca sobrescreve início/fim já digitado. */
+  function handleCategoriaChange(categoria: CategoriaItem) {
+    setForm((prev) => {
+      const indoParaInicioFim = !LABELS_INICIO_FIM[prev.categoria] && LABELS_INICIO_FIM[categoria];
+      if (!indoParaInicioFim) return { ...prev, categoria };
+      return {
+        ...prev,
+        categoria,
+        data_inicio: prev.data_inicio || prev.data,
+        hora_inicio: prev.hora_inicio || prev.horario,
+      };
+    });
+  }
+
   function openNewForm() {
     setError(null);
     setFile(null);
@@ -659,7 +677,7 @@ export default function ItensPage() {
               </label>
               <select
                 value={form.categoria}
-                onChange={(e) => setField("categoria", e.target.value as CategoriaItem)}
+                onChange={(e) => handleCategoriaChange(e.target.value as CategoriaItem)}
                 className="w-full max-w-xs rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
               >
                 {CATEGORIAS_ITEM.map((c) => (
