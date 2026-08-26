@@ -12,6 +12,7 @@ import { createItemOffline, deleteItemOffline, updateItemOffline } from "@/lib/o
 import { CATEGORIAS_ITEM, CategoriaItem } from "@/lib/sheets/types";
 import type { SegundoTrecho } from "@/lib/gemini";
 import { TimeField } from "@/components/TimeField";
+import { FILTER_SELECT_CLASS } from "@/lib/uiClasses";
 import {
   CATEGORIA_ICONE,
   CATEGORIA_LABEL,
@@ -389,7 +390,7 @@ export default function ItensPage() {
           <select
             value={filtroCategoria}
             onChange={(e) => setFiltroCategoria(e.target.value as CategoriaItem | "")}
-            className="rounded-lg border border-slate-300 dark:border-slate-700 px-2 py-1.5 text-xs"
+            className={FILTER_SELECT_CLASS}
           >
             <option value="">Todas</option>
             {CATEGORIAS_ITEM.map((c) => (
@@ -413,7 +414,7 @@ export default function ItensPage() {
           <select
             value={filtroPessoa}
             onChange={(e) => setFiltroPessoa(e.target.value)}
-            className="rounded-lg border border-slate-300 dark:border-slate-700 px-2 py-1.5 text-xs"
+            className={FILTER_SELECT_CLASS}
           >
             <option value="">Todas</option>
             {collaborators.map((c) => (
@@ -428,7 +429,7 @@ export default function ItensPage() {
           <select
             value={ordenarPor}
             onChange={(e) => setOrdenarPor(e.target.value as "data" | "tipo" | "descricao")}
-            className="rounded-lg border border-slate-300 dark:border-slate-700 px-2 py-1.5 text-xs"
+            className={FILTER_SELECT_CLASS}
           >
             <option value="data">Data</option>
             <option value="tipo">Tipo</option>

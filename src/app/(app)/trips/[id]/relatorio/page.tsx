@@ -9,6 +9,7 @@ import {
   useOfflineTrip,
 } from "@/lib/offline/useOfflineData";
 import { computeRelatorio } from "@/lib/relatorioCalc";
+import { FILTER_SELECT_CLASS } from "@/lib/uiClasses";
 
 interface ItemFinanceiro {
   id: string;
@@ -77,7 +78,7 @@ export default function RelatorioPage() {
           <select
             value={filtroStatus}
             onChange={(e) => setFiltroStatus(e.target.value)}
-            className="rounded-lg border border-slate-300 dark:border-slate-700 px-2 py-1.5 text-xs"
+            className={FILTER_SELECT_CLASS}
           >
             <option value="">Todos</option>
             {STATUS_OPCOES.map((s) => (
@@ -92,7 +93,7 @@ export default function RelatorioPage() {
           <select
             value={filtroMeioPagamento}
             onChange={(e) => setFiltroMeioPagamento(e.target.value)}
-            className="rounded-lg border border-slate-300 dark:border-slate-700 px-2 py-1.5 text-xs"
+            className={FILTER_SELECT_CLASS}
           >
             <option value="">Todos</option>
             {meiosPagamento.map((m) => (
@@ -107,7 +108,7 @@ export default function RelatorioPage() {
           <select
             value={filtroPagador}
             onChange={(e) => setFiltroPagador(e.target.value)}
-            className="rounded-lg border border-slate-300 dark:border-slate-700 px-2 py-1.5 text-xs"
+            className={FILTER_SELECT_CLASS}
           >
             <option value="">Todos</option>
             {collaborators.map((c) => (
@@ -133,13 +134,17 @@ export default function RelatorioPage() {
       </div>
 
       <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-        <table className="w-full text-sm">
+        {/* `table-fixed` + largura fixa por coluna (definida no `<th>`) - sem isso, a largura de
+            cada coluna se ajusta ao conteúdo mais largo daquela renderização, e trocar de filtro
+            muda os valores (menos dígitos = coluna mais estreita), fazendo a Categoria "andar"
+            de lugar mesmo sem nada mudar nela. */}
+        <table className="w-full table-fixed text-sm">
           <thead className="bg-slate-50 dark:bg-slate-950 text-left text-xs uppercase text-slate-500 dark:text-slate-400">
             <tr>
-              <th className="px-3 py-2">Categoria</th>
-              <th className="px-3 py-2 text-right">Orçado</th>
-              <th className="px-3 py-2 text-right">Realizado</th>
-              <th className="px-3 py-2 text-right">Diferença</th>
+              <th className="w-[34%] px-3 py-2">Categoria</th>
+              <th className="w-[22%] px-3 py-2 text-right">Orçado</th>
+              <th className="w-[22%] px-3 py-2 text-right">Realizado</th>
+              <th className="w-[22%] px-3 py-2 text-right">Diferença</th>
             </tr>
           </thead>
           <tbody>
@@ -147,10 +152,10 @@ export default function RelatorioPage() {
               const diff = c.orcado - c.realizado;
               return (
                 <tr key={c.categoria} className="border-t border-slate-100 dark:border-slate-800">
-                  <td className="px-3 py-2 capitalize">{c.categoria}</td>
-                  <td className="px-3 py-2 text-right">{formatMoney(c.orcado)}</td>
-                  <td className="px-3 py-2 text-right">{formatMoney(c.realizado)}</td>
-                  <td className={`px-3 py-2 text-right ${diff < 0 ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"}`}>
+                  <td className="truncate px-3 py-2 capitalize">{c.categoria}</td>
+                  <td className="whitespace-nowrap px-3 py-2 text-right">{formatMoney(c.orcado)}</td>
+                  <td className="whitespace-nowrap px-3 py-2 text-right">{formatMoney(c.realizado)}</td>
+                  <td className={`whitespace-nowrap px-3 py-2 text-right ${diff < 0 ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"}`}>
                     {formatMoney(diff)}
                   </td>
                 </tr>
@@ -160,9 +165,9 @@ export default function RelatorioPage() {
           <tfoot>
             <tr className="border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 font-medium">
               <td className="px-3 py-2">Total</td>
-              <td className="px-3 py-2 text-right">{formatMoney(relatorio.totalOrcado)}</td>
-              <td className="px-3 py-2 text-right">{formatMoney(relatorio.totalDespesas)}</td>
-              <td className="px-3 py-2 text-right">
+              <td className="whitespace-nowrap px-3 py-2 text-right">{formatMoney(relatorio.totalOrcado)}</td>
+              <td className="whitespace-nowrap px-3 py-2 text-right">{formatMoney(relatorio.totalDespesas)}</td>
+              <td className="whitespace-nowrap px-3 py-2 text-right">
                 {formatMoney(relatorio.totalOrcado - relatorio.totalDespesas)}
               </td>
             </tr>
