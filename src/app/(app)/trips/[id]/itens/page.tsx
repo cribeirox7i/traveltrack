@@ -12,6 +12,7 @@ import { createItemOffline, deleteItemOffline, updateItemOffline } from "@/lib/o
 import { CATEGORIAS_ITEM, CategoriaItem } from "@/lib/sheets/types";
 import type { SegundoTrecho } from "@/lib/gemini";
 import { TimeField } from "@/components/TimeField";
+import { InfoDisclaimer } from "@/components/InfoDisclaimer";
 import { FILTER_SELECT_CLASS } from "@/lib/uiClasses";
 import {
   CATEGORIA_ICONE,
@@ -369,10 +370,10 @@ export default function ItensPage() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
-        <p className="text-sm text-slate-500 dark:text-slate-400">
+        <InfoDisclaimer>
           Traslados, passagens, hospedagem, alimentação, atrativos, repasses e documentos da
           viagem, num lugar só. Substitui as antigas telas de Lançamentos e Anexos.
-        </p>
+        </InfoDisclaimer>
         {!formOpen && (
           <button
             type="button"

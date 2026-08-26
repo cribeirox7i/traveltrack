@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useOfflineCollection, useOfflineTrip } from "@/lib/offline/useOfflineData";
 import { saveDaysOffline } from "@/lib/offline/sync";
+import { InfoDisclaimer } from "@/components/InfoDisclaimer";
 
 interface TripMeta {
   id: string;
@@ -182,7 +183,7 @@ export default function OrcamentoPage() {
 
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-sm text-slate-500 dark:text-slate-400">
+      <InfoDisclaimer>
         {modoTotal
           ? `Valores TOTAIS do grupo, por dia (${qtdPessoas} pessoa(s)) - a tela divide pelo número de viajantes pra mostrar o valor por pessoa.`
           : "Valores por pessoa, por dia."}{" "}
@@ -194,7 +195,7 @@ export default function OrcamentoPage() {
           "Somente o administrador ou quem criou esta viagem pode editar o Orçamento - "
         )}
         Origem/destino/pernoite aparecem só como referência - editáveis na aba Itinerário.
-      </p>
+      </InfoDisclaimer>
 
       {canEdit && (
         <div className="flex flex-wrap items-center justify-between gap-2">

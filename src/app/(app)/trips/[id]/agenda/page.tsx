@@ -12,6 +12,7 @@ import {
 import { deleteItemOffline } from "@/lib/offline/sync";
 import { hrefSeguro } from "@/lib/urlSegura";
 import { CATEGORIA_LABEL, IconeItem, ItemDetalhesPopup, type Item } from "@/components/ItemDetalhesPopup";
+import { InfoDisclaimer } from "@/components/InfoDisclaimer";
 
 interface TripDay {
   id: string;
@@ -139,13 +140,13 @@ export default function AgendaPage() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm text-slate-500 dark:text-slate-400">
+        <InfoDisclaimer>
           Temperatura e itens do roteiro, por data. Traslados, passagens, hospedagem e atrativos
           aparecem aqui automaticamente pela data de início/check-in/partida - cadastre-os na aba
           Itens. Origem/destino/pernoite ficam na aba Itinerário; dados de país (moeda, fuso,
           tomada...) ficam no Dashboard da viagem. &ldquo;Atualizar&rdquo; na barra superior busca
           a temperatura. Toque numa data pra abrir.
-        </p>
+        </InfoDisclaimer>
         <Link
           href={`/trips/${tripId}/itens`}
           className="shrink-0 rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800"

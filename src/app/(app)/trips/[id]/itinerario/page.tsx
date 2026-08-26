@@ -6,6 +6,7 @@ import { useSession } from "next-auth/react";
 import { useOfflineCollection, useOfflineTrip } from "@/lib/offline/useOfflineData";
 import { pullTripDetail, pullTrips, saveDaysOffline } from "@/lib/offline/sync";
 import { CityAutocomplete } from "@/components/CityAutocomplete";
+import { InfoDisclaimer } from "@/components/InfoDisclaimer";
 
 interface TripMeta {
   id: string;
@@ -232,7 +233,7 @@ export default function ItinerarioPage() {
 
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-sm text-slate-500 dark:text-slate-400">
+      <InfoDisclaimer>
         {canEdit ? (
           <>
             Origem, destino e pernoite de cada dia da viagem. Este é o único lugar onde essas
@@ -243,7 +244,7 @@ export default function ItinerarioPage() {
         ) : (
           "Somente o administrador ou quem criou esta viagem pode editar o Itinerário (cidades e dias da viagem)."
         )}
-      </p>
+      </InfoDisclaimer>
 
       {structError && <p className="text-sm text-red-600 dark:text-red-400">{structError}</p>}
 
