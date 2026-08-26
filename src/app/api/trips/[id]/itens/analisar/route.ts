@@ -3,7 +3,7 @@ import { detectarTipoVoucher } from "@/lib/fileValidation";
 import { GeminiIndisponivelError, analisarVoucher } from "@/lib/gemini";
 import { errorResponse, requireSession } from "@/lib/api-helpers";
 import { excedeuLimite } from "@/lib/rateLimit";
-import { userCanAccessTrip } from "@/lib/sheets/trips";
+import { getTrip, userCanAccessTrip } from "@/lib/sheets/trips";
 
 const MAX_FILE_BYTES = 4 * 1024 * 1024;
 
@@ -44,9 +44,12 @@ export async function POST(
     return errorResponse("Arquivo precisa ser PDF, JPG, JPEG, PNG ou BMP");
   }
 
+  const trip = await getTrip(id);
+  const periodoViagem = trip ? { inicio: trip.data_inicio, fim: trip.data_fim } : undefined;
+
   const buffer = Buffer.from(await file.arrayBuffer());
   try {
-    const extraido = await analisarVoucher(buffer.toString("base64"), mimeType);
+    const extraido = await analisarVoucher(buffer.toString("base64"), mimeType, periodoViagem);
     return NextResponse.json(extraido);
   } catch (err) {
     if (err instanceof GeminiIndisponivelError) {

@@ -1,12 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
-import { getLocalAnexoUrl, useOfflineCollection } from "@/lib/offline/useOfflineData";
+import { useParams, useRouter } from "next/navigation";
+import {
+  getLocalAnexoUrl,
+  useCollaborators,
+  useMeiosPagamento,
+  useOfflineCollection,
+} from "@/lib/offline/useOfflineData";
 import { deleteItemOffline } from "@/lib/offline/sync";
 import { hrefSeguro } from "@/lib/urlSegura";
-import { CATEGORIAS_ITEM, CategoriaItem } from "@/lib/sheets/types";
+import { CATEGORIA_LABEL, IconeItem, ItemDetalhesPopup, type Item } from "@/components/ItemDetalhesPopup";
 
 interface TripDay {
   id: string;
@@ -19,40 +24,6 @@ interface TripDay {
   chuva_mm: string;
   vento_kmh: string;
 }
-
-/** Mesmos campos de `Item` em itens/page.tsx - repetido aqui porque é uma projeção de leitura
- * (esta tela não cria/edita Item, só lista por data/horário e navega pra Itens pra isso). */
-interface Item {
-  id: string;
-  categoria: CategoriaItem;
-  tipo: string;
-  nome_companhia: string;
-  origem: string;
-  destino: string;
-  nome_local: string;
-  data: string;
-  horario: string;
-  descricao: string;
-  url: string;
-  anexo_file_id: string;
-  anexo_nome: string;
-  anexo_url: string;
-}
-
-const CATEGORIA_LABEL: Record<CategoriaItem, string> = Object.fromEntries(
-  CATEGORIAS_ITEM.map((c) => [c.value, c.label])
-) as Record<CategoriaItem, string>;
-
-const CATEGORIA_ICONE: Record<CategoriaItem, string> = {
-  traslado: "🚐",
-  passagem: "✈️",
-  hospedagem: "🏨",
-  alimentacao: "🍽️",
-  atrativo: "🗼",
-  repasse: "💸",
-  documento: "📄",
-  outro: "📦",
-};
 
 const WEEKDAY_LABELS = ["DO", "2A", "3A", "4A", "5A", "6A", "SA"];
 
@@ -101,10 +72,22 @@ function resumoItem(item: Item): string {
 
 export default function AgendaPage() {
   const { id: tripId } = useParams<{ id: string }>();
+  const router = useRouter();
   const { items: days, loading: loadingDays } = useOfflineCollection<TripDay>("tripDays", tripId);
   const { items: itens, loading: loadingItens } = useOfflineCollection<Item>("itens", tripId);
+  const collaborators = useCollaborators(tripId);
+  const meiosPagamento = useMeiosPagamento().filter((m) => m.ativo === "true");
+  const nomePorPessoa = useMemo(
+    () => Object.fromEntries(collaborators.map((c) => [c.id, c.nome])),
+    [collaborators]
+  );
+  const nomePorMeio = useMemo(
+    () => Object.fromEntries(meiosPagamento.map((m) => [m.id, m.nome])),
+    [meiosPagamento]
+  );
 
   const [openDay, setOpenDay] = useState<string | null>(null);
+  const [viewingItem, setViewingItem] = useState<Item | null>(null);
   const [localUrls, setLocalUrls] = useState<Record<string, string>>({});
 
   // Mesmo padrão da tela de Itens: resolve, pra cada anexo já baixado neste aparelho, um object
@@ -223,6 +206,14 @@ export default function AgendaPage() {
 
               {isOpen && (
                 <div className="border-t border-slate-100 dark:border-slate-800 px-4 py-3">
+                  {(day.origem || day.destino || day.pernoite) && (
+                    <div className="mb-3 flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-slate-500 dark:text-slate-400">
+                      {day.origem && <span>🛫 Origem: {day.origem}</span>}
+                      {day.destino && <span>🛬 Destino: {day.destino}</span>}
+                      {day.pernoite && <span>🛌 Pernoite: {day.pernoite}</span>}
+                    </div>
+                  )}
+
                   {day.temp_min && day.temp_max && (
                     <div className="mb-3 flex flex-col gap-0.5 text-xs text-slate-500 dark:text-slate-400">
                       <div className="flex flex-wrap items-center gap-3">
@@ -246,11 +237,12 @@ export default function AgendaPage() {
                     {itensDoDia.map((item) => (
                       <li
                         key={item.id}
-                        className="flex items-start justify-between gap-2 rounded-lg border border-slate-100 dark:border-slate-800 px-3 py-2 text-sm"
+                        onClick={() => setViewingItem(item)}
+                        className="flex cursor-pointer items-start justify-between gap-2 rounded-lg border border-slate-100 dark:border-slate-800 px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-800/50"
                       >
                         <div className="min-w-0">
-                          <p className="font-semibold uppercase tracking-wide text-slate-800 dark:text-slate-200">
-                            {item.horario} · {CATEGORIA_ICONE[item.categoria]} {CATEGORIA_LABEL[item.categoria] ?? item.categoria}
+                          <p className="flex items-center gap-1.5 font-semibold uppercase tracking-wide text-slate-800 dark:text-slate-200">
+                            {item.horario} · <IconeItem item={item} className="text-base" /> {CATEGORIA_LABEL[item.categoria] ?? item.categoria}
                           </p>
                           {(resumoItem(item) || item.descricao) && (
                             <p className="mt-0.5 whitespace-pre-wrap text-xs text-slate-500 dark:text-slate-400">
@@ -285,7 +277,10 @@ export default function AgendaPage() {
                             )}
                           </div>
                         </div>
-                        <div className="flex shrink-0 items-center gap-3 text-xs font-medium">
+                        <div
+                          className="flex shrink-0 items-center gap-3 text-xs font-medium"
+                          onClick={(e) => e.stopPropagation()}
+                        >
                           <Link
                             href={`/trips/${tripId}/itens?editar=${item.id}`}
                             className="text-slate-500 dark:text-slate-400 hover:text-slate-800"
@@ -316,6 +311,18 @@ export default function AgendaPage() {
           );
         })}
       </div>
+
+      <ItemDetalhesPopup
+        item={viewingItem}
+        tripId={tripId}
+        nomePorPessoa={nomePorPessoa}
+        nomePorMeio={nomePorMeio}
+        onClose={() => setViewingItem(null)}
+        onEditar={(item) => {
+          setViewingItem(null);
+          router.push(`/trips/${tripId}/itens?editar=${item.id}`);
+        }}
+      />
     </div>
   );
 }

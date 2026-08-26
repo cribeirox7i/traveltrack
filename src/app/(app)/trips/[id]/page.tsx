@@ -100,13 +100,12 @@ function temperaturasPorCidade(days: TripDay[]): { cidade: string; min: number; 
   return Array.from(mapa.entries()).map(([cidade, v]) => ({ cidade, ...v }));
 }
 
-const ACCORDIONS = ["temperatura", "fuso", "eletricidade"] as const;
+const ACCORDIONS = ["temperatura", "fuso"] as const;
 type AccordionKey = (typeof ACCORDIONS)[number];
 
 const ACCORDION_LABELS: Record<AccordionKey, { icon: string; label: string }> = {
   temperatura: { icon: "🌡️", label: "Temperatura" },
   fuso: { icon: "🕐", label: "Fuso horário" },
-  eletricidade: { icon: "⚡", label: "Eletricidade" },
 };
 
 export default function TripDashboardPage() {
@@ -120,6 +119,7 @@ export default function TripDashboardPage() {
   const countries = useCountries();
 
   const [openAccordion, setOpenAccordion] = useState<AccordionKey | null>(null);
+  const [openPais, setOpenPais] = useState<string | null>(null);
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 30_000);
@@ -192,43 +192,64 @@ export default function TripDashboardPage() {
       {paises.length > 0 && (
         <div>
           <h2 className="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-300">Países</h2>
-          <div className="flex gap-3 overflow-x-auto pb-2">
+          <div className="flex flex-col gap-2">
             {paises.map((pais) => {
+              const isOpen = openPais === pais;
               const info = findCountry(countries, pais);
               const rate = info ? formatRate(info.rate_brl) : null;
+              const temPlug = info?.plug_type || info?.volts || info?.hertz;
+              const semDados =
+                !info?.currency_code && !info?.language && !info?.ddi && !info?.driving_side && !temPlug;
               return (
                 <div
                   key={pais}
-                  className="w-56 shrink-0 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4"
+                  className="overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
                 >
-                  <div className="flex items-center gap-2 text-base font-semibold text-slate-900 dark:text-slate-100">
-                    {info?.flag_emoji ? (
-                      // eslint-disable-next-line @next/next/no-img-element -- Twemoji externo, sem domínio fixo pra next/image, ícone pequeno
-                      <img src={flagImgSrc(info.flag_emoji) ?? undefined} alt="" className="h-4 w-5 shrink-0 object-cover" />
-                    ) : (
-                      <span>🌍</span>
-                    )}
-                    <span className="truncate">{pais}</span>
-                  </div>
-                  <div className="mt-2 flex flex-col gap-1 text-xs text-slate-600 dark:text-slate-400">
-                    {info?.currency_code && (
-                      <p>
-                        💰 {info.currency_code}
-                        {info.currency_name && ` (${info.currency_name})`}
-                      </p>
-                    )}
-                    {rate && <p className="pl-[18px]">→ R$ {rate}</p>}
-                    {info?.language && <p>🗣️ {info.language}</p>}
-                    {info?.ddi && <p>📞 {info.ddi}</p>}
-                    {info?.driving_side && (
-                      <p>🚗 {info.driving_side === "left" ? "Esquerda" : "Direita"}</p>
-                    )}
-                    {!info?.currency_code && !info?.language && !info?.ddi && !info?.driving_side && (
-                      <p className="text-slate-400 dark:text-slate-500">
-                        sem dados ainda (toque em Atualizar na barra superior)
-                      </p>
-                    )}
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setOpenPais(isOpen ? null : pais)}
+                    className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
+                  >
+                    <span className="flex items-center gap-2 text-sm font-semibold text-slate-800 dark:text-slate-200">
+                      {info?.flag_emoji ? (
+                        // eslint-disable-next-line @next/next/no-img-element -- Twemoji externo, sem domínio fixo pra next/image, ícone pequeno
+                        <img src={flagImgSrc(info.flag_emoji) ?? undefined} alt="" className="h-4 w-5 shrink-0 object-cover" />
+                      ) : (
+                        <span>🌍</span>
+                      )}
+                      <span className="truncate">{pais}</span>
+                    </span>
+                    <span className={`transition-transform ${isOpen ? "rotate-180" : ""}`}>▾</span>
+                  </button>
+
+                  {isOpen && (
+                    <div className="border-t border-slate-100 dark:border-slate-800 px-4 py-3">
+                      <div className="flex flex-col gap-1 text-xs text-slate-600 dark:text-slate-400">
+                        {info?.currency_code && (
+                          <p>
+                            💰 {info.currency_code}
+                            {info.currency_name && ` (${info.currency_name})`}
+                          </p>
+                        )}
+                        {rate && <p className="pl-[18px]">→ R$ {rate}</p>}
+                        {info?.language && <p>🗣️ {info.language}</p>}
+                        {info?.ddi && <p>📞 {info.ddi}</p>}
+                        {info?.driving_side && (
+                          <p>🚗 {info.driving_side === "left" ? "Esquerda" : "Direita"}</p>
+                        )}
+                        {temPlug && (
+                          <p>
+                            ⚡ {info?.plug_type || "?"} · {info?.volts || "?"} · {info?.hertz || "?"}
+                          </p>
+                        )}
+                        {semDados && (
+                          <p className="text-slate-400 dark:text-slate-500">
+                            sem dados ainda (toque em Atualizar na barra superior)
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -236,8 +257,10 @@ export default function TripDashboardPage() {
         </div>
       )}
 
-      <div className="flex flex-col gap-2">
-        {ACCORDIONS.map((key) => {
+      <div>
+        <h2 className="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-300">Cidades</h2>
+        <div className="flex flex-col gap-2">
+          {ACCORDIONS.map((key) => {
           const isOpen = openAccordion === key;
           const { icon, label } = ACCORDION_LABELS[key];
           return (
@@ -298,34 +321,12 @@ export default function TripDashboardPage() {
                     </ul>
                   )}
 
-                  {key === "eletricidade" && (
-                    <ul className="flex flex-col gap-1.5 text-sm">
-                      {cidades.length === 0 && (
-                        <li className="text-slate-400 dark:text-slate-500">
-                          Nenhuma cidade no roteiro ainda.
-                        </li>
-                      )}
-                      {cidades.map(({ cidade, pais }) => {
-                        const info = findCountry(countries, pais);
-                        const temPlug = info?.plug_type || info?.volts || info?.hertz;
-                        return (
-                          <li key={cidade} className="flex flex-col gap-0.5">
-                            <span className="font-medium text-slate-700 dark:text-slate-300">{cidade}</span>
-                            <span className="text-xs text-slate-500 dark:text-slate-400">
-                              {temPlug
-                                ? `${info?.plug_type || "?"} · ${info?.volts || "?"} · ${info?.hertz || "?"}`
-                                : "sem dado ainda"}
-                            </span>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  )}
                 </div>
               )}
             </div>
           );
         })}
+      </div>
       </div>
     </div>
   );

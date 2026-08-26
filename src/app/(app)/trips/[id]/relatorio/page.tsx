@@ -1,11 +1,32 @@
 "use client";
 
+import { useState } from "react";
 import { useParams } from "next/navigation";
-import { useOfflineCollection, useOfflineTrip } from "@/lib/offline/useOfflineData";
+import {
+  useCollaborators,
+  useMeiosPagamento,
+  useOfflineCollection,
+  useOfflineTrip,
+} from "@/lib/offline/useOfflineData";
 import { computeRelatorio } from "@/lib/relatorioCalc";
 
+interface ItemFinanceiro {
+  id: string;
+  categoria: string;
+  valor: string;
+  natureza?: string;
+  status?: string;
+  pagador_id?: string;
+  meio_pagamento_id?: string;
+}
+
+const STATUS_OPCOES = [
+  { value: "pago", label: "Pago" },
+  { value: "a_pagar", label: "A pagar" },
+];
+
 function formatMoney(value: number): string {
-  return value.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return `R$ ${value.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 export default function RelatorioPage() {
@@ -18,36 +39,107 @@ export default function RelatorioPage() {
   const { items: days, loading: loadingDays } = useOfflineCollection<
     { id: string } & Record<string, unknown>
   >("tripDays", tripId);
-  const { items: itens, loading: loadingItens } = useOfflineCollection<{
-    id: string;
-    categoria: string;
-    valor: string;
-    natureza?: string;
-  }>("itens", tripId);
+  const { items: itens, loading: loadingItens } = useOfflineCollection<ItemFinanceiro>("itens", tripId);
+  const collaborators = useCollaborators(tripId);
+  const meiosPagamento = useMeiosPagamento().filter((m) => m.ativo === "true");
+
+  const [filtroStatus, setFiltroStatus] = useState("");
+  const [filtroMeioPagamento, setFiltroMeioPagamento] = useState("");
+  const [filtroPagador, setFiltroPagador] = useState("");
 
   const loading = loadingTrip || loadingDays || loadingItens;
 
   if (loading) return <p className="text-sm text-slate-500 dark:text-slate-400">Carregando...</p>;
   if (!trip) return <p className="text-sm text-red-600 dark:text-red-400">Erro ao carregar relatório.</p>;
 
+  // Filtros afetam só o "Realizado" (itens de fato lançados) - o "Orçado" vem do planejamento por
+  // dia (TripDays), que não tem noção de status/pagador/meio de pagamento, então fica constante
+  // como referência de comparação mesmo com filtro ativo.
+  const itensFiltrados = itens
+    .filter((i) => !filtroStatus || i.status === filtroStatus)
+    .filter((i) => !filtroMeioPagamento || i.meio_pagamento_id === filtroMeioPagamento)
+    .filter((i) => !filtroPagador || i.pagador_id === filtroPagador);
+  const temFiltroAtivo = Boolean(filtroStatus || filtroMeioPagamento || filtroPagador);
+
   const relatorio = computeRelatorio(
     tripId,
     Number(trip.qtd_pessoas) || 0,
     days,
-    itens,
+    itensFiltrados,
     trip.custo_modo
   );
 
   return (
     <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-end gap-2">
+        <div>
+          <label className="mb-1 block text-[11px] font-medium text-slate-600 dark:text-slate-400">Status</label>
+          <select
+            value={filtroStatus}
+            onChange={(e) => setFiltroStatus(e.target.value)}
+            className="rounded-lg border border-slate-300 dark:border-slate-700 px-2 py-1.5 text-xs"
+          >
+            <option value="">Todos</option>
+            {STATUS_OPCOES.map((s) => (
+              <option key={s.value} value={s.value}>
+                {s.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="mb-1 block text-[11px] font-medium text-slate-600 dark:text-slate-400">Meio de pagamento</label>
+          <select
+            value={filtroMeioPagamento}
+            onChange={(e) => setFiltroMeioPagamento(e.target.value)}
+            className="rounded-lg border border-slate-300 dark:border-slate-700 px-2 py-1.5 text-xs"
+          >
+            <option value="">Todos</option>
+            {meiosPagamento.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.nome}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="mb-1 block text-[11px] font-medium text-slate-600 dark:text-slate-400">Pagador</label>
+          <select
+            value={filtroPagador}
+            onChange={(e) => setFiltroPagador(e.target.value)}
+            className="rounded-lg border border-slate-300 dark:border-slate-700 px-2 py-1.5 text-xs"
+          >
+            <option value="">Todos</option>
+            {collaborators.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.nome}
+              </option>
+            ))}
+          </select>
+        </div>
+        {temFiltroAtivo && (
+          <button
+            type="button"
+            onClick={() => {
+              setFiltroStatus("");
+              setFiltroMeioPagamento("");
+              setFiltroPagador("");
+            }}
+            className="mb-0.5 text-xs font-medium text-slate-500 dark:text-slate-400 hover:underline"
+          >
+            Limpar filtros
+          </button>
+        )}
+      </div>
+
       <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
         <table className="w-full text-sm">
           <thead className="bg-slate-50 dark:bg-slate-950 text-left text-xs uppercase text-slate-500 dark:text-slate-400">
             <tr>
               <th className="px-3 py-2">Categoria</th>
-              <th className="px-3 py-2">Orçado</th>
-              <th className="px-3 py-2">Realizado</th>
-              <th className="px-3 py-2">Diferença</th>
+              <th className="px-3 py-2 text-right">Orçado</th>
+              <th className="px-3 py-2 text-right">Realizado</th>
+              <th className="px-3 py-2 text-right">Diferença</th>
             </tr>
           </thead>
           <tbody>
@@ -56,10 +148,10 @@ export default function RelatorioPage() {
               return (
                 <tr key={c.categoria} className="border-t border-slate-100 dark:border-slate-800">
                   <td className="px-3 py-2 capitalize">{c.categoria}</td>
-                  <td className="px-3 py-2">R$ {formatMoney(c.orcado)}</td>
-                  <td className="px-3 py-2">R$ {formatMoney(c.realizado)}</td>
-                  <td className={`px-3 py-2 ${diff < 0 ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"}`}>
-                    R$ {formatMoney(diff)}
+                  <td className="px-3 py-2 text-right">{formatMoney(c.orcado)}</td>
+                  <td className="px-3 py-2 text-right">{formatMoney(c.realizado)}</td>
+                  <td className={`px-3 py-2 text-right ${diff < 0 ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"}`}>
+                    {formatMoney(diff)}
                   </td>
                 </tr>
               );
@@ -68,10 +160,10 @@ export default function RelatorioPage() {
           <tfoot>
             <tr className="border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 font-medium">
               <td className="px-3 py-2">Total</td>
-              <td className="px-3 py-2">R$ {formatMoney(relatorio.totalOrcado)}</td>
-              <td className="px-3 py-2">R$ {formatMoney(relatorio.totalDespesas)}</td>
-              <td className="px-3 py-2">
-                R$ {formatMoney(relatorio.totalOrcado - relatorio.totalDespesas)}
+              <td className="px-3 py-2 text-right">{formatMoney(relatorio.totalOrcado)}</td>
+              <td className="px-3 py-2 text-right">{formatMoney(relatorio.totalDespesas)}</td>
+              <td className="px-3 py-2 text-right">
+                {formatMoney(relatorio.totalOrcado - relatorio.totalDespesas)}
               </td>
             </tr>
           </tfoot>
@@ -81,24 +173,24 @@ export default function RelatorioPage() {
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
           <p className="text-xs uppercase text-slate-500 dark:text-slate-400">Orçamento total</p>
-          <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">
-            R$ {formatMoney(relatorio.totalOrcado)}
+          <p className="mt-1 text-right text-lg font-semibold text-slate-900 dark:text-slate-100">
+            {formatMoney(relatorio.totalOrcado)}
           </p>
         </div>
         <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
           <p className="text-xs uppercase text-slate-500 dark:text-slate-400">Receitas (aportes)</p>
-          <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">
-            R$ {formatMoney(relatorio.totalReceitas)}
+          <p className="mt-1 text-right text-lg font-semibold text-slate-900 dark:text-slate-100">
+            {formatMoney(relatorio.totalReceitas)}
           </p>
         </div>
         <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
           <p className="text-xs uppercase text-slate-500 dark:text-slate-400">Saldo</p>
           <p
-            className={`mt-1 text-lg font-semibold ${
+            className={`mt-1 text-right text-lg font-semibold ${
               relatorio.saldo < 0 ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"
             }`}
           >
-            R$ {formatMoney(relatorio.saldo)}
+            {formatMoney(relatorio.saldo)}
           </p>
         </div>
       </div>

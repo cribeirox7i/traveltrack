@@ -185,11 +185,13 @@ export default function ItinerarioPage() {
   }
 
   /**
-   * Insere um dia em branco na grade e a Salva/o Roteiro. Exige conexão e nenhuma edição local
-   * pendente - é uma operação estrutural (desloca datas de outros dias e da Agenda no servidor),
-   * misturar com edições de célula ainda não salvas arriscaria a mistura de dois estados.
+   * Insere um dia em branco depois de `afterDayId` e Salva o Roteiro. Exige conexão e nenhuma
+   * edição local pendente - é uma operação estrutural (desloca datas de outros dias e da Agenda
+   * no servidor), misturar com edições de célula ainda não salvas arriscaria a mistura de dois
+   * estados. Não existe inserir "antes do primeiro dia" - a data de início da viagem é fixa,
+   * só muda editando a própria viagem (ver `/trips/[id]/editar`).
    */
-  async function insertDay(afterDayId: string | null) {
+  async function insertDay(afterDayId: string) {
     setStructError(null);
     setStructBusy(true);
     const res = await fetch(`/api/trips/${tripId}/days/insert`, {
@@ -244,20 +246,6 @@ export default function ItinerarioPage() {
       </p>
 
       {structError && <p className="text-sm text-red-600 dark:text-red-400">{structError}</p>}
-
-      {canEdit && (
-        <div>
-          <button
-            type="button"
-            onClick={() => insertDay(null)}
-            disabled={structBusy || isDirty}
-            title={isDirty ? "Salve as edições antes de incluir um dia" : undefined}
-            className="flex items-center gap-1.5 rounded-lg border border-dashed border-slate-300 dark:border-slate-700 px-2.5 py-1.5 text-xs font-medium text-slate-500 dark:text-slate-400 hover:border-blue-300 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            + Incluir dia no início
-          </button>
-        </div>
-      )}
 
       {canEdit && (
         <div className="flex flex-wrap items-center justify-between gap-2">

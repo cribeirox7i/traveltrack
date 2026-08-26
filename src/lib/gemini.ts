@@ -27,7 +27,7 @@ const CATEGORIAS = [
   "outro",
 ] as const;
 
-const PROMPT = `Você recebe um comprovante/voucher de viagem (passagem, traslado, hospedagem,
+const PROMPT_BASE = `Você recebe um comprovante/voucher de viagem (passagem, traslado, hospedagem,
 restaurante, ingresso/excursão, comprovante de repasse entre pessoas, ou documento pessoal como
 RG/passaporte/visto/seguro). Identifique a categoria mais provável entre exatamente estas 8
 opções e extraia os campos do documento, devolvendo SÓ o JSON pedido pelo schema - nunca invente
@@ -69,15 +69,27 @@ Campos:
   CNH, PID, Seguro, Cartão de Vacina.
 - descricao: um resumo curto de uma linha do que é o documento.
 - valor: valor total pago, só o número (ex.: "150.00"), sem símbolo de moeda.
-- data_pagamento: data em que o pagamento foi feito, se aparecer no documento (AAAA-MM-DD).
+- data_pagamento: data em que o pagamento foi feito, se aparecer no documento (AAAA-MM-DD).`;
 
-ATENÇÃO A DOCUMENTOS COM MAIS DE UM TRECHO (ida e volta, ou múltiplas conexões, tudo no mesmo
+const PROMPT_TRECHOS = `ATENÇÃO A DOCUMENTOS COM MAIS DE UM TRECHO (ida e volta, ou múltiplas conexões, tudo no mesmo
 PDF): NUNCA misture dados de trechos diferentes num mesmo campo (ex.: não pegue a partida do
 trecho 1 com a chegada do trecho 2). Extraia nos campos principais (origem, destino, numero,
 data_inicio/hora_inicio, data_fim/hora_fim) só o PRIMEIRO trecho (geralmente a ida). Se houver um
 segundo trecho, preencha o objeto "segundo_trecho" com os dados dele (mesmo significado de
 campo, só que desse segundo trecho); se não houver, deixe "segundo_trecho" com todos os campos
 em "".`;
+
+/** Monta o prompt final, injetando o período da viagem (quando conhecido) pra o modelo resolver
+ * o ano de datas sem ano explícito no documento (ver `PROMPT_BASE`) - sem isso, o Gemini tende a
+ * inventar um ano qualquer (observado devolvendo 2020) em vez de deixar o campo vazio. */
+function montarPrompt(periodoViagem?: { inicio: string; fim: string }): string {
+  const instrucaoAno = periodoViagem
+    ? `Use o ano da viagem, que ocorre entre ${periodoViagem.inicio} e ${periodoViagem.fim} - ` +
+      "escolha dentro desse período o mês/dia mais próximo do que estiver escrito no documento " +
+      "(ex.: viagem em 2026-09-10 a 2026-09-20 e documento \"15 de set.\" sem ano -> 2026-09-15)."
+    : "Se não houver nenhuma pista de ano em lugar nenhum do documento, deixe o campo de data vazio.";
+  return `${PROMPT_BASE}\n\n${instrucaoAno}\n\n${PROMPT_TRECHOS}`;
+}
 
 // Todo campo marcado "required" no responseSchema - não significa "precisa ter valor não-vazio",
 // só força o modelo a incluir a CHAVE na resposta em vez de omiti-la. Testado em 2026-08-25:
@@ -267,7 +279,11 @@ export class GeminiIndisponivelError extends Error {}
  * `GeminiIndisponivelError` em qualquer falha (rede, cota estourada, resposta inesperada) - o
  * chamador trata isso como "não deu pra analisar automaticamente", nunca como erro fatal: o
  * upload manual continua funcionando sem a análise. */
-export async function analisarVoucher(base64Data: string, mimeType: string): Promise<VoucherExtraido> {
+export async function analisarVoucher(
+  base64Data: string,
+  mimeType: string,
+  periodoViagem?: { inicio: string; fim: string }
+): Promise<VoucherExtraido> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new GeminiIndisponivelError("GEMINI_API_KEY não configurada");
 
@@ -279,7 +295,10 @@ export async function analisarVoucher(base64Data: string, mimeType: string): Pro
       body: JSON.stringify({
         contents: [
           {
-            parts: [{ inline_data: { mime_type: mimeType, data: base64Data } }, { text: PROMPT }],
+            parts: [
+              { inline_data: { mime_type: mimeType, data: base64Data } },
+              { text: montarPrompt(periodoViagem) },
+            ],
           },
         ],
         generationConfig: {
