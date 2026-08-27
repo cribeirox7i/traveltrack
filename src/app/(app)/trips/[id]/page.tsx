@@ -236,20 +236,20 @@ export default function TripDashboardPage() {
                       <div className="flex flex-col gap-1 text-xs text-slate-600 dark:text-slate-400">
                         {info?.currency_code && (
                           <p>
-                            💰 {info.currency_code}
+                            💰 Moeda: {info.currency_code}
                             {info.currency_name && ` (${info.currency_name})`}
                           </p>
                         )}
                         {rate && <p className="pl-[18px]">→ R$ {rate}</p>}
-                        {info?.language && <p>🗣️ {info.language}</p>}
-                        {info?.ddi && <p>📞 {info.ddi}</p>}
+                        {info?.language && <p>🗣️ Idioma: {info.language}</p>}
+                        {info?.ddi && <p>📞 DDI: {info.ddi}</p>}
                         {info?.driving_side && (
-                          <p>🚗 {info.driving_side === "left" ? "Esquerda" : "Direita"}</p>
+                          <p>🚗 Trânsito: {info.driving_side === "left" ? "Esquerda" : "Direita"}</p>
                         )}
                         {temPlug && (
                           <p className="flex items-center gap-2">
                             <span>
-                              ⚡ {info?.plug_type || "?"} · {info?.volts || "?"} · {info?.hertz || "?"}
+                              ⚡ Eletricidade: {info?.plug_type || "?"} · {info?.volts || "?"} · {info?.hertz || "?"}
                             </span>
                             {plugImgUrl && (
                               <button
