@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { urlHttpSchema } from "@/lib/urlSegura";
-import { errorResponse, requireSession } from "@/lib/api-helpers";
+import { errorResponse, requireSession, sessionCanAccessTrip } from "@/lib/api-helpers";
 import { deleteAgenda, getAgenda, updateAgenda } from "@/lib/sheets/agenda";
 import { deleteAnexo, uploadAnexo } from "@/lib/sheets/anexos";
-import { getTrip, listTripDays, userCanAccessTrip } from "@/lib/sheets/trips";
+import { getTrip, listTripDays } from "@/lib/sheets/trips";
 
 const MAX_FILE_BYTES = 4 * 1024 * 1024;
 
@@ -24,8 +24,7 @@ export async function PATCH(
   if ("error" in auth) return auth.error;
 
   const { id, agendaId } = await params;
-  const { user } = auth.session;
-  if (!(await userCanAccessTrip(user.id, user.role, id))) {
+  if (!(await sessionCanAccessTrip(auth.session, id))) {
     return errorResponse("Sem acesso a esta viagem", 403);
   }
 
@@ -111,8 +110,7 @@ export async function DELETE(
   if ("error" in auth) return auth.error;
 
   const { id, agendaId } = await params;
-  const { user } = auth.session;
-  if (!(await userCanAccessTrip(user.id, user.role, id))) {
+  if (!(await sessionCanAccessTrip(auth.session, id))) {
     return errorResponse("Sem acesso a esta viagem", 403);
   }
 

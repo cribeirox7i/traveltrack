@@ -2,11 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { urlHttpSchema } from "@/lib/urlSegura";
 import { detectarTipoVoucher } from "@/lib/fileValidation";
-import { errorResponse, requireSession } from "@/lib/api-helpers";
+import { errorResponse, requireSession, sessionCanAccessTrip } from "@/lib/api-helpers";
 import { CATEGORIAS_ITEM_FINANCEIRAS, CategoriaItem } from "@/lib/sheets/types";
 import { ItemEditableInput, createItem, listItensByTrip } from "@/lib/sheets/itens";
 import { CategoriaAnexo, uploadAnexo } from "@/lib/sheets/anexos";
-import { getTrip, userCanAccessTrip } from "@/lib/sheets/trips";
+import { getTrip } from "@/lib/sheets/trips";
 
 // Mesmo teto das outras rotas de upload (margem abaixo do limite de corpo das funções
 // serverless da Vercel, ~4.5MB).
@@ -100,8 +100,7 @@ export async function GET(
   if ("error" in auth) return auth.error;
 
   const { id } = await params;
-  const { user } = auth.session;
-  if (!(await userCanAccessTrip(user.id, user.role, id))) {
+  if (!(await sessionCanAccessTrip(auth.session, id))) {
     return errorResponse("Sem acesso a esta viagem", 403);
   }
 
@@ -120,7 +119,7 @@ export async function POST(
 
   const { id } = await params;
   const { user } = auth.session;
-  if (!(await userCanAccessTrip(user.id, user.role, id))) {
+  if (!(await sessionCanAccessTrip(auth.session, id))) {
     return errorResponse("Sem acesso a esta viagem", 403);
   }
 

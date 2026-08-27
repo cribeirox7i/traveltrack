@@ -145,9 +145,23 @@ export async function pullCollaborators(tripId: string): Promise<void> {
   }
 }
 
+/**
+ * Meio de pagamento como o cliente vê. `proprio` separa os DOIS usos da lista: só os próprios
+ * entram no `<select>` de escolha; o resto vem apenas pra resolver o nome de um item pago por
+ * outra pessoa da viagem (sem eles, a tela mostraria o uuid cru). Ver a rota
+ * `/api/meios-pagamento` pro recorte por ambiente.
+ */
+export interface MeioPagamentoInfo {
+  id: string;
+  nome: string;
+  ativo: string;
+  user_id: string;
+  proprio: boolean;
+}
+
 export async function pullMeiosPagamento(): Promise<void> {
   if (!isOnline()) return;
-  const list = await getJson<{ id: string; nome: string; ativo: string }[]>("/api/meios-pagamento");
+  const list = await getJson<MeioPagamentoInfo[]>("/api/meios-pagamento");
   if (list) {
     await setMeta("meiosPagamento", list);
     notifyChange();

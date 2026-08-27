@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { errorResponse, requireSession } from "@/lib/api-helpers";
+import { errorResponse, requireSession, sessionCanAccessTrip } from "@/lib/api-helpers";
 import { deleteAnexo, downloadAnexo } from "@/lib/sheets/anexos";
-import { getTrip, userCanAccessTrip } from "@/lib/sheets/trips";
+import { getTrip } from "@/lib/sheets/trips";
 
 /** Baixa o arquivo em si (bytes), usado para guardar o anexo offline no aparelho. */
 export async function GET(
@@ -12,8 +12,7 @@ export async function GET(
   if ("error" in auth) return auth.error;
 
   const { id, fileId } = await params;
-  const { user } = auth.session;
-  if (!(await userCanAccessTrip(user.id, user.role, id))) {
+  if (!(await sessionCanAccessTrip(auth.session, id))) {
     return errorResponse("Sem acesso a esta viagem", 403);
   }
 
@@ -38,8 +37,7 @@ export async function DELETE(
   if ("error" in auth) return auth.error;
 
   const { id, fileId } = await params;
-  const { user } = auth.session;
-  if (!(await userCanAccessTrip(user.id, user.role, id))) {
+  if (!(await sessionCanAccessTrip(auth.session, id))) {
     return errorResponse("Sem acesso a esta viagem", 403);
   }
 

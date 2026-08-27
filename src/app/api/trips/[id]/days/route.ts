@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { errorResponse, requireSession } from "@/lib/api-helpers";
+import { errorResponse, requireSession, sessionCanAccessTrip } from "@/lib/api-helpers";
 import {
   DAY_AUTO_FIELDS,
   DAY_PATCHABLE_FIELDS,
   getTrip,
   listTripDays,
   saveTripDays,
-  userCanAccessTrip,
 } from "@/lib/sheets/trips";
 
 export async function GET(
@@ -18,8 +17,7 @@ export async function GET(
   if ("error" in auth) return auth.error;
 
   const { id } = await params;
-  const { user } = auth.session;
-  if (!(await userCanAccessTrip(user.id, user.role, id))) {
+  if (!(await sessionCanAccessTrip(auth.session, id))) {
     return errorResponse("Sem acesso a esta viagem", 403);
   }
 
@@ -44,7 +42,7 @@ export async function PUT(
 
   const { id } = await params;
   const { user } = auth.session;
-  if (!(await userCanAccessTrip(user.id, user.role, id))) {
+  if (!(await sessionCanAccessTrip(auth.session, id))) {
     return errorResponse("Sem acesso a esta viagem", 403);
   }
 

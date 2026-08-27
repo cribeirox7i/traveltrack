@@ -11,7 +11,7 @@ import {
 } from "./repository";
 import { deleteAnexo, deleteTripFolder } from "./anexos";
 import { listAgendaByTrip } from "./agenda";
-import { TripDayRow, TripRow, UserRow, UserTripRow } from "./types";
+import { Role, TripDayRow, TripRow, UserRow, UserTripRow } from "./types";
 
 export async function listAllTrips(): Promise<TripRow[]> {
   return readSheet<TripRow>("Trips");
@@ -22,22 +22,48 @@ export async function listTripIdsForUser(userId: string): Promise<Set<string>> {
   return new Set(links.filter((l) => l.user_id === userId).map((l) => l.trip_id));
 }
 
+/**
+ * Viagens que um usuário enxerga, já respeitando o ambiente.
+ *
+ * - `admin`: todas as do ambiente que ele escolheu no seletor (`ambienteId`); sem seletor
+ *   ativo (`ambienteId` vazio), todas as do sistema - é o único papel com visão global.
+ * - `gestor`: todas as do ambiente DELE, sem depender de vínculo em UserTrip - ele administra
+ *   o ambiente inteiro.
+ * - `user`: só as que têm vínculo em UserTrip, e ainda assim filtradas por ambiente (defesa em
+ *   profundidade: um vínculo herdado/errado apontando pra fora do ambiente não vaza).
+ */
 export async function listTripsForUser(
   userId: string,
-  role: "admin" | "user"
+  role: Role,
+  ambienteId: string
 ): Promise<TripRow[]> {
   const trips = await listAllTrips();
-  if (role === "admin") return trips;
+  if (role === "admin") {
+    return ambienteId ? trips.filter((t) => t.ambiente_id === ambienteId) : trips;
+  }
+
+  const doAmbiente = trips.filter((t) => t.ambiente_id === ambienteId);
+  if (role === "gestor") return doAmbiente;
+
   const allowed = await listTripIdsForUser(userId);
-  return trips.filter((t) => allowed.has(t.id));
+  return doAmbiente.filter((t) => allowed.has(t.id));
 }
 
 export async function userCanAccessTrip(
   userId: string,
-  role: "admin" | "user",
+  role: Role,
+  ambienteId: string,
   tripId: string
 ): Promise<boolean> {
+  const trip = await getTrip(tripId);
+  if (!trip) return false;
+
   if (role === "admin") return true;
+  // Barreira de ambiente antes de qualquer regra de vínculo: gestor e usuário comum nunca
+  // alcançam viagem de outro ambiente, mesmo que exista um UserTrip apontando pra ela.
+  if (trip.ambiente_id !== ambienteId) return false;
+  if (role === "gestor") return true;
+
   const allowed = await listTripIdsForUser(userId);
   return allowed.has(tripId);
 }
@@ -53,6 +79,8 @@ export async function createTrip(input: {
   qtd_dias: number;
   qtd_pessoas: number;
   criado_por: string;
+  /** Herdado do usuário que está criando - a viagem nasce dentro do ambiente dele. */
+  ambiente_id: string;
   cidade_origem?: string;
   cidade_origem_lat?: string;
   cidade_origem_lon?: string;
@@ -80,6 +108,7 @@ export async function createTrip(input: {
     cidade_origem_lon: input.cidade_origem_lon ?? "",
     capa_url: input.capa_url ?? "",
     custo_modo: input.custo_modo ?? "por_pessoa",
+    ambiente_id: input.ambiente_id,
   };
 
   const dayIds = input.dayIds && input.dayIds.length === days.length ? input.dayIds : null;

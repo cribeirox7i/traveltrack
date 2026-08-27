@@ -3,13 +3,21 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
+import type { Role } from "@/lib/sheets/types";
 
 // "Config" (era um item de menu aqui) e "Sair" viraram ícones na TopBar - esta barra agora é só
 // navegação de página, não ações utilitárias.
-const links = [
+//
+// `roles` = quem vê o item. Ambientes é só do admin global; Usuários/Acessos abriram pro gestor
+// (que administra o ambiente dele); Parâmetros é de todos, porque cada um cadastra os próprios
+// meios de pagamento lá. Config (Parametros do sistema) NÃO está aqui - continua só no ícone de
+// engrenagem da TopBar, admin-only.
+const links: { href: string; label: string; icon: string; roles?: Role[] }[] = [
   { href: "/trips", label: "Viagens", icon: "🧳" },
-  { href: "/admin/usuarios", label: "Usuários", icon: "👤", adminOnly: true },
-  { href: "/admin/acessos", label: "Acessos", icon: "🔑", adminOnly: true },
+  { href: "/admin/ambientes", label: "Ambientes", icon: "🏢", roles: ["admin"] },
+  { href: "/admin/usuarios", label: "Usuários", icon: "👤", roles: ["admin", "gestor"] },
+  { href: "/admin/acessos", label: "Acessos", icon: "🔑", roles: ["admin", "gestor"] },
+  { href: "/parametros", label: "Parâmetros", icon: "⚙️" },
 ];
 
 export function NavBar() {
@@ -19,7 +27,7 @@ export function NavBar() {
   if (status === "loading" || pathname === "/login" || !session) return null;
 
   const role = session.user.role;
-  const visibleLinks = links.filter((l) => !l.adminOnly || role === "admin");
+  const visibleLinks = links.filter((l) => !l.roles || l.roles.includes(role));
 
   return (
     <>

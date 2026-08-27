@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { signOut, useSession } from "next-auth/react";
 import { listOutbox, wipeLocalData } from "@/lib/offline/db";
+import { AmbienteSwitcher } from "./AmbienteSwitcher";
 import { DownloadOfflineButton } from "./DownloadOfflineButton";
 import { RefreshButton } from "./RefreshButton";
 import { ThemeToggle } from "./ThemeToggle";
@@ -53,6 +54,7 @@ export function TopBar({ initialDark }: { initialDark: boolean }) {
       <div className="mx-auto flex w-full max-w-[1078px] flex-1 items-center justify-between gap-3 px-4 py-2">
         <span className="text-lg font-bold text-slate-800 dark:text-slate-100">TravelX7i</span>
         <div className="flex shrink-0 items-center gap-1">
+          <AmbienteSwitcher />
           <DownloadOfflineButton />
           <RefreshButton />
           {session.user.role === "admin" && (

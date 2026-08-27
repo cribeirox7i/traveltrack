@@ -15,14 +15,17 @@
 
 // Estrutura esperada das abas (criadas/conferidas por ensureStructure)
 const ESTRUTURA = {
-  Users: ['id', 'nome', 'email', 'senha_hash', 'role', 'ativo'],
+  // Tenant do sistema: cada ambiente tem seus usuários e viagens, isolados dos outros ambientes.
+  Ambientes: ['id', 'nome', 'ativo', 'criado_em'],
+  Users: ['id', 'nome', 'email', 'senha_hash', 'role', 'ativo', 'ambiente_id'],
   Parametros: ['id', 'chave', 'valor', 'descricao'],
-  Trips: ['id', 'nome', 'data_inicio', 'data_fim', 'qtd_pessoas', 'criado_por', 'criado_em', 'cidade_origem', 'cidade_origem_lat', 'cidade_origem_lon', 'capa_url', 'custo_modo'],
+  Trips: ['id', 'nome', 'data_inicio', 'data_fim', 'qtd_pessoas', 'criado_por', 'criado_em', 'cidade_origem', 'cidade_origem_lat', 'cidade_origem_lon', 'capa_url', 'custo_modo', 'ambiente_id'],
   TripDays: ['id', 'trip_id', 'data', 'origem', 'destino', 'pernoite', 'traslado_pp', 'passagem_pp', 'alimentacao_pp', 'passeio_pp', 'hospedagem_pp', 'temp_min', 'temp_max', 'chuva_mm', 'vento_kmh', 'origem_lat', 'origem_lon', 'destino_lat', 'destino_lon', 'pernoite_lat', 'pernoite_lon', 'origem_pais', 'destino_pais', 'pernoite_pais'],
   UserTrip: ['id', 'user_id', 'trip_id'],
   Despesas: ['id', 'trip_id', 'categoria', 'valor', 'data', 'lancado_por', 'descricao', 'pagador_id', 'meio_pagamento_id', 'status', 'natureza'],
   Receitas: ['id', 'trip_id', 'user_id', 'valor', 'data', 'descricao', 'credor_id', 'status'],
-  MeiosPagamento: ['id', 'nome', 'ativo'],
+  // `user_id` = dono (cada usuário tem a própria lista; o gestor cadastra pros usuários dele).
+  MeiosPagamento: ['id', 'nome', 'ativo', 'user_id'],
   Agenda: ['id', 'trip_id', 'data', 'horario', 'titulo', 'descricao', 'url', 'anexo_file_id', 'anexo_nome', 'anexo_url', 'criado_por', 'criado_em'],
   // Nasceu como "Eletric" (tomada/voltagem/frequência, preenchida à mão pelo usuário) - renomeie
   // a aba pra "Countries" na planilha (bota direito na aba > Renomear) e o app passa a

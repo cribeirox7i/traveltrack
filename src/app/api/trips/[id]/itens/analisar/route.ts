@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { detectarTipoVoucher } from "@/lib/fileValidation";
 import { GeminiIndisponivelError, analisarVoucher } from "@/lib/gemini";
-import { errorResponse, requireSession } from "@/lib/api-helpers";
+import { errorResponse, requireSession, sessionCanAccessTrip } from "@/lib/api-helpers";
 import { excedeuLimite } from "@/lib/rateLimit";
-import { getTrip, userCanAccessTrip } from "@/lib/sheets/trips";
+import { getTrip } from "@/lib/sheets/trips";
 
 const MAX_FILE_BYTES = 4 * 1024 * 1024;
 
@@ -22,7 +22,7 @@ export async function POST(
 
   const { id } = await params;
   const { user } = auth.session;
-  if (!(await userCanAccessTrip(user.id, user.role, id))) {
+  if (!(await sessionCanAccessTrip(auth.session, id))) {
     return errorResponse("Sem acesso a esta viagem", 403);
   }
 

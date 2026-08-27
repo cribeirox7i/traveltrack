@@ -121,7 +121,10 @@ export default function ItensPage() {
   const { data: session } = useSession();
   const { items, loading } = useOfflineCollection<Item>("itens", tripId);
   const collaborators = useCollaborators(tripId);
-  const meiosPagamento = useMeiosPagamento().filter((m) => m.ativo === "true");
+  const todosMeiosPagamento = useMeiosPagamento();
+  // O `<select>` do formulário oferece só os meios do próprio usuário; `nomePorMeio` (abaixo) usa
+  // a lista inteira, senão um item pago por outra pessoa apareceria com o uuid no lugar do nome.
+  const meiosPagamento = todosMeiosPagamento.filter((m) => m.ativo === "true" && m.proprio);
   const [formOpen, setFormOpen] = useState(false);
   // null = criando um item novo; string = editando o item com este id.
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -155,8 +158,8 @@ export default function ItensPage() {
     [collaborators]
   );
   const nomePorMeio = useMemo(
-    () => Object.fromEntries(meiosPagamento.map((m) => [m.id, m.nome])),
-    [meiosPagamento]
+    () => Object.fromEntries(todosMeiosPagamento.map((m) => [m.id, m.nome])),
+    [todosMeiosPagamento]
   );
 
   const isFinanceira = FINANCEIRAS.has(form.categoria);

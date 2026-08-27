@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { errorResponse, requireSession } from "@/lib/api-helpers";
-import { listTripCollaboratorsWithNames, userCanAccessTrip } from "@/lib/sheets/trips";
+import { errorResponse, requireSession, sessionCanAccessTrip } from "@/lib/api-helpers";
+import { listTripCollaboratorsWithNames } from "@/lib/sheets/trips";
 
 export async function GET(
   _req: NextRequest,
@@ -11,7 +11,7 @@ export async function GET(
 
   const { id } = await params;
   const { user } = auth.session;
-  if (!(await userCanAccessTrip(user.id, user.role, id))) {
+  if (!(await sessionCanAccessTrip(auth.session, id))) {
     return errorResponse("Sem acesso a esta viagem", 403);
   }
 

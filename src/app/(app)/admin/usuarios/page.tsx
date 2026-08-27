@@ -1,26 +1,53 @@
 "use client";
 
 import { Fragment, useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 import { PasswordInput } from "@/components/PasswordInput";
+import type { Role } from "@/lib/sheets/types";
 
 interface UserItem {
   id: string;
   nome: string;
   email: string;
-  role: "admin" | "user";
+  role: Role;
   ativo: "true" | "false";
+  ambiente_id: string;
 }
 
+interface AmbienteItem {
+  id: string;
+  nome: string;
+  ativo: string;
+}
+
+const ROLE_LABEL: Record<Role, string> = {
+  admin: "Admin",
+  gestor: "Gestor",
+  user: "Usuário",
+};
+
 export default function UsuariosAdminPage() {
+  const { data: session } = useSession();
+  // Gestor só cria/edita usuário comum do ambiente dele - a API impõe isso, aqui a UI só evita
+  // oferecer o que seria recusado (papel e ambiente ficam de fora do formulário pra ele).
+  const souAdmin = session?.user.role === "admin";
+
   const [users, setUsers] = useState<UserItem[]>([]);
+  const [ambientes, setAmbientes] = useState<AmbienteItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [form, setForm] = useState({ nome: "", email: "", senha: "", role: "user" as "admin" | "user" });
+  const [form, setForm] = useState({
+    nome: "",
+    email: "",
+    senha: "",
+    role: "user" as Role,
+    ambiente_id: "",
+  });
   const [saving, setSaving] = useState(false);
 
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState({ nome: "", email: "", role: "user" as "admin" | "user" });
+  const [editForm, setEditForm] = useState({ nome: "", email: "", role: "user" as Role });
   const [editError, setEditError] = useState<string | null>(null);
   const [editSaving, setEditSaving] = useState(false);
 
@@ -52,6 +79,16 @@ export default function UsuariosAdminPage() {
     load();
   }, []);
 
+  useEffect(() => {
+    if (!souAdmin) return;
+    fetch("/api/ambientes")
+      .then((res) => (res.ok ? res.json() : []))
+      .then((lista: AmbienteItem[]) => setAmbientes(lista.filter((a) => a.ativo !== "false")))
+      .catch(() => {});
+  }, [souAdmin]);
+
+  const nomePorAmbiente = Object.fromEntries(ambientes.map((a) => [a.id, a.nome]));
+
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -71,7 +108,7 @@ export default function UsuariosAdminPage() {
       return;
     }
 
-    setForm({ nome: "", email: "", senha: "", role: "user" });
+    setForm({ nome: "", email: "", senha: "", role: "user", ambiente_id: "" });
     load();
   }
 
@@ -192,17 +229,40 @@ export default function UsuariosAdminPage() {
             className="w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
           />
         </div>
-        <div className="min-w-[120px]">
-          <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">Papel</label>
-          <select
-            value={form.role}
-            onChange={(e) => setForm({ ...form, role: e.target.value as "admin" | "user" })}
-            className="w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
-          >
-            <option value="user">Usuário</option>
-            <option value="admin">Admin</option>
-          </select>
-        </div>
+        {souAdmin && (
+          <>
+            <div className="min-w-[120px]">
+              <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">Papel</label>
+              <select
+                value={form.role}
+                onChange={(e) => setForm({ ...form, role: e.target.value as Role })}
+                className="w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
+              >
+                <option value="user">Usuário</option>
+                <option value="gestor">Gestor</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+            <div className="min-w-[140px]">
+              <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">
+                Ambiente
+              </label>
+              <select
+                value={form.ambiente_id}
+                onChange={(e) => setForm({ ...form, ambiente_id: e.target.value })}
+                className="w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
+              >
+                {/* Admin é o único papel que existe sem ambiente (navega em todos pelo seletor). */}
+                <option value="">{form.role === "admin" ? "Global" : "Selecione..."}</option>
+                {ambientes.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.nome}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </>
+        )}
         <button
           type="submit"
           disabled={saving}
@@ -221,6 +281,7 @@ export default function UsuariosAdminPage() {
               <th className="px-4 py-2">Nome</th>
               <th className="px-4 py-2">Email</th>
               <th className="px-4 py-2">Papel</th>
+              {souAdmin && <th className="px-4 py-2">Ambiente</th>}
               <th className="px-4 py-2">Status</th>
               <th className="px-4 py-2"></th>
             </tr>
@@ -228,21 +289,21 @@ export default function UsuariosAdminPage() {
           <tbody>
             {loading && (
               <tr>
-                <td className="px-4 py-3 text-slate-500 dark:text-slate-400" colSpan={5}>
+                <td className="px-4 py-3 text-slate-500 dark:text-slate-400" colSpan={souAdmin ? 6 : 5}>
                   Carregando...
                 </td>
               </tr>
             )}
             {!loading && loadError && (
               <tr>
-                <td className="px-4 py-3 text-red-600 dark:text-red-400" colSpan={5}>
+                <td className="px-4 py-3 text-red-600 dark:text-red-400" colSpan={souAdmin ? 6 : 5}>
                   {loadError}
                 </td>
               </tr>
             )}
             {!loading && !loadError && users.length === 0 && (
               <tr>
-                <td className="px-4 py-3 text-slate-500 dark:text-slate-400" colSpan={5}>
+                <td className="px-4 py-3 text-slate-500 dark:text-slate-400" colSpan={souAdmin ? 6 : 5}>
                   Nenhum usuário cadastrado.
                 </td>
               </tr>
@@ -268,17 +329,30 @@ export default function UsuariosAdminPage() {
                         />
                       </td>
                       <td className="px-4 py-2">
-                        <select
-                          value={editForm.role}
-                          onChange={(e) =>
-                            setEditForm({ ...editForm, role: e.target.value as "admin" | "user" })
-                          }
-                          className="w-full rounded-lg border border-slate-300 dark:border-slate-700 px-2 py-1 text-sm"
-                        >
-                          <option value="user">Usuário</option>
-                          <option value="admin">Admin</option>
-                        </select>
+                        {souAdmin ? (
+                          <select
+                            value={editForm.role}
+                            onChange={(e) =>
+                              setEditForm({ ...editForm, role: e.target.value as Role })
+                            }
+                            className="w-full rounded-lg border border-slate-300 dark:border-slate-700 px-2 py-1 text-sm"
+                          >
+                            <option value="user">Usuário</option>
+                            <option value="gestor">Gestor</option>
+                            <option value="admin">Admin</option>
+                          </select>
+                        ) : (
+                          // Gestor não altera papel (a API recusaria) - mostra o valor atual.
+                          <span className="text-slate-500 dark:text-slate-400">
+                            {ROLE_LABEL[u.role] ?? u.role}
+                          </span>
+                        )}
                       </td>
+                      {souAdmin && (
+                        <td className="px-4 py-2 text-slate-500 dark:text-slate-400">
+                          {nomePorAmbiente[u.ambiente_id] ?? (u.ambiente_id ? "-" : "Global")}
+                        </td>
+                      )}
                       <td className="px-4 py-2">
                         <span
                           className={`rounded-full px-2 py-0.5 text-xs ${
@@ -312,7 +386,12 @@ export default function UsuariosAdminPage() {
                     <>
                       <td className="px-4 py-2">{u.nome}</td>
                       <td className="px-4 py-2">{u.email}</td>
-                      <td className="px-4 py-2 capitalize">{u.role}</td>
+                      <td className="px-4 py-2">{ROLE_LABEL[u.role] ?? u.role}</td>
+                      {souAdmin && (
+                        <td className="px-4 py-2 text-slate-500 dark:text-slate-400">
+                          {nomePorAmbiente[u.ambiente_id] ?? (u.ambiente_id ? "-" : "Global")}
+                        </td>
+                      )}
                       <td className="px-4 py-2">
                         <span
                           className={`rounded-full px-2 py-0.5 text-xs ${
@@ -351,14 +430,14 @@ export default function UsuariosAdminPage() {
                 </tr>
                 {editingId === u.id && editError && (
                   <tr key={`${u.id}-edit-error`} className="border-t border-slate-100 dark:border-slate-800 bg-red-50 dark:bg-red-950">
-                    <td className="px-4 py-2 text-xs text-red-600 dark:text-red-400" colSpan={5}>
+                    <td className="px-4 py-2 text-xs text-red-600 dark:text-red-400" colSpan={souAdmin ? 6 : 5}>
                       {editError}
                     </td>
                   </tr>
                 )}
                 {resettingId === u.id && (
                   <tr key={`${u.id}-reset`} className="border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950">
-                    <td className="px-4 py-3" colSpan={5}>
+                    <td className="px-4 py-3" colSpan={souAdmin ? 6 : 5}>
                       <div className="flex flex-wrap items-end gap-3">
                         <div className="min-w-[220px]">
                           <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">

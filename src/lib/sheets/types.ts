@@ -1,4 +1,5 @@
 export type SheetTab =
+  | "Ambientes"
   | "Users"
   | "Parametros"
   | "Trips"
@@ -12,7 +13,10 @@ export type SheetTab =
   | "Itens";
 
 export const SHEET_HEADERS: Record<SheetTab, string[]> = {
-  Users: ["id", "nome", "email", "senha_hash", "role", "ativo"],
+  // Tenant do sistema: cada ambiente tem seus próprios usuários e viagens, e quem está num
+  // ambiente não vê dado de outro. Só o admin global cria/edita ambientes.
+  Ambientes: ["id", "nome", "ativo", "criado_em"],
+  Users: ["id", "nome", "email", "senha_hash", "role", "ativo", "ambiente_id"],
   Parametros: ["id", "chave", "valor", "descricao"],
   Trips: [
     "id",
@@ -27,6 +31,7 @@ export const SHEET_HEADERS: Record<SheetTab, string[]> = {
     "cidade_origem_lon",
     "capa_url",
     "custo_modo",
+    "ambiente_id",
   ],
   TripDays: [
     "id",
@@ -69,7 +74,10 @@ export const SHEET_HEADERS: Record<SheetTab, string[]> = {
     "natureza",
   ],
   Receitas: ["id", "trip_id", "user_id", "valor", "data", "descricao", "credor_id", "status"],
-  MeiosPagamento: ["id", "nome", "ativo"],
+  // `user_id` = dono do meio de pagamento (cada usuário tem a própria lista; o gestor cadastra
+  // pros usuários comuns do ambiente dele). Linha antiga sem `user_id` é órfã - ainda resolve o
+  // nome por id nos Itens que a referenciam, mas não aparece na lista de ninguém.
+  MeiosPagamento: ["id", "nome", "ativo", "user_id"],
   Agenda: [
     "id",
     "trip_id",
@@ -148,7 +156,12 @@ export const SHEET_HEADERS: Record<SheetTab, string[]> = {
   ],
 };
 
-export type Role = "admin" | "user";
+/**
+ * `admin` é global (cria ambientes, mexe em Parametros, navega em qualquer ambiente via seletor);
+ * `gestor` administra UM ambiente (cria usuários `user` dele, gerencia acessos e meios de
+ * pagamento), sem ver Config nem outros ambientes; `user` só usa as viagens a que tem acesso.
+ */
+export type Role = "admin" | "gestor" | "user";
 
 export interface UserRow {
   [key: string]: string;
@@ -158,6 +171,17 @@ export interface UserRow {
   senha_hash: string;
   role: Role;
   ativo: "true" | "false";
+  /** Ambiente a que o usuário pertence - um só, faz parte da identidade dele. Vazio significa
+   * "sem ambiente": só o admin global (que não é preso a um ambiente) fica assim legitimamente. */
+  ambiente_id: string;
+}
+
+export interface AmbienteRow {
+  [key: string]: string;
+  id: string;
+  nome: string;
+  ativo: "true" | "false";
+  criado_em: string;
 }
 
 export interface ParametroRow {
@@ -195,6 +219,10 @@ export interface TripRow {
    * que a tela de Orçamento/Relatório precisa dividir pelo `qtd_pessoas` pra mostrar o valor por
    * pessoa. Linhas antigas sem essa coluna são tratadas como "por_pessoa". */
   custo_modo: "por_pessoa" | "total" | "";
+  /** Ambiente dono da viagem - herdado do usuário que a criou. As abas filhas (TripDays, Itens,
+   * UserTrip, Despesas, Receitas, Agenda) NÃO repetem essa coluna de propósito: elas chegam pelo
+   * `trip_id`, e duplicar o ambiente criaria duas fontes de verdade que podem divergir. */
+  ambiente_id: string;
 }
 
 export interface TripDayRow {
@@ -287,6 +315,9 @@ export interface MeioPagamentoRow {
   id: string;
   nome: string;
   ativo: "true" | "false";
+  /** Dono. Vazio = linha legada de quando a lista era global do sistema - continua resolvendo o
+   * nome nos Itens antigos que apontam pra ela, mas não entra na lista de nenhum usuário. */
+  user_id: string;
 }
 
 export interface ReceitaRow {

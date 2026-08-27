@@ -5,6 +5,7 @@ import { getAnexoFile, getMeta, getOne, listAll, listByTrip, listOutbox } from "
 import {
   CountryInfo,
   MAX_OUTBOX_ATTEMPTS,
+  MeioPagamentoInfo,
   PersonOption,
   isOnline,
   pullAnexosList,
@@ -142,13 +143,17 @@ export function useCollaborators(tripId: string | undefined) {
   return people;
 }
 
-/** Meios de pagamento cadastrados (pro select em Despesas) - mesma lógica de cache local. */
+/**
+ * Meios de pagamento visíveis - mesma lógica de cache local. Cuidado: esta lista NÃO é "os meus".
+ * Filtre por `proprio` pra montar um `<select>` de escolha; use a lista inteira só pra resolver
+ * nome por id (item pago por outra pessoa da viagem). Ver `MeioPagamentoInfo` em sync.ts.
+ */
 export function useMeiosPagamento() {
-  const [meios, setMeios] = useState<{ id: string; nome: string; ativo: string }[]>([]);
+  const [meios, setMeios] = useState<MeioPagamentoInfo[]>([]);
 
   const refresh = useCallback(async () => {
     const local = await getMeta("meiosPagamento");
-    setMeios(Array.isArray(local) ? (local as { id: string; nome: string; ativo: string }[]) : []);
+    setMeios(Array.isArray(local) ? (local as MeioPagamentoInfo[]) : []);
   }, []);
 
   useEffect(() => {
