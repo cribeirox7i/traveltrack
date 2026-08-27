@@ -8,8 +8,6 @@ const createUserSchema = z.object({
   email: z.string().email(),
   senha: z.string().min(6),
   role: z.enum(["admin", "gestor", "user"]),
-  /** Só o admin escolhe; pro gestor é sempre o ambiente dele (ver POST). */
-  ambiente_id: z.string().optional(),
 });
 
 export async function GET() {
@@ -44,20 +42,21 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) return errorResponse(parsed.error.issues[0].message);
 
   const { role: papelDeQuemCria } = auth.session.user;
-  const { ambiente_id: ambienteDoCorpo, ...dados } = parsed.data;
+  const dados = parsed.data;
 
-  // Gestor só cria usuário comum, e só no ambiente dele - não pode fabricar outro gestor/admin
-  // nem plantar usuário em ambiente alheio (o `ambiente_id` do corpo é ignorado pra ele).
+  // Gestor só cria usuário comum, e só no ambiente dele - não pode fabricar outro gestor/admin.
   if (papelDeQuemCria === "gestor" && dados.role !== "user") {
     return errorResponse("O gestor só pode criar usuários comuns", 403);
   }
 
-  const ambiente_id = papelDeQuemCria === "gestor" ? auth.ambiente : ambienteDoCorpo ?? "";
+  // O ambiente vem sempre do que está selecionado na barra superior (`auth.ambiente`, resolvido
+  // pelo cookie); não há mais seletor de ambiente nesta tela. Admin é a única exceção: um novo
+  // usuário "admin" é global (sem ambiente).
+  const ambiente_id = dados.role === "admin" ? "" : auth.ambiente;
 
-  // Admin é o único papel que existe sem ambiente; qualquer outro precisa de um, senão nasce um
-  // usuário que não enxerga nada e não aparece em lista de ambiente nenhum.
+  // Qualquer papel não-admin precisa de um ambiente, senão nasce um usuário que não enxerga nada.
   if (!ambiente_id && dados.role !== "admin") {
-    return errorResponse("Escolha o ambiente do usuário", 400);
+    return errorResponse("Selecione um ambiente na barra superior antes de criar o usuário", 400);
   }
 
   try {

@@ -31,18 +31,41 @@ export function AmbienteSwitcher() {
 
   useEffect(() => {
     if (!isAdmin) return;
-    fetch("/api/ambientes")
-      .then((res) => (res.ok ? res.json() : []))
-      .then((lista: Ambiente[]) => setAmbientes(lista.filter((a) => a.ativo !== "false")))
-      .catch(() => {});
-  }, [isAdmin]);
-
-  useEffect(() => {
-    if (!isAdmin) return;
-    fetch("/api/ambientes/atual")
-      .then((res) => (res.ok ? res.json() : { ambiente_id: "" }))
-      .then((data: { ambiente_id?: string }) => setAtual(data.ambiente_id ?? ""))
-      .catch(() => {});
+    let cancelado = false;
+    (async () => {
+      try {
+        const [listaRes, atualRes] = await Promise.all([
+          fetch("/api/ambientes"),
+          fetch("/api/ambientes/atual"),
+        ]);
+        const lista: Ambiente[] = listaRes.ok ? await listaRes.json() : [];
+        const ativos = lista.filter((a) => a.ativo !== "false");
+        const atualData: { ambiente_id?: string } = atualRes.ok
+          ? await atualRes.json()
+          : { ambiente_id: "" };
+        if (cancelado) return;
+        setAmbientes(ativos);
+        const selecionado = atualData.ambiente_id ?? "";
+        // Não existe mais "todos os ambientes": se o admin ainda não escolheu um (ou o cookie
+        // aponta pra um ambiente inativo/apagado), assume o primeiro ativo pra ele sempre
+        // navegar dentro de um tenant concreto.
+        if (selecionado && ativos.some((a) => a.id === selecionado)) {
+          setAtual(selecionado);
+        } else if (ativos.length > 0) {
+          setAtual(ativos[0].id);
+          fetch("/api/ambientes/ativo", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ambiente_id: ativos[0].id }),
+          }).catch(() => {});
+        }
+      } catch {
+        // silencioso: sem rede o seletor fica vazio, nada quebra
+      }
+    })();
+    return () => {
+      cancelado = true;
+    };
   }, [isAdmin]);
 
   if (!isAdmin) return null;
@@ -76,7 +99,7 @@ export function AmbienteSwitcher() {
       title="Ambiente que você está navegando"
       className="max-w-[9rem] rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
     >
-      <option value="">Todos os ambientes</option>
+      {ambientes.length === 0 && <option value="">Nenhum ambiente</option>}
       {ambientes.map((a) => (
         <option key={a.id} value={a.id}>
           {a.nome}

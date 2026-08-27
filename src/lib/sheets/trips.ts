@@ -491,16 +491,22 @@ export async function listTripCollaborators(tripId: string): Promise<UserTripRow
 
 /**
  * Usuários com acesso à viagem, com nome (pro dropdown de "Pagador" em Despesas) - sempre inclui
- * `currentUserId`, mesmo sem vínculo explícito em UserTrip: cobre o caso comum do admin/criador
- * da viagem nunca ter se auto-vinculado, o que deixaria o dropdown vazio pra quem mais usa.
+ * `currentUserId` e quem criou a viagem (`criado_por`), mesmo sem vínculo explícito em UserTrip:
+ * o admin/gestor que criou a viagem raramente se auto-vincula, e sem isso ele não aparecia como
+ * opção de "Quem pagou" mesmo tendo bancado o item.
  */
 export async function listTripCollaboratorsWithNames(
   tripId: string,
   currentUserId: string
 ): Promise<{ id: string; nome: string }[]> {
-  const [links, users] = await Promise.all([listTripCollaborators(tripId), readSheet<UserRow>("Users")]);
+  const [links, users, trip] = await Promise.all([
+    listTripCollaborators(tripId),
+    readSheet<UserRow>("Users"),
+    getTrip(tripId),
+  ]);
   const userIds = new Set(links.map((l) => l.user_id));
   userIds.add(currentUserId);
+  if (trip?.criado_por) userIds.add(trip.criado_por);
 
   return users
     .filter((u) => userIds.has(u.id))

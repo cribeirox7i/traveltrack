@@ -37,12 +37,13 @@ export default function UsuariosAdminPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // O ambiente do novo usuário é sempre o que está selecionado na barra superior (o servidor
+  // resolve pelo cookie) - admin vira exceção só quando o papel é "admin" (global, sem ambiente).
   const [form, setForm] = useState({
     nome: "",
     email: "",
     senha: "",
     role: "user" as Role,
-    ambiente_id: "",
   });
   const [saving, setSaving] = useState(false);
 
@@ -108,7 +109,7 @@ export default function UsuariosAdminPage() {
       return;
     }
 
-    setForm({ nome: "", email: "", senha: "", role: "user", ambiente_id: "" });
+    setForm({ nome: "", email: "", senha: "", role: "user" });
     load();
   }
 
@@ -230,38 +231,18 @@ export default function UsuariosAdminPage() {
           />
         </div>
         {souAdmin && (
-          <>
-            <div className="min-w-[120px]">
-              <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">Papel</label>
-              <select
-                value={form.role}
-                onChange={(e) => setForm({ ...form, role: e.target.value as Role })}
-                className="w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
-              >
-                <option value="user">Usuário</option>
-                <option value="gestor">Gestor</option>
-                <option value="admin">Admin</option>
-              </select>
-            </div>
-            <div className="min-w-[140px]">
-              <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">
-                Ambiente
-              </label>
-              <select
-                value={form.ambiente_id}
-                onChange={(e) => setForm({ ...form, ambiente_id: e.target.value })}
-                className="w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
-              >
-                {/* Admin é o único papel que existe sem ambiente (navega em todos pelo seletor). */}
-                <option value="">{form.role === "admin" ? "Global" : "Selecione..."}</option>
-                {ambientes.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.nome}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </>
+          <div className="min-w-[120px]">
+            <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">Papel</label>
+            <select
+              value={form.role}
+              onChange={(e) => setForm({ ...form, role: e.target.value as Role })}
+              className="w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
+            >
+              <option value="user">Usuário</option>
+              <option value="gestor">Gestor</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
         )}
         <button
           type="submit"

@@ -43,6 +43,11 @@ export default function ParametrosPage() {
   const [saving, setSaving] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
+  const [editandoId, setEditandoId] = useState<string | null>(null);
+  const [nomeEdicao, setNomeEdicao] = useState("");
+  const [salvandoEdicao, setSalvandoEdicao] = useState(false);
+  const [erroEdicao, setErroEdicao] = useState<string | null>(null);
+
   // Sem dropdown (usuário comum), o dono é sempre ele mesmo.
   const donoEfetivo = podeEscolherUsuario ? donoId || meuId : meuId;
 
@@ -86,6 +91,38 @@ export default function ParametrosPage() {
     carregarMeios();
   }
 
+  function iniciarEdicao(m: MeioPagamento) {
+    setEditandoId(m.id);
+    setNomeEdicao(m.nome);
+    setErroEdicao(null);
+  }
+
+  function cancelarEdicao() {
+    setEditandoId(null);
+    setNomeEdicao("");
+    setErroEdicao(null);
+  }
+
+  async function salvarEdicao(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editandoId) return;
+    setSalvandoEdicao(true);
+    setErroEdicao(null);
+    const res = await fetch(`/api/meios-pagamento/${editandoId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nome: nomeEdicao }),
+    });
+    setSalvandoEdicao(false);
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setErroEdicao(data.error ?? "Erro ao renomear meio de pagamento");
+      return;
+    }
+    cancelarEdicao();
+    carregarMeios();
+  }
+
   async function alternarAtivo(m: MeioPagamento) {
     await fetch(`/api/meios-pagamento/${m.id}`, {
       method: "PATCH",
@@ -112,29 +149,28 @@ export default function ParametrosPage() {
           Meios de pagamento
         </h2>
 
-        {podeEscolherUsuario && (
-          <div>
-            <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">
-              Usuário
-            </label>
-            <select
-              value={donoEfetivo}
-              onChange={(e) => setDonoId(e.target.value)}
-              className={FILTER_SELECT_CLASS}
-            >
-              <option value={meuId}>Eu ({session?.user.name})</option>
-              {usuarios
-                .filter((u) => u.id !== meuId)
-                .map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.nome}
-                  </option>
-                ))}
-            </select>
-          </div>
-        )}
-
-        <form onSubmit={criar} className="flex flex-wrap items-end gap-3">
+        <form onSubmit={criar} className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+          {podeEscolherUsuario && (
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">
+                Usuário
+              </label>
+              <select
+                value={donoEfetivo}
+                onChange={(e) => setDonoId(e.target.value)}
+                className={FILTER_SELECT_CLASS}
+              >
+                <option value={meuId}>Eu ({session?.user.name})</option>
+                {usuarios
+                  .filter((u) => u.id !== meuId)
+                  .map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.nome}
+                    </option>
+                  ))}
+              </select>
+            </div>
+          )}
           <div className="min-w-[200px] flex-1">
             <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">
               Nome
@@ -165,29 +201,77 @@ export default function ParametrosPage() {
               Nenhum meio de pagamento cadastrado ainda.
             </li>
           )}
-          {meiosDoDono.map((m) => (
-            <li
-              key={m.id}
-              className="flex items-center justify-between gap-3 border-t border-slate-100 py-2 text-sm first:border-t-0 dark:border-slate-800"
-            >
-              <span
-                className={
-                  m.ativo === "false"
-                    ? "text-slate-400 line-through dark:text-slate-500"
-                    : "text-slate-800 dark:text-slate-200"
-                }
+          {meiosDoDono.map((m) => {
+            const editando = editandoId === m.id;
+            return (
+              <li
+                key={m.id}
+                className="flex flex-col gap-1 border-t border-slate-100 py-2 text-sm first:border-t-0 dark:border-slate-800"
               >
-                {m.nome}
-              </span>
-              <button
-                type="button"
-                onClick={() => alternarAtivo(m)}
-                className="shrink-0 text-xs font-medium text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
-              >
-                {m.ativo === "false" ? "Ativar" : "Desativar"}
-              </button>
-            </li>
-          ))}
+                {editando ? (
+                  <form
+                    onSubmit={salvarEdicao}
+                    className="flex flex-col gap-2 sm:flex-row sm:items-center"
+                  >
+                    <input
+                      required
+                      autoFocus
+                      value={nomeEdicao}
+                      onChange={(e) => setNomeEdicao(e.target.value)}
+                      className="w-full flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700"
+                    />
+                    <div className="flex shrink-0 gap-3">
+                      <button
+                        type="submit"
+                        disabled={salvandoEdicao}
+                        className="text-xs font-medium text-slate-900 hover:underline disabled:opacity-50 dark:text-slate-100"
+                      >
+                        {salvandoEdicao ? "Salvando..." : "Salvar"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={cancelarEdicao}
+                        className="text-xs font-medium text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  <div className="flex items-center justify-between gap-3">
+                    <span
+                      className={
+                        m.ativo === "false"
+                          ? "text-slate-400 line-through dark:text-slate-500"
+                          : "text-slate-800 dark:text-slate-200"
+                      }
+                    >
+                      {m.nome}
+                    </span>
+                    <div className="flex shrink-0 gap-3">
+                      <button
+                        type="button"
+                        onClick={() => iniciarEdicao(m)}
+                        className="text-xs font-medium text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
+                      >
+                        Editar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => alternarAtivo(m)}
+                        className="text-xs font-medium text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
+                      >
+                        {m.ativo === "false" ? "Ativar" : "Desativar"}
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {editando && erroEdicao && (
+                  <p className="text-xs text-red-600 dark:text-red-400">{erroEdicao}</p>
+                )}
+              </li>
+            );
+          })}
         </ul>
       </div>
     </div>
