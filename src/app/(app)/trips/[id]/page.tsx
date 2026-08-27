@@ -249,7 +249,7 @@ export default function TripDashboardPage() {
                         {temPlug && (
                           <p className="flex items-center gap-2">
                             <span>
-                              ⚡ Eletricidade: {info?.plug_type || "?"} · {info?.volts || "?"} · {info?.hertz || "?"}
+                              ⚡ Energia: {info?.plug_type || "?"} · {info?.volts || "?"} · {info?.hertz || "?"}
                             </span>
                             {plugImgUrl && (
                               <button
