@@ -21,6 +21,10 @@ export default function AmbientesAdminPage() {
   const [nome, setNome] = useState("");
   const [saving, setSaving] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const [editandoId, setEditandoId] = useState<string | null>(null);
+  const [nomeEdicao, setNomeEdicao] = useState("");
+  const [salvandoEdicao, setSalvandoEdicao] = useState(false);
+  const [erroEdicao, setErroEdicao] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
@@ -49,6 +53,38 @@ export default function AmbientesAdminPage() {
       return;
     }
     setNome("");
+    load();
+  }
+
+  function iniciarEdicao(a: Ambiente) {
+    setEditandoId(a.id);
+    setNomeEdicao(a.nome);
+    setErroEdicao(null);
+  }
+
+  function cancelarEdicao() {
+    setEditandoId(null);
+    setNomeEdicao("");
+    setErroEdicao(null);
+  }
+
+  async function salvarEdicao(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editandoId) return;
+    setSalvandoEdicao(true);
+    setErroEdicao(null);
+    const res = await fetch(`/api/ambientes/${editandoId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nome: nomeEdicao }),
+    });
+    setSalvandoEdicao(false);
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setErroEdicao(data.error ?? "Erro ao renomear ambiente");
+      return;
+    }
+    cancelarEdicao();
     load();
   }
 
@@ -107,27 +143,70 @@ export default function AmbientesAdminPage() {
         )}
         {ambientes.map((a) => {
           const inativo = a.ativo === "false";
+          const editando = editandoId === a.id;
           return (
             <li
               key={a.id}
-              className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-900"
+              className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-900"
             >
-              <span
-                className={`truncate text-sm font-medium ${
-                  inativo
-                    ? "text-slate-400 line-through dark:text-slate-500"
-                    : "text-slate-800 dark:text-slate-200"
-                }`}
-              >
-                🏢 {a.nome}
-              </span>
-              <button
-                type="button"
-                onClick={() => alternarAtivo(a)}
-                className="shrink-0 text-xs font-medium text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
-              >
-                {inativo ? "Ativar" : "Desativar"}
-              </button>
+              {editando ? (
+                <form onSubmit={salvarEdicao} className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <input
+                    required
+                    autoFocus
+                    value={nomeEdicao}
+                    onChange={(e) => setNomeEdicao(e.target.value)}
+                    className="w-full flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700"
+                  />
+                  <div className="flex shrink-0 gap-3">
+                    <button
+                      type="submit"
+                      disabled={salvandoEdicao}
+                      className="text-xs font-medium text-slate-900 hover:underline disabled:opacity-50 dark:text-slate-100"
+                    >
+                      {salvandoEdicao ? "Salvando..." : "Salvar"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={cancelarEdicao}
+                      className="text-xs font-medium text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <div className="flex items-center justify-between gap-3">
+                  <span
+                    className={`truncate text-sm font-medium ${
+                      inativo
+                        ? "text-slate-400 line-through dark:text-slate-500"
+                        : "text-slate-800 dark:text-slate-200"
+                    }`}
+                  >
+                    🏢 {a.nome}
+                  </span>
+                  <div className="flex shrink-0 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => iniciarEdicao(a)}
+                      className="text-xs font-medium text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
+                    >
+                      Editar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => alternarAtivo(a)}
+                      className="text-xs font-medium text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
+                    >
+                      {inativo ? "Ativar" : "Desativar"}
+                    </button>
+                  </div>
+                </div>
+              )}
+              {editando && erroEdicao && (
+                <p className="text-xs text-red-600 dark:text-red-400">{erroEdicao}</p>
+              )}
             </li>
           );
         })}
