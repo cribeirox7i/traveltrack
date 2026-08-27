@@ -126,6 +126,15 @@ export default function TripDashboardPage() {
     return () => clearInterval(timer);
   }, []);
 
+  const [plugImgUrl, setPlugImgUrl] = useState("");
+  useEffect(() => {
+    fetch("/api/parametros/publicos")
+      .then((res) => (res.ok ? res.json() : {}))
+      .then((data: Record<string, string>) => setPlugImgUrl(data.plug_img_url ?? ""))
+      .catch(() => {});
+  }, []);
+  const [mostrarPlugImg, setMostrarPlugImg] = useState(false);
+
   const cidades = distinctCities(days);
   const paises = Array.from(new Set(cidades.map((c) => c.pais).filter(Boolean)));
   const temperaturas = temperaturasPorCidade(days);
@@ -238,8 +247,19 @@ export default function TripDashboardPage() {
                           <p>🚗 {info.driving_side === "left" ? "Esquerda" : "Direita"}</p>
                         )}
                         {temPlug && (
-                          <p>
-                            ⚡ {info?.plug_type || "?"} · {info?.volts || "?"} · {info?.hertz || "?"}
+                          <p className="flex items-center gap-2">
+                            <span>
+                              ⚡ {info?.plug_type || "?"} · {info?.volts || "?"} · {info?.hertz || "?"}
+                            </span>
+                            {plugImgUrl && (
+                              <button
+                                type="button"
+                                onClick={() => setMostrarPlugImg(true)}
+                                className="text-blue-600 dark:text-blue-400 hover:underline"
+                              >
+                                🔌 Ver tipos de plugue
+                              </button>
+                            )}
                           </p>
                         )}
                         {semDados && (
@@ -328,6 +348,37 @@ export default function TripDashboardPage() {
         })}
       </div>
       </div>
+
+      {mostrarPlugImg && hrefSeguro(plugImgUrl) && (
+        <div
+          className="fixed inset-0 z-30 flex items-center justify-center bg-black/40 p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setMostrarPlugImg(false);
+          }}
+        >
+          <div className="flex max-h-full max-w-lg flex-col gap-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-xl">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                🔌 Tipos de plugue
+              </h2>
+              <button
+                type="button"
+                onClick={() => setMostrarPlugImg(false)}
+                aria-label="Fechar"
+                className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+              >
+                ✕
+              </button>
+            </div>
+            {/* eslint-disable-next-line @next/next/no-img-element -- URL configurável em Parametros, sem domínio fixo pra next/image */}
+            <img
+              src={hrefSeguro(plugImgUrl)}
+              alt="Tipos de plugue de tomada"
+              className="max-h-[70vh] w-full rounded-lg object-contain"
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
