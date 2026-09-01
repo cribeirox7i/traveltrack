@@ -136,6 +136,9 @@ export default function ItensPage() {
   const [analisando, setAnalisando] = useState(false);
   const [analisado, setAnalisado] = useState(false);
   const [segundoTrecho, setSegundoTrecho] = useState<SegundoTrecho | null>(null);
+  /** O que a leitura do voucher corrigiu ou não conseguiu resolver sozinha - hoje, data final
+   * anterior à inicial (ver `corrigirCronologia` em lib/gemini.ts). */
+  const [avisosAnalise, setAvisosAnalise] = useState<string[]>([]);
   const [viewingItem, setViewingItem] = useState<Item | null>(null);
   const [filtroCategoria, setFiltroCategoria] = useState<CategoriaItem | "">("");
   const [filtroData, setFiltroData] = useState("");
@@ -191,6 +194,7 @@ export default function ItensPage() {
     setFile(null);
     setAnalisado(false);
     setSegundoTrecho(null);
+    setAvisosAnalise([]);
     setEditingId(null);
     setEditingAnexoNome(null);
     setForm({
@@ -210,6 +214,7 @@ export default function ItensPage() {
     setFile(null);
     setAnalisado(false);
     setSegundoTrecho(null);
+    setAvisosAnalise([]);
     setEditingId(item.id);
     setEditingAnexoNome(item.anexo_nome || null);
     setForm({
@@ -248,6 +253,7 @@ export default function ItensPage() {
     setFile(null);
     setAnalisado(false);
     setSegundoTrecho(null);
+    setAvisosAnalise([]);
     if (fileInputRef.current) fileInputRef.current.value = "";
     // Chegou aqui via link "Editar" de Roteiro > Agenda (?editar=<id>) - volta pra lá em vez de
     // ficar na tela Itens, senão o usuário perde o lugar de onde veio.
@@ -272,9 +278,12 @@ export default function ItensPage() {
         setError(data.error ?? "Não foi possível analisar o voucher");
         return;
       }
-      const { segundo_trecho, ...campos } = data;
+      // `avisos` sai junto com `segundo_trecho`: os dois são metadados da leitura, não campos do
+      // Item - deixá-los cair no espalhamento sujaria o formulário com chaves que a API descarta.
+      const { segundo_trecho, avisos, ...campos } = data;
       setForm((prev) => ({ ...prev, ...campos }));
       setSegundoTrecho(segundo_trecho ?? null);
+      setAvisosAnalise(Array.isArray(avisos) ? avisos : []);
       setAnalisado(true);
     } catch {
       setError("Falha de conexão ao tentar analisar o voucher");
@@ -490,7 +499,11 @@ export default function ItensPage() {
                   accept={ACCEPT_VOUCHER}
                   onChange={(e) => {
                     setFile(e.target.files?.[0] ?? null);
+                    // Trocar o arquivo invalida a leitura anterior por inteiro, não só o "li com
+                    // sucesso": o 2º trecho e os avisos eram do documento antigo.
                     setAnalisado(false);
+                    setSegundoTrecho(null);
+                    setAvisosAnalise([]);
                   }}
                   className="block w-full text-sm text-slate-600 dark:text-slate-400 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-900 file:px-3 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-slate-800"
                 />
@@ -516,6 +529,14 @@ export default function ItensPage() {
                 cadastrar.
               </p>
             )}
+            {avisosAnalise.map((aviso) => (
+              <p
+                key={aviso}
+                className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300"
+              >
+                ⚠️ {aviso}
+              </p>
+            ))}
             {segundoTrecho && (
               <div className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
                 <span>

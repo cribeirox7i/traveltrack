@@ -63,6 +63,10 @@ Campos:
 - nome_local, endereco: nome e endereço do hotel/restaurante.
 - data_inicio, hora_inicio, data_fim, hora_fim: partida/chegada (traslado/passagem), check-in/
   check-out (hospedagem/alimentação), início/término (atrativo) - formato AAAA-MM-DD e HH:MM.
+  A chegada/término NUNCA acontece antes da partida/início. Muitos documentos (ônibus e voo
+  noturno, principalmente) mostram só o horário de chegada, sem repetir a data: se esse horário
+  for MENOR que o da partida, a viagem virou o dia e "data_fim" é o dia SEGUINTE ao da partida,
+  não o mesmo dia. Ex.: partida 2026-09-10 23:30, chegada 06:15 -> data_fim = 2026-09-11.
 - data, horario: só preencha se a categoria for "repasse", "documento" ou "outro" (as demais usam
   data_inicio/hora_inicio como data do item).
 - tipo_documento: só para "documento" - um destes: Taxa, Pedágio, RG, CPF, Passaporte, Visto,
@@ -217,9 +221,16 @@ export interface VoucherExtraido {
   /** Preenchido só quando o documento descreve ida e volta (ou mais de um trecho) - ver o aviso
    * no `PROMPT`. `null` se o documento tiver um trecho só. */
   segundo_trecho: SegundoTrecho | null;
+  /** Mensagens sobre o que a leitura corrigiu ou não conseguiu resolver sozinha (ver
+   * `corrigirCronologia`) - a tela mostra pro usuário conferir antes de salvar. Vazio quando não
+   * há nada a apontar. Não é erro: o resultado continua utilizável. */
+  avisos: string[];
 }
 
-const CAMPOS_TEXTO: Exclude<keyof VoucherExtraido, "categoria" | "segundo_trecho">[] = [
+const CAMPOS_TEXTO: Exclude<
+  keyof VoucherExtraido,
+  "categoria" | "segundo_trecho" | "avisos"
+>[] = [
   "tipo",
   "localizador",
   "nome_companhia",
@@ -264,13 +275,83 @@ function normalizar(bruto: unknown): VoucherExtraido {
   const categoria = CATEGORIAS.includes(obj.categoria as (typeof CATEGORIAS)[number])
     ? (obj.categoria as (typeof CATEGORIAS)[number])
     : "outro";
-  const resultado = { categoria, segundo_trecho: null } as VoucherExtraido;
+  const resultado = {
+    categoria,
+    segundo_trecho: null,
+    avisos: [] as string[],
+  } as unknown as VoucherExtraido;
   for (const campo of CAMPOS_TEXTO) {
     const valor = obj[campo];
     resultado[campo] = typeof valor === "string" ? valor : "";
   }
   resultado.segundo_trecho = normalizarSegundoTrecho(obj.segundo_trecho);
+
+  // Só numera os trechos quando existem dois - com um trecho só, "Trecho 1" seria ruído.
+  const temDoisTrechos = resultado.segundo_trecho !== null;
+  const avisos = [
+    corrigirCronologia(resultado, temDoisTrechos ? "Trecho 1" : "Atenção"),
+    resultado.segundo_trecho ? corrigirCronologia(resultado.segundo_trecho, "Trecho 2") : null,
+  ];
+  resultado.avisos = avisos.filter((a): a is string => a !== null);
   return resultado;
+}
+
+const RE_DATA = /^\d{4}-\d{2}-\d{2}$/;
+const RE_HORA = /^\d{2}:\d{2}$/;
+
+/** Soma um dia a uma data AAAA-MM-DD, em UTC de propósito: só interessa o calendário, e usar o
+ * fuso local faria a virada de mês/ano depender de onde o servidor está rodando. */
+function somarUmDia(data: string): string {
+  const d = new Date(`${data}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
+/** Um trecho com a noção de início e fim - o item principal ou o `segundo_trecho`. */
+type TrechoComDatas = Pick<
+  VoucherExtraido,
+  "data_inicio" | "hora_inicio" | "data_fim" | "hora_fim"
+>;
+
+/**
+ * Conserta a chegada que o modelo colocou ANTES da partida. Acontece de verdade e por um motivo
+ * específico: em viagem noturna (ônibus e voo, principalmente) o documento costuma mostrar só o
+ * horário de chegada, sem repetir a data - o modelo copia a data da partida e o resultado é uma
+ * chegada às 06:15 de uma viagem que partiu às 23:30 do MESMO dia. Vale igual pra hospedagem,
+ * onde check-in 15:00 e check-out 11:00 na mesma data é sempre a diária virando o dia.
+ *
+ * O prompt também instrui sobre isso, mas instrução de prompt é probabilística: esta função é a
+ * garantia. Ela corrige só o caso que dá pra deduzir com certeza (mesma data, hora de fim menor
+ * que a de início = virou o dia). Quando a data de fim já é anterior à de início, não há como
+ * adivinhar o que o documento dizia - aí não inventa nada, só avisa, e quem confere é o usuário
+ * antes de salvar.
+ *
+ * Muta `trecho` e devolve o aviso a mostrar na tela, ou `null` se estava tudo certo.
+ */
+function corrigirCronologia(trecho: TrechoComDatas, rotulo: string): string | null {
+  const { data_inicio, hora_inicio, data_fim, hora_fim } = trecho;
+  if (!RE_DATA.test(data_inicio) || !RE_DATA.test(data_fim)) return null;
+
+  // Datas ISO comparam certo como string, sem precisar virar Date.
+  if (data_fim > data_inicio) return null;
+
+  if (data_fim === data_inicio) {
+    if (!RE_HORA.test(hora_inicio) || !RE_HORA.test(hora_fim)) return null;
+    if (hora_fim >= hora_inicio) return null;
+    trecho.data_fim = somarUmDia(data_inicio);
+    // Vocabulário neutro de propósito: a mesma correção vale pra chegada de ônibus, check-out de
+    // hospedagem e término de passeio, e cada categoria chama esses campos de um jeito.
+    return (
+      `${rotulo}: o horário final (${hora_fim}) é anterior ao inicial (${hora_inicio}) no mesmo ` +
+      `dia, então a data final foi ajustada para ${trecho.data_fim}. Confira se realmente vira ` +
+      "o dia."
+    );
+  }
+
+  return (
+    `${rotulo}: o documento foi lido com data final em ${data_fim}, antes da inicial em ` +
+    `${data_inicio}. Confira as datas antes de salvar.`
+  );
 }
 
 export class GeminiIndisponivelError extends Error {}
