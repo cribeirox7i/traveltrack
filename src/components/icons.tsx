@@ -28,6 +28,19 @@ export function SunIcon({ className }: IconProps) {
   );
 }
 
+/** Globo terrestre - o ambiente (tenant) que o admin está navegando, ver AmbienteSwitcher. As
+ * duas curvas verticais são os meridianos e a horizontal é o equador; juntas leem como globo
+ * mesmo nos 20px de altura da barra do topo, onde um desenho de continentes viraria borrão. */
+export function GlobeIcon({ className }: IconProps) {
+  return (
+    <svg {...common} className={className} aria-hidden="true">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M3 12h18" />
+      <path d="M12 3a14 14 0 0 1 0 18a14 14 0 0 1 0-18Z" />
+    </svg>
+  );
+}
+
 export function CogIcon({ className }: IconProps) {
   return (
     <svg {...common} className={className} aria-hidden="true">
