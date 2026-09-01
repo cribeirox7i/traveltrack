@@ -3,8 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { useOfflineCollection, useOfflineTrip } from "@/lib/offline/useOfflineData";
+import { useOfflineCollection, useOfflineTrip, useOnlineStatus } from "@/lib/offline/useOfflineData";
 import { pullTripDetail, pullTrips, saveDaysOffline } from "@/lib/offline/sync";
+import { apiFetch } from "@/lib/apiFetch";
 import { CityAutocomplete } from "@/components/CityAutocomplete";
 import { InfoDisclaimer } from "@/components/InfoDisclaimer";
 
@@ -81,6 +82,9 @@ export default function ItinerarioPage() {
   const [focusedCell, setFocusedCell] = useState<FocusedCell | null>(null);
   const [structBusy, setStructBusy] = useState(false);
   const [structError, setStructError] = useState<string | null>(null);
+  // Editar células funciona offline (vai pro outbox), mas incluir/excluir dia é operação
+  // estrutural do servidor - sem sinal esses dois botões ficam desabilitados.
+  const online = useOnlineStatus();
 
   // Snapshot do que já está sincronizado, pra "Salvar" enviar só os campos que mudaram de fato.
   const snapshotRef = useRef<Record<string, TripDay>>({});
@@ -195,19 +199,33 @@ export default function ItinerarioPage() {
   async function insertDay(afterDayId: string) {
     setStructError(null);
     setStructBusy(true);
-    const res = await fetch(`/api/trips/${tripId}/days/insert`, {
+    const res = await apiFetch(`/api/trips/${tripId}/days/insert`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ afterDayId }),
     });
     if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      setStructError(body.error ?? "Erro ao inserir dia");
-    } else {
+      setStructError(res.error);
+      setStructBusy(false);
+      return;
+    }
+    await recarregarDepoisDaEstrutura();
+  }
+
+  /**
+   * Repopula o cache local depois de uma mudança estrutural já gravada no servidor. Se algum pull
+   * falhar, os dados se atualizam na próxima sincronização - o que não pode acontecer é `structBusy`
+   * ficar preso em true e travar os botões de incluir/excluir dia.
+   */
+  async function recarregarDepoisDaEstrutura() {
+    try {
       await pullTripDetail(tripId);
       await pullTrips();
+    } catch {
+      // silencioso de propósito - a operação em si deu certo
+    } finally {
+      setStructBusy(false);
     }
-    setStructBusy(false);
   }
 
   async function deleteDay(day: TripDay) {
@@ -218,15 +236,13 @@ export default function ItinerarioPage() {
     if (!ok) return;
     setStructError(null);
     setStructBusy(true);
-    const res = await fetch(`/api/trips/${tripId}/days/${day.id}`, { method: "DELETE" });
+    const res = await apiFetch(`/api/trips/${tripId}/days/${day.id}`, { method: "DELETE" });
     if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      setStructError(body.error ?? "Erro ao excluir dia");
-    } else {
-      await pullTripDetail(tripId);
-      await pullTrips();
+      setStructError(res.error);
+      setStructBusy(false);
+      return;
     }
-    setStructBusy(false);
+    await recarregarDepoisDaEstrutura();
   }
 
   if (loading) return <p className="text-sm text-slate-500 dark:text-slate-400">Carregando...</p>;
@@ -339,8 +355,14 @@ export default function ItinerarioPage() {
                       <button
                         type="button"
                         onClick={() => insertDay(day.id)}
-                        disabled={structBusy || isDirty}
-                        title={isDirty ? "Salve as edições antes de incluir um dia" : "Incluir dia depois deste"}
+                        disabled={structBusy || isDirty || !online}
+                        title={
+                          !online
+                            ? "Incluir dia precisa de internet"
+                            : isDirty
+                              ? "Salve as edições antes de incluir um dia"
+                              : "Incluir dia depois deste"
+                        }
                         className="text-slate-400 dark:text-slate-500 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-40"
                       >
                         + dia
@@ -348,8 +370,14 @@ export default function ItinerarioPage() {
                       <button
                         type="button"
                         onClick={() => deleteDay(day)}
-                        disabled={structBusy || isDirty || days.length <= 1}
-                        title={isDirty ? "Salve as edições antes de excluir um dia" : "Excluir este dia"}
+                        disabled={structBusy || isDirty || days.length <= 1 || !online}
+                        title={
+                          !online
+                            ? "Excluir dia precisa de internet"
+                            : isDirty
+                              ? "Salve as edições antes de excluir um dia"
+                              : "Excluir este dia"
+                        }
                         className="text-red-400 dark:text-red-500 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40"
                       >
                         Excluir

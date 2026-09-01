@@ -22,8 +22,14 @@ export function RefreshButton() {
 
   async function handleClick() {
     setBusy(true);
-    await refreshNow(currentTripId(pathname));
-    setBusy(false);
+    try {
+      await refreshNow(currentTripId(pathname));
+    } finally {
+      // `refreshNow` engole os erros de cada etapa, mas basta uma delas escapar (o sinal cai no
+      // meio, uma leitura do IndexedDB falha) pra este `setBusy(false)` nunca rodar e o ícone
+      // ficar girando pra sempre - só um recarregamento da página destravava.
+      setBusy(false);
+    }
   }
 
   return (

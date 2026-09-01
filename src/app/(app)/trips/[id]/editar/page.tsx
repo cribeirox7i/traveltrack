@@ -3,8 +3,9 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { useOfflineTrip } from "@/lib/offline/useOfflineData";
+import { useOfflineTrip, useOnlineStatus } from "@/lib/offline/useOfflineData";
 import { pullTripDetail, pullTrips } from "@/lib/offline/sync";
+import { apiFetch } from "@/lib/apiFetch";
 import { CityAutocomplete } from "@/components/CityAutocomplete";
 import { diffDays } from "@/lib/dateRange";
 
@@ -45,6 +46,9 @@ export default function EditarViagemPage() {
   });
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  // A leitura desta tela vem do IndexedDB e funciona offline, mas o PATCH da viagem é do servidor
+  // e não tem equivalente local - sem sinal o botão fica desabilitado em vez de falhar.
+  const online = useOnlineStatus();
 
   useEffect(() => {
     if (!trip) return;
@@ -64,20 +68,26 @@ export default function EditarViagemPage() {
     e.preventDefault();
     setError(null);
     setSaving(true);
-    const res = await fetch(`/api/trips/${tripId}`, {
+    const res = await apiFetch(`/api/trips/${tripId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...form, qtd_pessoas: String(form.qtd_pessoas) }),
     });
     if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      setError(body.error ?? "Erro ao salvar");
+      setError(res.error);
       setSaving(false);
       return;
     }
-    await pullTripDetail(tripId);
-    await pullTrips();
-    setSaving(false);
+    // Os pulls repopulam o IndexedDB; se algum falhar, o salvamento já foi feito no servidor -
+    // o finally garante que o botão não fique preso em "Salvando...".
+    try {
+      await pullTripDetail(tripId);
+      await pullTrips();
+    } catch {
+      // O servidor já gravou; o cache local se atualiza na próxima sincronização.
+    } finally {
+      setSaving(false);
+    }
     router.push(`/trips/${tripId}`);
   }
 
@@ -213,7 +223,8 @@ export default function EditarViagemPage() {
         <div className="flex items-center gap-2">
           <button
             type="submit"
-            disabled={saving}
+            disabled={saving || !online}
+            title={online ? undefined : "Salvar alterações da viagem precisa de internet"}
             className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
           >
             {saving ? "Salvando..." : "Salvar"}

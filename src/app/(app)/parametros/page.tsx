@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { InfoDisclaimer } from "@/components/InfoDisclaimer";
+import { apiFetch } from "@/lib/apiFetch";
+import { useOnlineStatus } from "@/lib/offline/useOfflineData";
 import { FILTER_SELECT_CLASS } from "@/lib/uiClasses";
 
 interface MeioPagamento {
@@ -42,6 +44,10 @@ export default function ParametrosPage() {
   const [nome, setNome] = useState("");
   const [saving, setSaving] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const [erroLista, setErroLista] = useState<string | null>(null);
+  // Criar, renomear e ativar/desativar meio de pagamento não entram no outbox, então sem sinal
+  // esta tela é só leitura - o que o Service Worker guardou da última visita com internet.
+  const online = useOnlineStatus();
 
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [nomeEdicao, setNomeEdicao] = useState("");
@@ -53,8 +59,12 @@ export default function ParametrosPage() {
 
   const carregarMeios = useCallback(async () => {
     setLoading(true);
-    const res = await fetch("/api/meios-pagamento");
-    if (res.ok) setMeios(await res.json());
+    setErroLista(null);
+    const res = await apiFetch<MeioPagamento[]>("/api/meios-pagamento");
+    // A resposta de erro do servidor é um objeto `{error}`, não uma lista - guardá-la em `meios`
+    // sem checar fazia o `.filter()`/`.map()` do JSX quebrar a tela inteira.
+    if (res.ok && Array.isArray(res.data)) setMeios(res.data);
+    else if (!res.ok) setErroLista(res.error);
     setLoading(false);
   }, []);
 
@@ -64,10 +74,11 @@ export default function ParametrosPage() {
 
   useEffect(() => {
     if (!podeEscolherUsuario) return;
-    fetch("/api/users")
-      .then((res) => (res.ok ? res.json() : []))
-      .then((lista: UsuarioOption[]) => setUsuarios(lista))
-      .catch(() => {});
+    async function carregarUsuarios() {
+      const res = await apiFetch<UsuarioOption[]>("/api/users");
+      if (res.ok && Array.isArray(res.data)) setUsuarios(res.data);
+    }
+    carregarUsuarios();
   }, [podeEscolherUsuario]);
 
   const meiosDoDono = meios.filter((m) => m.user_id === donoEfetivo);
@@ -76,15 +87,14 @@ export default function ParametrosPage() {
     e.preventDefault();
     setSaving(true);
     setErro(null);
-    const res = await fetch("/api/meios-pagamento", {
+    const res = await apiFetch("/api/meios-pagamento", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ nome, user_id: donoEfetivo }),
     });
     setSaving(false);
     if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      setErro(data.error ?? "Erro ao cadastrar meio de pagamento");
+      setErro(res.error);
       return;
     }
     setNome("");
@@ -108,15 +118,14 @@ export default function ParametrosPage() {
     if (!editandoId) return;
     setSalvandoEdicao(true);
     setErroEdicao(null);
-    const res = await fetch(`/api/meios-pagamento/${editandoId}`, {
+    const res = await apiFetch(`/api/meios-pagamento/${editandoId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ nome: nomeEdicao }),
     });
     setSalvandoEdicao(false);
     if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      setErroEdicao(data.error ?? "Erro ao renomear meio de pagamento");
+      setErroEdicao(res.error);
       return;
     }
     cancelarEdicao();
@@ -124,11 +133,15 @@ export default function ParametrosPage() {
   }
 
   async function alternarAtivo(m: MeioPagamento) {
-    await fetch(`/api/meios-pagamento/${m.id}`, {
+    const res = await apiFetch(`/api/meios-pagamento/${m.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ativo: m.ativo === "false" }),
     });
+    if (!res.ok) {
+      setErro(res.error);
+      return;
+    }
     carregarMeios();
   }
 
@@ -185,7 +198,8 @@ export default function ParametrosPage() {
           </div>
           <button
             type="submit"
-            disabled={saving}
+            disabled={saving || !online}
+            title={online ? undefined : "Adicionar meio de pagamento precisa de internet"}
             className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
           >
             {saving ? "Criando..." : "Adicionar"}
@@ -196,7 +210,10 @@ export default function ParametrosPage() {
 
         <ul className="flex flex-col gap-1">
           {loading && <li className="text-sm text-slate-500 dark:text-slate-400">Carregando...</li>}
-          {!loading && meiosDoDono.length === 0 && (
+          {!loading && erroLista && (
+            <li className="text-sm text-red-600 dark:text-red-400">{erroLista}</li>
+          )}
+          {!loading && !erroLista && meiosDoDono.length === 0 && (
             <li className="text-sm text-slate-500 dark:text-slate-400">
               Nenhum meio de pagamento cadastrado ainda.
             </li>
@@ -223,7 +240,8 @@ export default function ParametrosPage() {
                     <div className="flex shrink-0 gap-3">
                       <button
                         type="submit"
-                        disabled={salvandoEdicao}
+                        disabled={salvandoEdicao || !online}
+                        title={online ? undefined : "Salvar precisa de internet"}
                         className="text-xs font-medium text-slate-900 hover:underline disabled:opacity-50 dark:text-slate-100"
                       >
                         {salvandoEdicao ? "Salvando..." : "Salvar"}
@@ -252,14 +270,18 @@ export default function ParametrosPage() {
                       <button
                         type="button"
                         onClick={() => iniciarEdicao(m)}
-                        className="text-xs font-medium text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
+                        disabled={!online}
+                        title={online ? undefined : "Renomear precisa de internet"}
+                        className="text-xs font-medium text-slate-500 hover:text-slate-900 disabled:opacity-40 dark:text-slate-400 dark:hover:text-slate-100"
                       >
                         Editar
                       </button>
                       <button
                         type="button"
                         onClick={() => alternarAtivo(m)}
-                        className="text-xs font-medium text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
+                        disabled={!online}
+                        title={online ? undefined : "Ativar/desativar precisa de internet"}
+                        className="text-xs font-medium text-slate-500 hover:text-slate-900 disabled:opacity-40 dark:text-slate-400 dark:hover:text-slate-100"
                       >
                         {m.ativo === "false" ? "Ativar" : "Desativar"}
                       </button>

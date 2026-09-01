@@ -3,6 +3,8 @@
 import { Fragment, useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { PasswordInput } from "@/components/PasswordInput";
+import { apiFetch, ERRO_SEM_CONEXAO } from "@/lib/apiFetch";
+import { useOnlineStatus } from "@/lib/offline/useOfflineData";
 import type { Role } from "@/lib/sheets/types";
 
 interface UserItem {
@@ -31,6 +33,10 @@ export default function UsuariosAdminPage() {
   // Gestor só cria/edita usuário comum do ambiente dele - a API impõe isso, aqui a UI só evita
   // oferecer o que seria recusado (papel e ambiente ficam de fora do formulário pra ele).
   const souAdmin = session?.user.role === "admin";
+  // Nenhuma alteração desta tela é enfileirável no outbox (criar usuário, editar, redefinir senha
+  // e ativar/desativar são operações do servidor, sem equivalente local), então sem sinal ela é só
+  // leitura.
+  const online = useOnlineStatus();
 
   const [users, setUsers] = useState<UserItem[]>([]);
   const [ambientes, setAmbientes] = useState<AmbienteItem[]>([]);
@@ -60,18 +66,20 @@ export default function UsuariosAdminPage() {
   async function load() {
     setLoading(true);
     setLoadError(null);
-    try {
-      const res = await fetch("/api/users");
-      if (res.ok) {
-        setUsers(await res.json());
-      } else {
-        setLoadError("Erro ao carregar usuários");
-      }
-    } catch {
+    const res = await apiFetch<UserItem[]>("/api/users");
+    // A resposta de erro do servidor é um objeto `{error}`, não uma lista - guardá-la em `users`
+    // sem checar fazia o `.map()` do JSX quebrar a tela inteira.
+    if (res.ok && Array.isArray(res.data)) {
+      setUsers(res.data);
+    } else if (!res.ok) {
       // Gerenciamento de usuários exige conexão - sem isso a tela ficava presa em
       // "Carregando..." pra sempre quando aberta offline (o fetch rejeita e ninguém chamava
       // setLoading(false)).
-      setLoadError("Sem conexão - esta tela exige internet");
+      setLoadError(
+        res.error === ERRO_SEM_CONEXAO
+          ? "Sem conexão - esta tela exige internet"
+          : "Erro ao carregar usuários"
+      );
     }
     setLoading(false);
   }
@@ -82,10 +90,13 @@ export default function UsuariosAdminPage() {
 
   useEffect(() => {
     if (!souAdmin) return;
-    fetch("/api/ambientes")
-      .then((res) => (res.ok ? res.json() : []))
-      .then((lista: AmbienteItem[]) => setAmbientes(lista.filter((a) => a.ativo !== "false")))
-      .catch(() => {});
+    async function carregarAmbientes() {
+      const res = await apiFetch<AmbienteItem[]>("/api/ambientes");
+      if (res.ok && Array.isArray(res.data)) {
+        setAmbientes(res.data.filter((a) => a.ativo !== "false"));
+      }
+    }
+    carregarAmbientes();
   }, [souAdmin]);
 
   const nomePorAmbiente = Object.fromEntries(ambientes.map((a) => [a.id, a.nome]));
@@ -95,7 +106,7 @@ export default function UsuariosAdminPage() {
     setError(null);
     setSaving(true);
 
-    const res = await fetch("/api/users", {
+    const res = await apiFetch("/api/users", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(form),
@@ -104,8 +115,7 @@ export default function UsuariosAdminPage() {
     setSaving(false);
 
     if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      setError(data.error ?? "Erro ao criar usuário");
+      setError(res.error);
       return;
     }
 
@@ -114,11 +124,15 @@ export default function UsuariosAdminPage() {
   }
 
   async function toggleActive(user: UserItem) {
-    await fetch(`/api/users/${user.id}`, {
+    const res = await apiFetch(`/api/users/${user.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ativo: user.ativo !== "true" }),
     });
+    if (!res.ok) {
+      setError(res.error);
+      return;
+    }
     load();
   }
 
@@ -138,7 +152,7 @@ export default function UsuariosAdminPage() {
     setEditError(null);
     setEditSaving(true);
 
-    const res = await fetch(`/api/users/${id}`, {
+    const res = await apiFetch(`/api/users/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(editForm),
@@ -147,8 +161,7 @@ export default function UsuariosAdminPage() {
     setEditSaving(false);
 
     if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      setEditError(data.error ?? "Erro ao salvar usuário");
+      setEditError(res.error);
       return;
     }
 
@@ -176,7 +189,7 @@ export default function UsuariosAdminPage() {
     }
     setResetSaving(true);
 
-    const res = await fetch(`/api/users/${id}`, {
+    const res = await apiFetch(`/api/users/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ senha: resetSenha }),
@@ -185,8 +198,7 @@ export default function UsuariosAdminPage() {
     setResetSaving(false);
 
     if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      setResetError(data.error ?? "Erro ao redefinir senha");
+      setResetError(res.error);
       return;
     }
 
@@ -246,7 +258,8 @@ export default function UsuariosAdminPage() {
         )}
         <button
           type="submit"
-          disabled={saving}
+          disabled={saving || !online}
+          title={online ? undefined : "Criar usuário precisa de internet"}
           className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
         >
           {saving ? "Criando..." : "Criar usuário"}
@@ -349,7 +362,8 @@ export default function UsuariosAdminPage() {
                         <div className="flex justify-end gap-3">
                           <button
                             onClick={() => saveEdit(u.id)}
-                            disabled={editSaving}
+                            disabled={editSaving || !online}
+                            title={online ? undefined : "Salvar usuário precisa de internet"}
                             className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 disabled:opacity-50"
                           >
                             {editSaving ? "Salvando..." : "Salvar"}
@@ -388,19 +402,25 @@ export default function UsuariosAdminPage() {
                         <div className="flex justify-end gap-3">
                           <button
                             onClick={() => startEdit(u)}
-                            className="text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900"
+                            disabled={!online}
+                            title={online ? undefined : "Editar usuário precisa de internet"}
+                            className="text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 disabled:opacity-40"
                           >
                             Editar
                           </button>
                           <button
                             onClick={() => startReset(u)}
-                            className="text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900"
+                            disabled={!online}
+                            title={online ? undefined : "Redefinir senha precisa de internet"}
+                            className="text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 disabled:opacity-40"
                           >
                             Redefinir senha
                           </button>
                           <button
                             onClick={() => toggleActive(u)}
-                            className="text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900"
+                            disabled={!online}
+                            title={online ? undefined : "Ativar/desativar precisa de internet"}
+                            className="text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 disabled:opacity-40"
                           >
                             {u.ativo === "true" ? "Desativar" : "Ativar"}
                           </button>
@@ -433,7 +453,8 @@ export default function UsuariosAdminPage() {
                         </div>
                         <button
                           onClick={() => saveReset(u.id)}
-                          disabled={resetSaving}
+                          disabled={resetSaving || !online}
+                          title={online ? undefined : "Redefinir senha precisa de internet"}
                           className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-50"
                         >
                           {resetSaving ? "Salvando..." : "Salvar nova senha"}

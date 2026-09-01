@@ -1,5 +1,6 @@
 import { v4 as uuid } from "uuid";
 import { sequentialDates } from "../dateRange";
+import { APP_API_ROUTES, APP_ROUTES } from "../appRoutes";
 import { TRIP_TAB_SLUGS } from "../tripTabs";
 import { resolveCountryInfo } from "../countryInfo";
 import { fetchRateToBRL, todayISO } from "../exchangeRate";
@@ -333,8 +334,10 @@ export async function setTripOffline(tripId: string, enabled: boolean): Promise<
     }
     await downloadTripFull(tripId);
     // Sem isso a viagem fica com todos os dados salvos e mesmo assim cai no fallback /offline
-    // quando aberta sem sinal - ver warmTripPages.
-    await warmTripPages(tripId);
+    // quando aberta sem sinal - ver warmTripPages. `warmAppRoutes` entra junto porque marcar
+    // uma viagem é o momento em que o usuário declara "vou ficar sem sinal": preparar só as
+    // telas dela deixava o resto do app quebrado justamente aí.
+    await Promise.all([warmTripPages(tripId), warmAppRoutes()]);
   } else {
     ids.delete(tripId);
     await setMeta(OFFLINE_TRIPS_KEY, Array.from(ids));
@@ -498,22 +501,53 @@ async function warmTripPages(tripId: string): Promise<void> {
   if (!isOnline()) return;
   await Promise.all([
     fetch(`/trips/${tripId}`, { credentials: "same-origin" }).catch(() => {}),
-    ...TRIP_TAB_SLUGS.map((slug) =>
+    // "editar" fica fora de TRIP_TAB_SLUGS (não é uma aba da navegação, é uma tela à parte),
+    // então era a única tela de viagem que continuava caindo em "Sem conexão" mesmo com a
+    // viagem inteira baixada.
+    ...[...TRIP_TAB_SLUGS, "editar"].map((slug) =>
       fetch(`/trips/${tripId}/${slug}`, { credentials: "same-origin" }).catch(() => {})
     ),
+    // Única leitura por viagem que não tem espelho no IndexedDB: é a lista de quem tem acesso,
+    // usada pela tela Acessos (admin). Sem isso, aquela tela abre offline mas com a lista de
+    // colaboradores vazia justamente pra viagem que o usuário se preparou pra levar.
+    fetch(`/api/user-trip?trip_id=${tripId}`, { credentials: "same-origin" }).catch(() => {}),
   ]);
 }
 
-/** O que o botão "Baixar offline" da tela de viagens dispara: atualiza os dados E deixa as
- * telas de todas as viagens marcadas prontas pra abrir sem sinal. */
-export async function downloadOfflineTripsNow(): Promise<void> {
+/**
+ * Mesma ideia de `warmTripPages`, para as telas que não pertencem a nenhuma viagem
+ * (`APP_ROUTES`) e para as respostas de referência que elas leem direto da API
+ * (`APP_API_ROUTES`) - ver src/lib/appRoutes.ts. Sem isso, marcar uma viagem como offline
+ * preparava só as telas dela: Ambientes, Acessos, Usuários, Config e Parâmetros continuavam
+ * dependendo de o usuário ter aberto cada uma com internet por acaso, e ainda assim eram
+ * despejadas do cache pelo limite baixo do cache genérico (ver src/app/sw.ts).
+ *
+ * Silencioso como o irmão: é pré-carregamento de melhor esforço, uma rota que falhe (ou que
+ * responda 403 pro papel do usuário) só significa que aquela tela não abre offline.
+ */
+async function warmAppRoutes(): Promise<void> {
   if (!isOnline()) return;
-  await fetch("/trips", { credentials: "same-origin" }).catch(() => {});
-  for (const tripId of await listOfflineTripIds()) {
+  await Promise.all(
+    [...APP_ROUTES, ...APP_API_ROUTES].map((rota) =>
+      fetch(rota, { credentials: "same-origin" }).catch(() => {})
+    )
+  );
+}
+
+/** O que o botão "Baixar offline" da tela de viagens dispara: atualiza os dados E deixa as
+ * telas do app - as de todas as viagens marcadas e as fixas - prontas pra abrir sem sinal.
+ * Devolve quantas viagens foram preparadas pra que o botão possa confirmar o que fez (ver
+ * `DownloadOfflineButton`). */
+export async function downloadOfflineTripsNow(): Promise<{ viagens: number }> {
+  if (!isOnline()) return { viagens: 0 };
+  await warmAppRoutes();
+  const tripIds = await listOfflineTripIds();
+  for (const tripId of tripIds) {
     await downloadTripFull(tripId);
     await warmTripPages(tripId);
   }
   notifyChange();
+  return { viagens: tripIds.length };
 }
 
 // ---------- Anexos (upload/exclusão continuam exigindo internet - só o cache é offline) ----------

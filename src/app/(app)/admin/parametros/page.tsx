@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { apiFetch } from "@/lib/apiFetch";
+import { useOnlineStatus } from "@/lib/offline/useOfflineData";
 
 interface ParametroItem {
   id: string;
@@ -9,18 +11,33 @@ interface ParametroItem {
   descricao: string;
 }
 
+interface SetupSheetsResult {
+  abasCriadas?: string[];
+  colunasAdicionadas?: Record<string, string[]>;
+}
+
 export default function ParametrosAdminPage() {
   const [parametros, setParametros] = useState<ParametroItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [erroLista, setErroLista] = useState<string | null>(null);
   const [form, setForm] = useState({ chave: "", valor: "", descricao: "" });
   const [saving, setSaving] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
   const [settingUpSheets, setSettingUpSheets] = useState(false);
   const [setupMessage, setSetupMessage] = useState<string | null>(null);
+  // Nada desta tela é enfileirável no outbox (salvar parâmetro e criar abas na planilha são
+  // operações do servidor, sem equivalente local), então sem sinal ela é só leitura - o que o
+  // Service Worker tiver guardado da última visita com internet.
+  const online = useOnlineStatus();
 
   async function load() {
     setLoading(true);
-    const res = await fetch("/api/parametros");
-    if (res.ok) setParametros(await res.json());
+    setErroLista(null);
+    const res = await apiFetch<ParametroItem[]>("/api/parametros");
+    // A resposta de erro do servidor é um objeto `{error}`, não uma lista - guardá-la em
+    // `parametros` sem checar fazia o `.map()` do JSX quebrar a tela inteira.
+    if (res.ok && Array.isArray(res.data)) setParametros(res.data);
+    else if (!res.ok) setErroLista(res.error);
     setLoading(false);
   }
 
@@ -31,12 +48,17 @@ export default function ParametrosAdminPage() {
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
-    await fetch("/api/parametros", {
+    setErro(null);
+    const res = await apiFetch("/api/parametros", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(form),
     });
     setSaving(false);
+    if (!res.ok) {
+      setErro(res.error);
+      return;
+    }
     setForm({ chave: "", valor: "", descricao: "" });
     load();
   }
@@ -44,15 +66,15 @@ export default function ParametrosAdminPage() {
   async function handleSetupSheets() {
     setSettingUpSheets(true);
     setSetupMessage(null);
-    const res = await fetch("/api/admin/setup-sheets", { method: "POST" });
-    const data = await res.json().catch(() => ({}));
+    const res = await apiFetch<SetupSheetsResult>("/api/admin/setup-sheets", { method: "POST" });
     setSettingUpSheets(false);
 
     if (!res.ok) {
-      setSetupMessage(data.error ?? "Erro ao configurar planilha");
+      setSetupMessage(res.error);
       return;
     }
 
+    const data = res.data;
     const abas = data.abasCriadas?.length ? data.abasCriadas.join(", ") : "nenhuma (já existiam)";
     const colunas: Record<string, string[]> = data.colunasAdicionadas ?? {};
     const colunasTexto = Object.entries(colunas)
@@ -76,7 +98,8 @@ export default function ParametrosAdminPage() {
         </p>
         <button
           onClick={handleSetupSheets}
-          disabled={settingUpSheets}
+          disabled={settingUpSheets || !online}
+          title={online ? undefined : "Verificar/criar abas precisa de internet"}
           className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
         >
           {settingUpSheets ? "Verificando..." : "Verificar/criar abas na planilha"}
@@ -119,12 +142,15 @@ export default function ParametrosAdminPage() {
         </div>
         <button
           type="submit"
-          disabled={saving}
+          disabled={saving || !online}
+          title={online ? undefined : "Salvar parâmetro precisa de internet"}
           className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
         >
           {saving ? "Salvando..." : "Salvar parâmetro"}
         </button>
       </form>
+
+      {erro && <p className="text-sm text-red-600 dark:text-red-400">{erro}</p>}
 
       <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
         <table className="w-full text-sm">
@@ -143,7 +169,14 @@ export default function ParametrosAdminPage() {
                 </td>
               </tr>
             )}
-            {!loading && parametros.length === 0 && (
+            {!loading && erroLista && (
+              <tr>
+                <td className="px-4 py-3 text-red-600 dark:text-red-400" colSpan={3}>
+                  {erroLista}
+                </td>
+              </tr>
+            )}
+            {!loading && !erroLista && parametros.length === 0 && (
               <tr>
                 <td className="px-4 py-3 text-slate-500 dark:text-slate-400" colSpan={3}>
                   Nenhum parâmetro cadastrado.

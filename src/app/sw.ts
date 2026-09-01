@@ -59,20 +59,52 @@ function isCatchAllGenerico(entrada: (typeof defaultCache)[number]) {
   return entrada.matcher instanceof RegExp && entrada.matcher.source === ".*";
 }
 
+/** Regra nativa que cacheia as respostas de `/api/*` - o limite original de 16 entradas é menor
+ * que o número de rotas de API do app (mais de 30), então cada tela aberta despejava a resposta
+ * de outra: uma viagem baixada "por completo" perdia a lista de usuários/ambientes só por o
+ * usuário ter navegado por algumas telas depois. Trocado por um limite alto e prazo longo - é o
+ * que faz as telas que buscam direto de `/api` (Ambientes, Acessos, Usuários, Config,
+ * Parâmetros) mostrarem a última lista salva sem sinal, em vez de ficarem carregando pra sempre.
+ * Só GET entra em cache (é o único método que a Cache API aceita), e `/api/auth/*` continua
+ * NetworkOnly por uma regra anterior do próprio defaultCache. */
+function isApis(entrada: (typeof defaultCache)[number]) {
+  return cacheNameDe(entrada) === "apis";
+}
+
+/**
+ * URL de TELA (documento HTML), em oposição a rota de API, chunk do Next ou arquivo estático.
+ * A distinção é por extensão: toda tela do app mora numa URL sem extensão (`/trips/{id}/itens`,
+ * `/admin/ambientes`), e todo arquivo servido tem uma (`/icon-192.png`, `/manifest.webmanifest`,
+ * `/sw.js`) - sem esse recorte, a regra `app-pages` abaixo passaria à frente das regras de
+ * imagem/fonte/script do defaultCache e guardaria asset no cache de páginas.
+ */
+function isRotaDeTela(pathname: string) {
+  return (
+    !pathname.startsWith("/api/") &&
+    !pathname.startsWith("/_next/") &&
+    !/\.[a-z0-9]+$/i.test(pathname)
+  );
+}
+
 const serwist = new Serwist({
   precacheEntries: self.__SW_MANIFEST,
   skipWaiting: true,
   clientsClaim: true,
   navigationPreload: true,
   runtimeCaching: [
-    // As telas de viagem são rotas DINÂMICAS (/trips/{id}/{aba}): o JS de cada aba já vem no
-    // precache do build, mas o documento de cada URL concreta só existe no cache se aquela URL
-    // exata tiver sido pedida com internet antes. Sem uma regra própria, essas navegações caem
-    // no cache genérico "others" do defaultCache - limitado a 32 entradas e compartilhado com
-    // todo o resto do mesmo domínio, então as páginas de viagem eram despejadas facilmente e a
-    // abertura offline caía no fallback /offline. Aqui elas ganham um cache dedicado e grande,
-    // que `warmTripPages` (src/lib/offline/sync.ts) preenche na hora em que o usuário marca a
-    // viagem como offline ou clica em "Baixar offline".
+    // TODA tela do app entra neste cache, não só as de viagem. As páginas são rotas dinâmicas
+    // (/trips/{id}/{aba}, mas também /admin/ambientes, /parametros...): o JS de cada uma já vem
+    // no precache do build, mas o documento de cada URL concreta só existe no cache se aquela
+    // URL exata tiver sido pedida com internet antes. Sem uma regra própria, essas navegações
+    // caem no cache genérico "others" do defaultCache - limitado a 32 entradas e compartilhado
+    // com todo o resto do mesmo domínio, então as páginas eram despejadas facilmente e a
+    // abertura offline caía no fallback /offline.
+    //
+    // Antes esta regra cobria só `/trips*` (cache "trip-pages"), e era exatamente por isso que
+    // Ambientes/Acessos/Usuários/Config/Parâmetros continuavam instáveis sem sinal: ficavam
+    // disputando as 32 vagas do "others". `warmAppRoutes`/`warmTripPages`
+    // (src/lib/offline/sync.ts) preenchem este cache quando o usuário marca a viagem como
+    // offline ou clica em "Baixar offline".
     //
     // Requisições RSC ficam de fora de propósito: elas têm a MESMA URL do documento e o cache é
     // indexado por URL, então guardá-las aqui faria uma navegação receber um payload RSC no
@@ -80,9 +112,9 @@ const serwist = new Serwist({
     // desses faltar, o Next cai numa navegação normal, que esta regra atende.
     {
       matcher: ({ request, url: { pathname }, sameOrigin }) =>
-        sameOrigin && pathname.startsWith("/trips") && !request.headers.get("RSC"),
+        sameOrigin && isRotaDeTela(pathname) && !request.headers.get("RSC"),
       handler: new NetworkFirst({
-        cacheName: "trip-pages",
+        cacheName: "app-pages",
         plugins: [
           {
             // Só guarda a página de verdade. Com a sessão expirada, o servidor responde
@@ -135,6 +167,25 @@ const serwist = new Serwist({
             sameOrigin && REGEX_IMAGEM.test(url.href),
         };
       }
+      if (isApis(entrada)) {
+        return {
+          ...entrada,
+          handler: new NetworkFirst({
+            cacheName: "apis",
+            plugins: [
+              {
+                // Mesma razão do `cacheWillUpdate` de "app-pages": com a sessão expirada o
+                // servidor pode responder um redirect pro /login, e gravar isso sob a URL da
+                // API faria a tela offline receber HTML de login onde espera JSON.
+                cacheWillUpdate: async ({ response }) =>
+                  response.status === 200 && !response.redirected ? response : null,
+              },
+              new ExpirationPlugin({ maxEntries: 120, maxAgeSeconds: 30 * 24 * 60 * 60 }),
+            ],
+            networkTimeoutSeconds: 10,
+          }),
+        };
+      }
       if (isCatchAllGenerico(entrada)) {
         return {
           ...entrada,
@@ -158,3 +209,11 @@ const serwist = new Serwist({
 });
 
 serwist.addEventListeners();
+
+/** O cache de páginas se chamava "trip-pages" enquanto cobria só as telas de viagem; agora que
+ * cobre o app inteiro chama-se "app-pages". Sem esta limpeza, o cache antigo ficaria parado no
+ * aparelho de quem já tinha o app instalado, ocupando espaço sem nunca mais ser lido - a troca
+ * de nome faz o Service Worker novo ignorá-lo por completo. */
+self.addEventListener("activate", (event) => {
+  event.waitUntil(caches.delete("trip-pages"));
+});

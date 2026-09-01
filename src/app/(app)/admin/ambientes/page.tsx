@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { InfoDisclaimer } from "@/components/InfoDisclaimer";
+import { apiFetch } from "@/lib/apiFetch";
+import { useOnlineStatus } from "@/lib/offline/useOfflineData";
 
 interface Ambiente {
   id: string;
@@ -25,11 +27,18 @@ export default function AmbientesAdminPage() {
   const [nomeEdicao, setNomeEdicao] = useState("");
   const [salvandoEdicao, setSalvandoEdicao] = useState(false);
   const [erroEdicao, setErroEdicao] = useState<string | null>(null);
+  const [erroLista, setErroLista] = useState<string | null>(null);
+  // Nenhuma alteração desta tela é enfileirável no outbox (criar ambiente, renomear, ativar/
+  // desativar são operações do servidor, sem equivalente local), então sem sinal ela é só
+  // leitura - o que o Service Worker tiver guardado da última visita com internet.
+  const online = useOnlineStatus();
 
   async function load() {
     setLoading(true);
-    const res = await fetch("/api/ambientes");
-    if (res.ok) setAmbientes(await res.json());
+    setErroLista(null);
+    const res = await apiFetch<Ambiente[]>("/api/ambientes");
+    if (res.ok) setAmbientes(res.data);
+    else setErroLista(res.error);
     setLoading(false);
   }
 
@@ -41,15 +50,14 @@ export default function AmbientesAdminPage() {
     e.preventDefault();
     setSaving(true);
     setErro(null);
-    const res = await fetch("/api/ambientes", {
+    const res = await apiFetch("/api/ambientes", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ nome }),
     });
     setSaving(false);
     if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      setErro(data.error ?? "Erro ao criar ambiente");
+      setErro(res.error);
       return;
     }
     setNome("");
@@ -73,15 +81,14 @@ export default function AmbientesAdminPage() {
     if (!editandoId) return;
     setSalvandoEdicao(true);
     setErroEdicao(null);
-    const res = await fetch(`/api/ambientes/${editandoId}`, {
+    const res = await apiFetch(`/api/ambientes/${editandoId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ nome: nomeEdicao }),
     });
     setSalvandoEdicao(false);
     if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      setErroEdicao(data.error ?? "Erro ao renomear ambiente");
+      setErroEdicao(res.error);
       return;
     }
     cancelarEdicao();
@@ -89,11 +96,15 @@ export default function AmbientesAdminPage() {
   }
 
   async function alternarAtivo(a: Ambiente) {
-    await fetch(`/api/ambientes/${a.id}`, {
+    const res = await apiFetch(`/api/ambientes/${a.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ativo: a.ativo === "false" }),
     });
+    if (!res.ok) {
+      setErro(res.error);
+      return;
+    }
     load();
   }
 
@@ -125,7 +136,8 @@ export default function AmbientesAdminPage() {
         </div>
         <button
           type="submit"
-          disabled={saving}
+          disabled={saving || !online}
+          title={online ? undefined : "Criar ambiente precisa de internet"}
           className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
         >
           {saving ? "Criando..." : "Criar ambiente"}
@@ -136,7 +148,10 @@ export default function AmbientesAdminPage() {
 
       <ul className="flex flex-col gap-2">
         {loading && <li className="text-sm text-slate-500 dark:text-slate-400">Carregando...</li>}
-        {!loading && ambientes.length === 0 && (
+        {!loading && erroLista && (
+          <li className="text-sm text-red-600 dark:text-red-400">{erroLista}</li>
+        )}
+        {!loading && !erroLista && ambientes.length === 0 && (
           <li className="text-sm text-slate-500 dark:text-slate-400">
             Nenhum ambiente cadastrado ainda.
           </li>
@@ -190,14 +205,18 @@ export default function AmbientesAdminPage() {
                     <button
                       type="button"
                       onClick={() => iniciarEdicao(a)}
-                      className="text-xs font-medium text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
+                      disabled={!online}
+                      title={online ? undefined : "Renomear precisa de internet"}
+                      className="text-xs font-medium text-slate-500 hover:text-slate-900 disabled:opacity-40 dark:text-slate-400 dark:hover:text-slate-100"
                     >
                       Editar
                     </button>
                     <button
                       type="button"
                       onClick={() => alternarAtivo(a)}
-                      className="text-xs font-medium text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
+                      disabled={!online}
+                      title={online ? undefined : "Ativar/desativar precisa de internet"}
+                      className="text-xs font-medium text-slate-500 hover:text-slate-900 disabled:opacity-40 dark:text-slate-400 dark:hover:text-slate-100"
                     >
                       {inativo ? "Ativar" : "Desativar"}
                     </button>

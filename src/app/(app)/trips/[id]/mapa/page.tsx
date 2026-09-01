@@ -4,8 +4,9 @@ import { useState } from "react";
 import dynamic from "next/dynamic";
 import { useParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { useOfflineCollection, useOfflineTrip } from "@/lib/offline/useOfflineData";
+import { useOfflineCollection, useOfflineTrip, useOnlineStatus } from "@/lib/offline/useOfflineData";
 import { pullTrips } from "@/lib/offline/sync";
+import { apiFetch } from "@/lib/apiFetch";
 import { CityAutocomplete } from "@/components/CityAutocomplete";
 import type { RoutePoint } from "@/components/TripMap";
 
@@ -46,11 +47,16 @@ export default function MapaPage() {
   const { items: days, loading: loadingDays } = useOfflineCollection<TripDay>("tripDays", tripId);
   const [origemForm, setOrigemForm] = useState({ nome: "", lat: "", lon: "" });
   const [savingOrigem, setSavingOrigem] = useState(false);
+  const [erroOrigem, setErroOrigem] = useState<string | null>(null);
+  // O mapa lê do IndexedDB e funciona offline, mas definir a origem é um PATCH no servidor,
+  // sem equivalente local - sem sinal o botão fica desabilitado em vez de falhar.
+  const online = useOnlineStatus();
 
   async function handleSaveOrigem() {
     if (!origemForm.lat || !origemForm.lon) return;
+    setErroOrigem(null);
     setSavingOrigem(true);
-    await fetch(`/api/trips/${tripId}`, {
+    const res = await apiFetch(`/api/trips/${tripId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -59,8 +65,19 @@ export default function MapaPage() {
         cidade_origem_lon: origemForm.lon,
       }),
     });
-    await pullTrips();
-    setSavingOrigem(false);
+    if (!res.ok) {
+      setErroOrigem(res.error);
+      setSavingOrigem(false);
+      return;
+    }
+    // O servidor já gravou; se o pull falhar, o cache local se atualiza na próxima sincronização.
+    try {
+      await pullTrips();
+    } catch {
+      // silencioso de propósito - não é erro da ação do usuário
+    } finally {
+      setSavingOrigem(false);
+    }
   }
 
   if (loadingTrip || loadingDays) return <p className="text-sm text-slate-500 dark:text-slate-400">Carregando...</p>;
@@ -104,11 +121,15 @@ export default function MapaPage() {
               onSelect={(city) => setOrigemForm({ nome: city.nome, lat: city.lat, lon: city.lon })}
               className="w-full rounded-lg border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
             />
+            {erroOrigem && (
+              <p className="mt-1 text-sm text-red-600 dark:text-red-400">{erroOrigem}</p>
+            )}
           </div>
           <button
             type="button"
             onClick={handleSaveOrigem}
-            disabled={savingOrigem || !origemForm.lat}
+            disabled={savingOrigem || !origemForm.lat || !online}
+            title={online ? undefined : "Definir a cidade de origem precisa de internet"}
             className="rounded-lg bg-amber-800 px-4 py-2 text-sm font-medium text-white hover:bg-amber-900 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {savingOrigem ? "Salvando..." : "Salvar"}
