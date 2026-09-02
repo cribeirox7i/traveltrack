@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { InfoDisclaimer } from "@/components/InfoDisclaimer";
-import { apiFetch } from "@/lib/apiFetch";
+import { apiFetch, mensagemErro } from "@/lib/apiFetch";
 import { useOnlineStatus } from "@/lib/offline/useOfflineData";
 
 interface Ambiente {
@@ -38,7 +38,7 @@ export default function AmbientesAdminPage() {
     setErroLista(null);
     const res = await apiFetch<Ambiente[]>("/api/ambientes");
     if (res.ok) setAmbientes(res.data);
-    else setErroLista(res.error);
+    else setErroLista(mensagemErro(res.error));
     setLoading(false);
   }
 

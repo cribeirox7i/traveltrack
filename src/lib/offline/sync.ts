@@ -597,7 +597,25 @@ export async function pushOutbox(): Promise<void> {
       if (result === "network-error") break; // provavelmente caiu a conexão de novo - para e tenta depois
       if (result === "ok") {
         await removeOutboxEntry(entry.localId);
-        if (entry.tripId) await refreshIfOffline(entry.tripId);
+        if (entry.tripId) {
+          const teveUpload =
+            (entry.kind === "createItem" ||
+              entry.kind === "updateItem" ||
+              entry.kind === "createAgenda" ||
+              entry.kind === "updateAgenda") &&
+            Boolean((entry.payload as { file?: File }).file);
+          if (teveUpload) {
+            // O upload do anexo só termina no servidor durante este push - a linha otimista
+            // local nasceu sem anexo_file_id/anexo_url (ver createItemOffline/
+            // createAgendaOffline). `refreshIfOffline` só re-busca a viagem quando ela está
+            // marcada "Dados offline"; sem esse pull aqui, quem NÃO marcou a viagem via ficava
+            // com "sem anexo" na tela pro resto da sessão mesmo com o arquivo salvo certo no
+            // Drive (o próprio servidor sempre esteve certo).
+            await pullTripDetail(entry.tripId);
+          } else {
+            await refreshIfOffline(entry.tripId);
+          }
+        }
       } else {
         await updateOutboxEntry({
           ...entry,

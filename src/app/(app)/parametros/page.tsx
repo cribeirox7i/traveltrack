@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { InfoDisclaimer } from "@/components/InfoDisclaimer";
-import { apiFetch } from "@/lib/apiFetch";
+import { apiFetch, mensagemErro } from "@/lib/apiFetch";
 import { useOnlineStatus } from "@/lib/offline/useOfflineData";
 import { FILTER_SELECT_CLASS } from "@/lib/uiClasses";
 
@@ -64,7 +64,7 @@ export default function ParametrosPage() {
     // A resposta de erro do servidor é um objeto `{error}`, não uma lista - guardá-la em `meios`
     // sem checar fazia o `.filter()`/`.map()` do JSX quebrar a tela inteira.
     if (res.ok && Array.isArray(res.data)) setMeios(res.data);
-    else if (!res.ok) setErroLista(res.error);
+    else if (!res.ok) setErroLista(mensagemErro(res.error));
     setLoading(false);
   }, []);
 

@@ -13,6 +13,17 @@
  */
 export const ERRO_SEM_CONEXAO = "Sem conexão - esta ação precisa de internet";
 
+/** Mensagem padrão pra quando uma tela inteira (não só um botão) depende de internet e o
+ * dispositivo está offline - texto único em vez de cada tela inventar a sua. */
+export const MSG_OFFLINE_INDISPONIVEL =
+  "Aplicação rodando em modo offline, recurso não disponível nesse dispositivo.";
+
+/** Traduz o erro de um `ApiResult` pra exibição: troca o texto genérico de "sem conexão" pela
+ * mensagem padrão acima, mantém a mensagem do servidor (ex.: validação, 500) pros demais erros. */
+export function mensagemErro(erro: string): string {
+  return erro === ERRO_SEM_CONEXAO ? MSG_OFFLINE_INDISPONIVEL : erro;
+}
+
 export type ApiResult<T> = { ok: true; data: T } | { ok: false; error: string };
 
 export async function apiFetch<T = unknown>(

@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { PasswordInput } from "@/components/PasswordInput";
-import { apiFetch, ERRO_SEM_CONEXAO } from "@/lib/apiFetch";
+import { apiFetch, ERRO_SEM_CONEXAO, MSG_OFFLINE_INDISPONIVEL } from "@/lib/apiFetch";
 import { useOnlineStatus } from "@/lib/offline/useOfflineData";
 import type { Role } from "@/lib/sheets/types";
 
@@ -75,11 +75,7 @@ export default function UsuariosAdminPage() {
       // Gerenciamento de usuários exige conexão - sem isso a tela ficava presa em
       // "Carregando..." pra sempre quando aberta offline (o fetch rejeita e ninguém chamava
       // setLoading(false)).
-      setLoadError(
-        res.error === ERRO_SEM_CONEXAO
-          ? "Sem conexão - esta tela exige internet"
-          : "Erro ao carregar usuários"
-      );
+      setLoadError(res.error === ERRO_SEM_CONEXAO ? MSG_OFFLINE_INDISPONIVEL : "Erro ao carregar usuários");
     }
     setLoading(false);
   }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { apiFetch } from "@/lib/apiFetch";
+import { apiFetch, mensagemErro } from "@/lib/apiFetch";
 import { useOnlineStatus } from "@/lib/offline/useOfflineData";
 
 interface ParametroItem {
@@ -37,7 +37,7 @@ export default function ParametrosAdminPage() {
     // A resposta de erro do servidor é um objeto `{error}`, não uma lista - guardá-la em
     // `parametros` sem checar fazia o `.map()` do JSX quebrar a tela inteira.
     if (res.ok && Array.isArray(res.data)) setParametros(res.data);
-    else if (!res.ok) setErroLista(res.error);
+    else if (!res.ok) setErroLista(mensagemErro(res.error));
     setLoading(false);
   }
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { apiFetch } from "@/lib/apiFetch";
+import { apiFetch, mensagemErro } from "@/lib/apiFetch";
 import { useOnlineStatus } from "@/lib/offline/useOfflineData";
 
 interface UserItem {
@@ -50,8 +50,8 @@ export default function AcessosAdminPage() {
         setTrips(resTrips.data);
         if (resTrips.data[0]) setTripId(resTrips.data[0].id);
       }
-      if (!resUsers.ok) setErro(resUsers.error);
-      else if (!resTrips.ok) setErro(resTrips.error);
+      if (!resUsers.ok) setErro(mensagemErro(resUsers.error));
+      else if (!resTrips.ok) setErro(mensagemErro(resTrips.error));
       setCarregando(false);
     }
     carregar();
@@ -79,7 +79,7 @@ export default function AcessosAdminPage() {
     });
     setSaving(false);
     if (!res.ok) {
-      setErro(res.error);
+      setErro(mensagemErro(res.error));
       return;
     }
     await carregarLinks(tripId);
@@ -96,7 +96,7 @@ export default function AcessosAdminPage() {
     });
     setRemovingId(null);
     if (!res.ok) {
-      setErro(res.error);
+      setErro(mensagemErro(res.error));
       return;
     }
     await carregarLinks(tripId);

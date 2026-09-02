@@ -122,9 +122,6 @@ export default function ItensPage() {
   const { items, loading } = useOfflineCollection<Item>("itens", tripId);
   const collaborators = useCollaborators(tripId);
   const todosMeiosPagamento = useMeiosPagamento();
-  // O `<select>` do formulário oferece só os meios do próprio usuário; `nomePorMeio` (abaixo) usa
-  // a lista inteira, senão um item pago por outra pessoa apareceria com o uuid no lugar do nome.
-  const meiosPagamento = todosMeiosPagamento.filter((m) => m.ativo === "true" && m.proprio);
   const [formOpen, setFormOpen] = useState(false);
   // null = criando um item novo; string = editando o item com este id.
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -164,11 +161,27 @@ export default function ItensPage() {
     () => Object.fromEntries(todosMeiosPagamento.map((m) => [m.id, m.nome])),
     [todosMeiosPagamento]
   );
+  // O `<select>` do formulário oferece os meios do PAGANTE selecionado (`form.pagador_id`), não
+  // sempre os do usuário logado - item pago por outra pessoa mostra os meios dela. `nomePorMeio`
+  // acima usa a lista inteira, senão um item pago por outra pessoa apareceria com o uuid no lugar
+  // do nome.
+  const meiosPagamento = useMemo(
+    () =>
+      todosMeiosPagamento.filter((m) => m.ativo === "true" && m.user_id === form.pagador_id),
+    [todosMeiosPagamento, form.pagador_id]
+  );
 
   const isFinanceira = FINANCEIRAS.has(form.categoria);
 
   function setField<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  /** Trocar o pagante muda de quem são os meios de pagamento disponíveis - um meio já escolhido
+   * que não é dessa pessoa fica pra trás, senão o formulário deixaria salvar uma combinação
+   * inconsistente (meio de A com pagador B). */
+  function setPagador(pagadorId: string) {
+    setForm((prev) => ({ ...prev, pagador_id: pagadorId, meio_pagamento_id: "" }));
   }
 
   /** Troca de categoria no formulário. Quando a categoria de origem não tinha início/fim
@@ -715,7 +728,7 @@ export default function ItensPage() {
                 <input type="date" value={form.data_pagamento} onChange={(e) => setField("data_pagamento", e.target.value)} className={inputClass} />
               </Campo>
               <Campo label={form.categoria === "repasse" ? "Quem contribuiu" : "Quem pagou"} compact>
-                <select value={form.pagador_id} onChange={(e) => setField("pagador_id", e.target.value)} className={inputClass}>
+                <select value={form.pagador_id} onChange={(e) => setPagador(e.target.value)} className={inputClass}>
                   <option value="">Selecione...</option>
                   {collaborators.map((c) => (
                     <option key={c.id} value={c.id}>

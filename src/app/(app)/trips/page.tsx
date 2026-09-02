@@ -68,6 +68,17 @@ function TripCard({
             </p>
           </Link>
           <div className="flex shrink-0 items-center gap-1">
+            <Link
+              href={`/trips/${trip.id}/agenda`}
+              title="Roteiro"
+              className="rounded-lg p-1.5 text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-700 dark:hover:text-slate-300"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-4 w-4">
+                <rect x="4" y="5" width="16" height="15" rx="2" />
+                <path strokeLinecap="round" d="M4 9.5h16M8 3v3M16 3v3" />
+                <path strokeLinecap="round" d="M8 13h3M8 16.5h6" />
+              </svg>
+            </Link>
             {canEdit && (
               <Link
                 href={`/trips/${trip.id}/editar`}
