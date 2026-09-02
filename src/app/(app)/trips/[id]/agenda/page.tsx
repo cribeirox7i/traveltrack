@@ -9,7 +9,7 @@ import {
   useMeiosPagamento,
   useOfflineCollection,
 } from "@/lib/offline/useOfflineData";
-import { deleteItemOffline } from "@/lib/offline/sync";
+import { deleteItemOffline, type ItemAnexoInfo } from "@/lib/offline/sync";
 import { hrefSeguro } from "@/lib/urlSegura";
 import { CATEGORIA_LABEL, IconeItem, ItemDetalhesPopup, type Item } from "@/components/ItemDetalhesPopup";
 import { InfoDisclaimer } from "@/components/InfoDisclaimer";
@@ -76,6 +76,7 @@ export default function AgendaPage() {
   const router = useRouter();
   const { items: days, loading: loadingDays } = useOfflineCollection<TripDay>("tripDays", tripId);
   const { items: itens, loading: loadingItens } = useOfflineCollection<Item>("itens", tripId);
+  const { items: todosExtras } = useOfflineCollection<ItemAnexoInfo>("itemAnexos", tripId);
   const collaborators = useCollaborators(tripId);
   const meiosPagamento = useMeiosPagamento().filter((m) => m.ativo === "true");
   const nomePorPessoa = useMemo(
@@ -318,6 +319,9 @@ export default function AgendaPage() {
         tripId={tripId}
         nomePorPessoa={nomePorPessoa}
         nomePorMeio={nomePorMeio}
+        extraAnexos={
+          viewingItem ? todosExtras.filter((a) => a.item_id === viewingItem.id) : undefined
+        }
         onClose={() => setViewingItem(null)}
         onEditar={(item) => {
           setViewingItem(null);

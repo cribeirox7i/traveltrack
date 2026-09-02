@@ -1,6 +1,21 @@
 import { v4 as uuid } from "uuid";
 import { appendRows, deleteRow, readSheet, updateRow } from "./repository";
+import { CategoriaAnexo } from "./anexos";
 import { CategoriaItem, ItemRow, categoriaNatureza } from "./types";
+
+/** Categoria de Item -> categoria de pasta no Drive (`CATEGORIAS_ANEXO` em lib/sheets/anexos.ts) -
+ * reaproveita a mesma árvore de pastas que Anexos/Agenda já usam, em vez de tudo cair em
+ * "outros". Usado tanto pro anexo principal do item quanto pelos extras de `ItemAnexos`. */
+export const CATEGORIA_ITEM_DRIVE: Record<CategoriaItem, CategoriaAnexo> = {
+  traslado: "traslado",
+  passagem: "passagem",
+  hospedagem: "hospedagem",
+  alimentacao: "alimentacao",
+  atrativo: "passeio",
+  repasse: "outros",
+  documento: "documentos",
+  outro: "outros",
+};
 
 /** Campos que o cliente pode enviar na criação/edição de um Item - tudo que NÃO está aqui (id,
  * trip_id, natureza, criado_por, criado_em) é calculado pelo servidor, nunca aceito do payload

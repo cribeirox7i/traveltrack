@@ -68,7 +68,7 @@ export function useOfflineTrip<T extends { id: string }>(tripId: string | undefi
 
 /** Dias / despesas / receitas de uma viagem. Puxa do servidor em segundo plano quando online. */
 export function useOfflineCollection<T extends { id: string }>(
-  tab: "tripDays" | "despesas" | "receitas" | "agenda" | "itens",
+  tab: "tripDays" | "despesas" | "receitas" | "agenda" | "itens" | "itemAnexos",
   tripId: string | undefined
 ) {
   const [items, setItems] = useState<T[]>([]);

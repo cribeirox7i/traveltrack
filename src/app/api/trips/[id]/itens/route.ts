@@ -3,9 +3,9 @@ import { z } from "zod";
 import { urlHttpSchema } from "@/lib/urlSegura";
 import { detectarTipoVoucher } from "@/lib/fileValidation";
 import { errorResponse, requireSession, sessionCanAccessTrip } from "@/lib/api-helpers";
-import { CATEGORIAS_ITEM_FINANCEIRAS, CategoriaItem } from "@/lib/sheets/types";
-import { ItemEditableInput, createItem, listItensByTrip } from "@/lib/sheets/itens";
-import { CategoriaAnexo, uploadAnexo } from "@/lib/sheets/anexos";
+import { CATEGORIAS_ITEM_FINANCEIRAS } from "@/lib/sheets/types";
+import { CATEGORIA_ITEM_DRIVE, ItemEditableInput, createItem, listItensByTrip } from "@/lib/sheets/itens";
+import { uploadAnexo } from "@/lib/sheets/anexos";
 import { getTrip } from "@/lib/sheets/trips";
 
 // Mesmo teto das outras rotas de upload (margem abaixo do limite de corpo das funções
@@ -78,20 +78,6 @@ function limparCamposNaoFinanceiros(data: ItemEditableInput): ItemEditableInput 
   return { ...data, valor: "", status: "", pagador_id: "", meio_pagamento_id: "", data_pagamento: "" };
 }
 
-/** Categoria de Item -> categoria de pasta no Drive (`CATEGORIAS_ANEXO` em lib/sheets/anexos.ts) -
- * reaproveita a mesma árvore de pastas que Anexos/Agenda já usam, em vez de tudo cair em
- * "outros". */
-const CATEGORIA_DRIVE: Record<CategoriaItem, CategoriaAnexo> = {
-  traslado: "traslado",
-  passagem: "passagem",
-  hospedagem: "hospedagem",
-  alimentacao: "alimentacao",
-  atrativo: "passeio",
-  repasse: "outros",
-  documento: "documentos",
-  outro: "outros",
-};
-
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -159,7 +145,7 @@ export async function POST(
     anexo = await uploadAnexo({
       tripId: trip.id,
       tripName: trip.nome,
-      categoria: CATEGORIA_DRIVE[parsed.data.categoria],
+      categoria: CATEGORIA_ITEM_DRIVE[parsed.data.categoria],
       filename: file.name,
       mimeType: tipoDetectado,
       base64Data: buffer.toString("base64"),

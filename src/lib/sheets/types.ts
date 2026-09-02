@@ -10,7 +10,8 @@ export type SheetTab =
   | "MeiosPagamento"
   | "Agenda"
   | "Countries"
-  | "Itens";
+  | "Itens"
+  | "ItemAnexos";
 
 export const SHEET_HEADERS: Record<SheetTab, string[]> = {
   // Tenant do sistema: cada ambiente tem seus próprios usuários e viagens, e quem está num
@@ -154,6 +155,11 @@ export const SHEET_HEADERS: Record<SheetTab, string[]> = {
     "criado_por",
     "criado_em",
   ],
+  // Anexos ADICIONAIS de um Item (além do `anexo_file_id` que já mora na própria linha de Itens -
+  // esse continua sendo o único "principal", o único que passa pela análise do Gemini). Uma linha
+  // por arquivo extra; `trip_id` duplicado pelo mesmo motivo de Itens/TripDays (rota de
+  // download/exclusão confirma a pasta no Drive sem precisar buscar o item pai primeiro).
+  ItemAnexos: ["id", "item_id", "trip_id", "file_id", "nome", "url", "criado_por", "criado_em"],
 };
 
 /**
@@ -460,6 +466,21 @@ export interface ItemRow {
   data_pagamento: string;
   pagador_id: string;
   meio_pagamento_id: string;
+  criado_por: string;
+  criado_em: string;
+}
+
+/** Anexo ADICIONAL de um Item - o principal continua vivendo em `anexo_file_id`/`anexo_nome`/
+ * `anexo_url` da própria linha de Itens (é o único que a tela oferece "Analisar voucher"); esta
+ * tabela existe só pros extras que o usuário anexa depois, sem opção de análise. */
+export interface ItemAnexoRow {
+  [key: string]: string;
+  id: string;
+  item_id: string;
+  trip_id: string;
+  file_id: string;
+  nome: string;
+  url: string;
   criado_por: string;
   criado_em: string;
 }

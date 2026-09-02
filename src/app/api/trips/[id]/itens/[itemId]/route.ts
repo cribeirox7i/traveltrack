@@ -3,9 +3,11 @@ import { z } from "zod";
 import { urlHttpSchema } from "@/lib/urlSegura";
 import { detectarTipoVoucher } from "@/lib/fileValidation";
 import { errorResponse, requireSession, sessionCanAccessTrip } from "@/lib/api-helpers";
-import { CATEGORIAS_ITEM_FINANCEIRAS, CategoriaItem } from "@/lib/sheets/types";
-import { ItemEditableInput, deleteItem, listItensByTrip, updateItem } from "@/lib/sheets/itens";
-import { CategoriaAnexo, deleteAnexo, uploadAnexo } from "@/lib/sheets/anexos";
+import { CATEGORIAS_ITEM_FINANCEIRAS } from "@/lib/sheets/types";
+import { CATEGORIA_ITEM_DRIVE, ItemEditableInput, deleteItem, listItensByTrip, updateItem } from "@/lib/sheets/itens";
+import { deleteAnexo, uploadAnexo } from "@/lib/sheets/anexos";
+import { deleteRowsByField } from "@/lib/sheets/repository";
+import { listItemAnexosByTrip } from "@/lib/sheets/itemAnexos";
 import { getTrip } from "@/lib/sheets/trips";
 
 const MAX_FILE_BYTES = 4 * 1024 * 1024;
@@ -72,17 +74,6 @@ function limparCamposNaoFinanceiros(data: ItemEditableInput): ItemEditableInput 
   return { ...data, valor: "", status: "", pagador_id: "", meio_pagamento_id: "", data_pagamento: "" };
 }
 
-const CATEGORIA_DRIVE: Record<CategoriaItem, CategoriaAnexo> = {
-  traslado: "traslado",
-  passagem: "passagem",
-  hospedagem: "hospedagem",
-  alimentacao: "alimentacao",
-  atrativo: "passeio",
-  repasse: "outros",
-  documento: "documentos",
-  outro: "outros",
-};
-
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string; itemId: string }> }
@@ -137,7 +128,7 @@ export async function PATCH(
     anexo = await uploadAnexo({
       tripId: trip.id,
       tripName: trip.nome,
-      categoria: CATEGORIA_DRIVE[parsed.data.categoria],
+      categoria: CATEGORIA_ITEM_DRIVE[parsed.data.categoria],
       filename: file.name,
       mimeType: tipoDetectado,
       base64Data: buffer.toString("base64"),
@@ -175,12 +166,23 @@ export async function DELETE(
   if (!existente) return errorResponse("Item não encontrado", 404);
 
   const trip = await getTrip(id);
+  const extras = (await listItemAnexosByTrip(id)).filter((a) => a.item_id === itemId);
 
   await deleteItem(itemId);
+  await deleteRowsByField("ItemAnexos", "item_id", itemId);
+
   let avisoAnexo: string | undefined;
   if (existente.anexo_file_id && trip) {
     await deleteAnexo(existente.anexo_file_id, trip.id, trip.nome).catch((err) => {
       avisoAnexo = err instanceof Error ? err.message : "Não foi possível remover o anexo";
+    });
+  }
+  // Anexos extras seguem o mesmo padrão best-effort do principal: um arquivo que não sumir do
+  // Drive não deve travar a exclusão do item, que já aconteceu na planilha.
+  for (const extra of extras) {
+    if (!trip) break;
+    await deleteAnexo(extra.file_id, trip.id, trip.nome).catch((err) => {
+      avisoAnexo = avisoAnexo ?? (err instanceof Error ? err.message : "Não foi possível remover um anexo extra");
     });
   }
 

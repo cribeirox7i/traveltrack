@@ -34,7 +34,13 @@ const ESTRUTURA = {
   Countries: ['id', 'country', 'plug_type', 'volts', 'hertz', 'currency_code', 'currency_name', 'currency_symbol', 'capital', 'ddi', 'driving_side', 'timezone', 'flag_emoji', 'language', 'rate_brl', 'rate_date'],
   // Tabela genérica que substitui Despesas/Receitas/Agenda/Anexos (ver plano "Itens de Viagem +
   // OCR de vouchers") - precisa bater exatamente com Itens em src/lib/sheets/types.ts.
-  Itens: ['id', 'trip_id', 'categoria', 'tipo', 'localizador', 'nome_companhia', 'numero', 'data', 'horario', 'origem', 'destino', 'nome_local', 'endereco', 'data_inicio', 'hora_inicio', 'data_fim', 'hora_fim', 'tipo_documento', 'passageiro_id', 'url', 'anexo_file_id', 'anexo_nome', 'anexo_url', 'descricao', 'valor', 'status', 'natureza', 'data_pagamento', 'pagador_id', 'meio_pagamento_id', 'criado_por', 'criado_em']
+  Itens: ['id', 'trip_id', 'categoria', 'tipo', 'localizador', 'nome_companhia', 'numero', 'data', 'horario', 'origem', 'destino', 'nome_local', 'endereco', 'data_inicio', 'hora_inicio', 'data_fim', 'hora_fim', 'tipo_documento', 'passageiro_id', 'url', 'anexo_file_id', 'anexo_nome', 'anexo_url', 'descricao', 'valor', 'status', 'natureza', 'data_pagamento', 'pagador_id', 'meio_pagamento_id', 'criado_por', 'criado_em'],
+  // Anexos ADICIONAIS de um Item (além do único anexo_file_id que já mora na própria linha de
+  // Itens, esse é o "principal" e continua sendo o único que passa pela análise do Gemini). Uma
+  // linha por arquivo extra - `trip_id` vem duplicado (não só `item_id`) pelo mesmo motivo de
+  // Itens/TripDays: rota de download/exclusão de anexo confirma dono da pasta no Drive sem
+  // precisar ir buscar o item pai primeiro.
+  ItemAnexos: ['id', 'item_id', 'trip_id', 'file_id', 'nome', 'url', 'criado_por', 'criado_em']
 };
 
 // ---------- PONTO DE ENTRADA DO WEB APP ----------

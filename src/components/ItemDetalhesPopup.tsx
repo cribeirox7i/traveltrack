@@ -1,5 +1,13 @@
 import { CATEGORIAS_ITEM, CategoriaItem } from "@/lib/sheets/types";
 
+/** Anexo extra de um item (além do principal) - mesmos campos de `ItemAnexoInfo` em
+ * lib/offline/sync.ts, redeclarado aqui pra este arquivo não depender do módulo de sincronização. */
+export interface ItemAnexoExtra {
+  id: string;
+  file_id: string;
+  nome: string;
+}
+
 /** Mesmos campos da aba Itens - usado tanto pela tela Itens (cadastro/edição) quanto por
  * Roteiro > Agenda (só leitura), que mostra o mesmo pop-up de detalhe ao clicar num item. */
 export interface Item {
@@ -129,11 +137,13 @@ function ItemDetalhes({
   item,
   nomePorPessoa,
   nomePorMeio,
+  extraAnexos,
 }: {
   tripId: string;
   item: Item;
   nomePorPessoa: Record<string, string>;
   nomePorMeio: Record<string, string>;
+  extraAnexos: ItemAnexoExtra[];
 }) {
   const [labelInicio, labelFim] = LABELS_INICIO_FIM[item.categoria] ?? ["Início", "Término"];
   const pares: { label: string; valor: string }[] = [];
@@ -165,21 +175,36 @@ function ItemDetalhes({
     }
   }
 
-  if (!pares.length && !item.descricao && !item.anexo_file_id) {
+  if (!pares.length && !item.descricao && !item.anexo_file_id && !extraAnexos.length) {
     return <p className="text-sm text-slate-400 dark:text-slate-500">Sem outros campos preenchidos.</p>;
   }
 
   return (
     <div className="flex flex-col gap-3">
-      {item.anexo_file_id && (
-        <a
-          href={hrefAnexo(tripId, item.anexo_file_id)}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex w-fit items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:underline"
-        >
-          📎 {item.anexo_nome || "abrir anexo"}
-        </a>
+      {(item.anexo_file_id || extraAnexos.length > 0) && (
+        <div className="flex flex-col gap-1">
+          {item.anexo_file_id && (
+            <a
+              href={hrefAnexo(tripId, item.anexo_file_id)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex w-fit items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:underline"
+            >
+              📎 {item.anexo_nome || "abrir anexo"}
+            </a>
+          )}
+          {extraAnexos.map((a) => (
+            <a
+              key={a.id}
+              href={hrefAnexo(tripId, a.file_id)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex w-fit items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:underline"
+            >
+              📎 {a.nome || "abrir anexo"}
+            </a>
+          ))}
+        </div>
       )}
       {/* Descrição fica fora do grid de propósito: largura total e várias linhas, em vez de
           truncar numa célula de metade da largura como os demais campos - costuma ser o texto
@@ -215,6 +240,7 @@ export function ItemDetalhesPopup({
   tripId,
   nomePorPessoa,
   nomePorMeio,
+  extraAnexos = [],
   onClose,
   onEditar,
 }: {
@@ -222,6 +248,9 @@ export function ItemDetalhesPopup({
   tripId: string;
   nomePorPessoa: Record<string, string>;
   nomePorMeio: Record<string, string>;
+  /** Anexos extras deste item (já filtrados pelo chamador - lista inteira da viagem vem de
+   * `useOfflineCollection<ItemAnexoInfo>("itemAnexos", tripId)`). */
+  extraAnexos?: ItemAnexoExtra[];
   onClose: () => void;
   onEditar: (item: Item) => void;
 }) {
@@ -248,7 +277,13 @@ export function ItemDetalhesPopup({
             ✕
           </button>
         </div>
-        <ItemDetalhes tripId={tripId} item={item} nomePorPessoa={nomePorPessoa} nomePorMeio={nomePorMeio} />
+        <ItemDetalhes
+          tripId={tripId}
+          item={item}
+          nomePorPessoa={nomePorPessoa}
+          nomePorMeio={nomePorMeio}
+          extraAnexos={extraAnexos}
+        />
         <div className="flex gap-2 pt-1">
           <button
             type="button"

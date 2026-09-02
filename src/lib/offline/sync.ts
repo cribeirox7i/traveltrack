@@ -101,12 +101,13 @@ export async function pullTrips(): Promise<void> {
 /** Atualiza dias/despesas/receitas/agenda de UMA viagem no cache local - chamado ao abrir a viagem. */
 export async function pullTripDetail(tripId: string): Promise<void> {
   if (!isOnline()) return;
-  const [days, despesas, receitas, agenda, itens] = await Promise.all([
+  const [days, despesas, receitas, agenda, itens, itemAnexos] = await Promise.all([
     getJson<Record<string, unknown>[]>(`/api/trips/${tripId}/days`),
     getJson<Record<string, unknown>[]>(`/api/trips/${tripId}/despesas`),
     getJson<Record<string, unknown>[]>(`/api/trips/${tripId}/receitas`),
     getJson<Record<string, unknown>[]>(`/api/trips/${tripId}/agenda`),
     getJson<Record<string, unknown>[]>(`/api/trips/${tripId}/itens`),
+    getJson<Record<string, unknown>[]>(`/api/trips/${tripId}/itens-anexos`),
   ]);
   if (days) await putAllReplacing("tripDays", days as never, tripId);
   if (despesas) {
@@ -125,6 +126,10 @@ export async function pullTripDetail(tripId: string): Promise<void> {
     const protectedIds = await pendingCreateIds("createItem", tripId);
     await putAllReplacing("itens", itens as never, tripId, protectedIds);
   }
+  // Anexos extras não têm mutação otimista local (adicionar/remover exige internet, ver
+  // `addItemAnexoOnline`/`removeItemAnexoOnline`), então não precisa de `protectedIds` - não
+  // existe uma criação pendente na fila pra proteger.
+  if (itemAnexos) await putAllReplacing("itemAnexos", itemAnexos as never, tripId);
   notifyChange();
 }
 
@@ -885,6 +890,7 @@ export async function deleteTripOffline(
   await deleteByTrip("anexoFiles", tripId);
   await deleteByTrip("agenda", tripId);
   await deleteByTrip("itens", tripId);
+  await deleteByTrip("itemAnexos", tripId);
   await deleteTripImage(tripId);
   await removeOutboxByTrip(tripId);
 
@@ -1170,6 +1176,68 @@ export async function deleteItemOffline(tripId: string, itemId: string): Promise
   await enqueueOutbox({ localId: uuid(), kind: "deleteItem", tripId, payload: { itemId } });
   notifyChange();
   void pushOutbox();
+}
+
+// ---------- Anexos extras de um Item (além do principal) ----------
+// Só existem pra um item que já tem o anexo principal (anexo_file_id) - sem opção de "Analisar
+// voucher". Diferente do resto do app, NÃO entram no outbox: exigem internet na hora (mesma
+// decisão de `deleteTripOffline`) - a leitura funciona offline (cache normal via
+// `pullTripDetail`), só adicionar/remover exige sinal.
+
+export interface ItemAnexoInfo {
+  id: string;
+  item_id: string;
+  trip_id: string;
+  file_id: string;
+  nome: string;
+  url: string;
+  criado_por: string;
+  criado_em: string;
+}
+
+export async function addItemAnexoOnline(
+  tripId: string,
+  itemId: string,
+  file: File
+): Promise<{ ok: true; anexo: ItemAnexoInfo } | { ok: false; error: string }> {
+  if (!isOnline()) return { ok: false, error: "Sem conexão - adicionar anexo precisa de internet" };
+
+  const form = new FormData();
+  form.set("file", file);
+  let res: Response;
+  try {
+    res = await fetch(`/api/trips/${tripId}/itens/${itemId}/anexos`, { method: "POST", body: form });
+  } catch {
+    return { ok: false, error: "Sem conexão - adicionar anexo precisa de internet" };
+  }
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) return { ok: false, error: body.error ?? "Erro ao adicionar anexo" };
+
+  const anexo = body as ItemAnexoInfo;
+  await putOne("itemAnexos", anexo as never);
+  notifyChange();
+  return { ok: true, anexo };
+}
+
+export async function removeItemAnexoOnline(
+  tripId: string,
+  itemId: string,
+  anexoId: string
+): Promise<{ ok: true; avisoAnexo?: string } | { ok: false; error: string }> {
+  if (!isOnline()) return { ok: false, error: "Sem conexão - remover anexo precisa de internet" };
+
+  let res: Response;
+  try {
+    res = await fetch(`/api/trips/${tripId}/itens/${itemId}/anexos/${anexoId}`, { method: "DELETE" });
+  } catch {
+    return { ok: false, error: "Sem conexão - remover anexo precisa de internet" };
+  }
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) return { ok: false, error: body.error ?? "Erro ao remover anexo" };
+
+  await deleteOne("itemAnexos", anexoId);
+  notifyChange();
+  return { ok: true, avisoAnexo: body.avisoAnexo };
 }
 
 // ---------- Ciclo de vida ----------

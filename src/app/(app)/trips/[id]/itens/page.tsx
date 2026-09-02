@@ -7,8 +7,16 @@ import {
   useCollaborators,
   useMeiosPagamento,
   useOfflineCollection,
+  useOnlineStatus,
 } from "@/lib/offline/useOfflineData";
-import { createItemOffline, deleteItemOffline, updateItemOffline } from "@/lib/offline/sync";
+import {
+  addItemAnexoOnline,
+  createItemOffline,
+  deleteItemOffline,
+  removeItemAnexoOnline,
+  updateItemOffline,
+  type ItemAnexoInfo,
+} from "@/lib/offline/sync";
 import { CATEGORIAS_ITEM, CategoriaItem } from "@/lib/sheets/types";
 import type { SegundoTrecho } from "@/lib/gemini";
 import { TimeField } from "@/components/TimeField";
@@ -120,8 +128,12 @@ export default function ItensPage() {
   const searchParams = useSearchParams();
   const { data: session } = useSession();
   const { items, loading } = useOfflineCollection<Item>("itens", tripId);
+  // Anexos extras de TODOS os itens da viagem, filtrados por item no uso (ver `extrasDoItem`
+  // abaixo) - mesmo padrão de `todosMeiosPagamento`, uma chamada só em vez de uma por item.
+  const { items: todosExtras } = useOfflineCollection<ItemAnexoInfo>("itemAnexos", tripId);
   const collaborators = useCollaborators(tripId);
   const todosMeiosPagamento = useMeiosPagamento();
+  const online = useOnlineStatus();
   const [formOpen, setFormOpen] = useState(false);
   // null = criando um item novo; string = editando o item com este id.
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -133,6 +145,13 @@ export default function ItensPage() {
   const [analisando, setAnalisando] = useState(false);
   const [analisado, setAnalisado] = useState(false);
   const [segundoTrecho, setSegundoTrecho] = useState<SegundoTrecho | null>(null);
+  // Anexos extras (além do principal) só existem pra item já salvo com o principal preenchido -
+  // upload/remoção são imediatos, sem esperar o "Salvar" do formulário inteiro (ver
+  // `addItemAnexoOnline`/`removeItemAnexoOnline`, que exigem internet e não passam pelo outbox).
+  const [addingExtra, setAddingExtra] = useState(false);
+  const [removingExtraId, setRemovingExtraId] = useState<string | null>(null);
+  const [extraError, setExtraError] = useState<string | null>(null);
+  const extraFileInputRef = useRef<HTMLInputElement>(null);
   /** O que a leitura do voucher corrigiu ou não conseguiu resolver sozinha - hoje, data final
    * anterior à inicial (ver `corrigirCronologia` em lib/gemini.ts). */
   const [avisosAnalise, setAvisosAnalise] = useState<string[]>([]);
@@ -161,6 +180,13 @@ export default function ItensPage() {
     () => Object.fromEntries(todosMeiosPagamento.map((m) => [m.id, m.nome])),
     [todosMeiosPagamento]
   );
+  // Contagem de extras por item, pro badge "📎 +N" na lista - não inclui o principal (esse já
+  // aparece pelo 📎 simples, condicionado a `item.anexo_file_id`).
+  const extrasPorItem = useMemo(() => {
+    const contagem: Record<string, number> = {};
+    for (const a of todosExtras) contagem[a.item_id] = (contagem[a.item_id] ?? 0) + 1;
+    return contagem;
+  }, [todosExtras]);
   // O `<select>` do formulário oferece os meios do PAGANTE selecionado (`form.pagador_id`), não
   // sempre os do usuário logado - item pago por outra pessoa mostra os meios dela. `nomePorMeio`
   // acima usa a lista inteira, senão um item pago por outra pessoa apareceria com o uuid no lugar
@@ -173,8 +199,36 @@ export default function ItensPage() {
 
   const isFinanceira = FINANCEIRAS.has(form.categoria);
 
+  // Extras do item que está sendo editado agora - só faz sentido com editingId (item novo ainda
+  // não existe pro servidor aceitar upload de extra) e com o principal já preenchido (ver botão
+  // "+ Anexo extra" abaixo, que só aparece nessa condição).
+  const extrasDoEditingItem = useMemo(
+    () => (editingId ? todosExtras.filter((a) => a.item_id === editingId) : []),
+    [todosExtras, editingId]
+  );
+
   function setField<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  async function handleAddExtra(fileExtra: File) {
+    if (!editingId) return;
+    setExtraError(null);
+    setAddingExtra(true);
+    const res = await addItemAnexoOnline(tripId, editingId, fileExtra);
+    setAddingExtra(false);
+    if (extraFileInputRef.current) extraFileInputRef.current.value = "";
+    if (!res.ok) setExtraError(res.error);
+  }
+
+  async function handleRemoveExtra(anexo: ItemAnexoInfo) {
+    if (!editingId) return;
+    if (!confirm(`Remover o anexo extra "${anexo.nome}"?`)) return;
+    setExtraError(null);
+    setRemovingExtraId(anexo.id);
+    const res = await removeItemAnexoOnline(tripId, editingId, anexo.id);
+    setRemovingExtraId(null);
+    if (!res.ok) setExtraError(res.error);
   }
 
   /** Trocar o pagante muda de quem são os meios de pagamento disponíveis - um meio já escolhido
@@ -208,6 +262,7 @@ export default function ItensPage() {
     setAnalisado(false);
     setSegundoTrecho(null);
     setAvisosAnalise([]);
+    setExtraError(null);
     setEditingId(null);
     setEditingAnexoNome(null);
     setForm({
@@ -228,6 +283,7 @@ export default function ItensPage() {
     setAnalisado(false);
     setSegundoTrecho(null);
     setAvisosAnalise([]);
+    setExtraError(null);
     setEditingId(item.id);
     setEditingAnexoNome(item.anexo_nome || null);
     setForm({
@@ -267,7 +323,9 @@ export default function ItensPage() {
     setAnalisado(false);
     setSegundoTrecho(null);
     setAvisosAnalise([]);
+    setExtraError(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
+    if (extraFileInputRef.current) extraFileInputRef.current.value = "";
     // Chegou aqui via link "Editar" de Roteiro > Agenda (?editar=<id>) - volta pra lá em vez de
     // ficar na tela Itens, senão o usuário perde o lugar de onde veio.
     if (searchParams.get("editar")) router.push(`/trips/${tripId}/agenda`);
@@ -567,6 +625,58 @@ export default function ItensPage() {
               </div>
             )}
 
+            {/* Anexos extras: só depois que o item já existe e já tem o principal preenchido -
+                sem opção de "Analisar voucher", diferente do de cima. Upload/remoção acontecem na
+                hora (exigem internet), não esperam o "Salvar" deste formulário. */}
+            {editingId && editingAnexoNome && (
+              <div className="flex flex-col gap-2 rounded-xl border border-dashed border-slate-200 dark:border-slate-800 p-3">
+                <label className="text-xs font-medium text-slate-600 dark:text-slate-400">
+                  Anexos extras
+                </label>
+                {extrasDoEditingItem.length > 0 && (
+                  <ul className="flex flex-col gap-1">
+                    {extrasDoEditingItem.map((a) => (
+                      <li key={a.id} className="flex items-center justify-between gap-2 text-sm">
+                        <a
+                          href={`/api/trips/${tripId}/anexos/${a.file_id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="truncate text-blue-600 dark:text-blue-400 hover:underline"
+                        >
+                          📎 {a.nome}
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveExtra(a)}
+                          disabled={removingExtraId === a.id || !online}
+                          title={online ? undefined : "Remover anexo precisa de internet"}
+                          className="shrink-0 text-xs font-medium text-red-600 dark:text-red-400 hover:text-red-700 disabled:opacity-50"
+                        >
+                          {removingExtraId === a.id ? "Removendo..." : "Remover"}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <input
+                  ref={extraFileInputRef}
+                  type="file"
+                  accept={ACCEPT_VOUCHER}
+                  disabled={addingExtra || !online}
+                  title={online ? undefined : "Adicionar anexo precisa de internet"}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) handleAddExtra(f);
+                  }}
+                  className="block w-full text-sm text-slate-600 dark:text-slate-400 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 dark:file:bg-slate-800 file:px-3 file:py-2 file:text-sm file:font-medium file:text-slate-700 dark:file:text-slate-300 hover:file:bg-slate-200 dark:hover:file:bg-slate-700 disabled:opacity-50"
+                />
+                {addingExtra && (
+                  <p className="text-xs text-slate-400 dark:text-slate-500">Enviando anexo...</p>
+                )}
+                {extraError && <p className="text-xs text-red-600 dark:text-red-400">{extraError}</p>}
+              </div>
+            )}
+
             <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
               Dados do item
             </h3>
@@ -800,6 +910,18 @@ export default function ItensPage() {
                 <span className="text-slate-400 dark:text-slate-500">
                   {CATEGORIA_LABEL[item.categoria] ?? item.categoria}
                 </span>
+                {item.anexo_file_id && (
+                  <span
+                    className="text-slate-400 dark:text-slate-500"
+                    title={
+                      extrasPorItem[item.id]
+                        ? `${1 + extrasPorItem[item.id]} anexos`
+                        : "1 anexo"
+                    }
+                  >
+                    📎{extrasPorItem[item.id] ? ` +${extrasPorItem[item.id]}` : ""}
+                  </span>
+                )}
               </div>
               <p className="truncate text-[11px] text-slate-500 dark:text-slate-400">
                 {resumoItem(item, nomePorMeio) || item.descricao}
@@ -830,6 +952,9 @@ export default function ItensPage() {
         tripId={tripId}
         nomePorPessoa={nomePorPessoa}
         nomePorMeio={nomePorMeio}
+        extraAnexos={
+          viewingItem ? todosExtras.filter((a) => a.item_id === viewingItem.id) : undefined
+        }
         onClose={() => setViewingItem(null)}
         onEditar={(item) => {
           setViewingItem(null);
