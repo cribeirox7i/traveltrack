@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import type { Session } from "next-auth";
 import { getTrip, userCanAccessTrip } from "@/lib/sheets/trips";
 import type { TripRow } from "@/lib/sheets/types";
+import { viagemBloqueada } from "@/lib/tripStatus";
 
 export type ApiSession = Session;
 
@@ -133,4 +134,22 @@ export async function requireTripEditor(
 
 export function errorResponse(message: string, status = 400) {
   return NextResponse.json({ error: message }, { status });
+}
+
+/**
+ * Devolve uma resposta 423 quando a viagem está concluída ou cancelada (ver `viagemBloqueada`
+ * em `lib/tripStatus.ts`), ou `null` quando a edição pode seguir. Toda rota que ESCREVE conteúdo
+ * de uma viagem (Itens, ItemAnexos, Agenda, dias de Itinerário/Orçamento, análise de voucher)
+ * chama isto logo depois do `getTrip` que ela já faz. O único campo que continua editável numa
+ * viagem bloqueada é o próprio `status` - tratado à parte em `PATCH /api/trips/[id]`.
+ *
+ * 423 (Locked) em vez de 403: não é falta de permissão do usuário, é o estado da viagem que não
+ * aceita escrita - a mensagem orienta a reabrir mudando o status.
+ */
+export function tripLockError(trip: TripRow): NextResponse | null {
+  if (!viagemBloqueada(trip)) return null;
+  return NextResponse.json(
+    { error: "Viagem concluída ou cancelada - edição bloqueada. Mude o status para reabrir." },
+    { status: 423 }
+  );
 }

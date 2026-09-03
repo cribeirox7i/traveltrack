@@ -1,4 +1,8 @@
+"use client";
+
+import { useState } from "react";
 import { CATEGORIAS_ITEM, CategoriaItem } from "@/lib/sheets/types";
+import { AnexoViewer } from "@/components/AnexoViewer";
 
 /** Anexo extra de um item (além do principal) - mesmos campos de `ItemAnexoInfo` em
  * lib/offline/sync.ts, redeclarado aqui pra este arquivo não depender do módulo de sincronização. */
@@ -89,15 +93,6 @@ function formatMoney(valor: string): string {
   return `R$ ${Number(valor).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-/**
- * URL do anexo servida pelo próprio app (`/api/trips/[id]/anexos/[fileId]`, que baixa os bytes
- * via Apps Script e devolve direto, sem passar pelo Drive) - em vez do link cru do Drive
- * (`item.anexo_url`), que exige o navegador estar logado numa conta Google com acesso ao
- * arquivo (a pasta não é pública) e cai numa tela de login do Google em vez de abrir o anexo.
- */
-function hrefAnexo(tripId: string, fileId: string): string {
-  return `/api/trips/${tripId}/anexos/${fileId}`;
-}
 
 /** Rótulos de `data_inicio`/`data_fim` por categoria - mesmo par de colunas, nome diferente na
  * tela conforme o que a categoria representa. `undefined` = categoria não tem início/fim (usa
@@ -133,17 +128,17 @@ const CAMPOS_DETALHE: { campo: keyof Item; label: string }[] = [
  * aqui é só leitura, então generalizar por "tem valor ou não" é mais simples de manter em dia do
  * que replicar a lógica de qual campo pertence a qual categoria. */
 function ItemDetalhes({
-  tripId,
   item,
   nomePorPessoa,
   nomePorMeio,
   extraAnexos,
+  onAbrirAnexo,
 }: {
-  tripId: string;
   item: Item;
   nomePorPessoa: Record<string, string>;
   nomePorMeio: Record<string, string>;
   extraAnexos: ItemAnexoExtra[];
+  onAbrirAnexo: (fileId: string, nome: string) => void;
 }) {
   const [labelInicio, labelFim] = LABELS_INICIO_FIM[item.categoria] ?? ["Início", "Término"];
   const pares: { label: string; valor: string }[] = [];
@@ -182,27 +177,25 @@ function ItemDetalhes({
   return (
     <div className="flex flex-col gap-3">
       {(item.anexo_file_id || extraAnexos.length > 0) && (
-        <div className="flex flex-col gap-1">
+        <div className="flex flex-col items-start gap-1">
           {item.anexo_file_id && (
-            <a
-              href={hrefAnexo(tripId, item.anexo_file_id)}
-              target="_blank"
-              rel="noopener noreferrer"
+            <button
+              type="button"
+              onClick={() => onAbrirAnexo(item.anexo_file_id, item.anexo_nome)}
               className="inline-flex w-fit items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:underline"
             >
               📎 {item.anexo_nome || "abrir anexo"}
-            </a>
+            </button>
           )}
           {extraAnexos.map((a) => (
-            <a
+            <button
               key={a.id}
-              href={hrefAnexo(tripId, a.file_id)}
-              target="_blank"
-              rel="noopener noreferrer"
+              type="button"
+              onClick={() => onAbrirAnexo(a.file_id, a.nome)}
               className="inline-flex w-fit items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:underline"
             >
               📎 {a.nome || "abrir anexo"}
-            </a>
+            </button>
           ))}
         </div>
       )}
@@ -241,6 +234,7 @@ export function ItemDetalhesPopup({
   nomePorPessoa,
   nomePorMeio,
   extraAnexos = [],
+  podeEditar = true,
   onClose,
   onEditar,
 }: {
@@ -251,9 +245,12 @@ export function ItemDetalhesPopup({
   /** Anexos extras deste item (já filtrados pelo chamador - lista inteira da viagem vem de
    * `useOfflineCollection<ItemAnexoInfo>("itemAnexos", tripId)`). */
   extraAnexos?: ItemAnexoExtra[];
+  /** `false` numa viagem concluída/cancelada - esconde o botão "Editar" (a tela só lê). */
+  podeEditar?: boolean;
   onClose: () => void;
   onEditar: (item: Item) => void;
 }) {
+  const [anexoAberto, setAnexoAberto] = useState<{ fileId: string; nome: string } | null>(null);
   if (!item) return null;
   return (
     <div
@@ -278,20 +275,22 @@ export function ItemDetalhesPopup({
           </button>
         </div>
         <ItemDetalhes
-          tripId={tripId}
           item={item}
           nomePorPessoa={nomePorPessoa}
           nomePorMeio={nomePorMeio}
           extraAnexos={extraAnexos}
+          onAbrirAnexo={(fileId, nome) => setAnexoAberto({ fileId, nome })}
         />
         <div className="flex gap-2 pt-1">
-          <button
-            type="button"
-            onClick={() => onEditar(item)}
-            className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
-          >
-            Editar
-          </button>
+          {podeEditar && (
+            <button
+              type="button"
+              onClick={() => onEditar(item)}
+              className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+            >
+              Editar
+            </button>
+          )}
           <button
             type="button"
             onClick={onClose}
@@ -301,6 +300,15 @@ export function ItemDetalhesPopup({
           </button>
         </div>
       </div>
+
+      {anexoAberto && (
+        <AnexoViewer
+          tripId={tripId}
+          fileId={anexoAberto.fileId}
+          nome={anexoAberto.nome}
+          onClose={() => setAnexoAberto(null)}
+        />
+      )}
     </div>
   );
 }

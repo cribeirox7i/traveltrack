@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { detectarTipoVoucher } from "@/lib/fileValidation";
-import { errorResponse, requireSession, sessionCanAccessTrip } from "@/lib/api-helpers";
+import { errorResponse, requireSession, sessionCanAccessTrip, tripLockError } from "@/lib/api-helpers";
 import { CATEGORIA_ITEM_DRIVE, listItensByTrip } from "@/lib/sheets/itens";
 import { uploadAnexo } from "@/lib/sheets/anexos";
 import { createItemAnexo } from "@/lib/sheets/itemAnexos";
@@ -36,6 +36,8 @@ export async function POST(
 
   const trip = await getTrip(id);
   if (!trip) return errorResponse("Viagem não encontrada", 404);
+  const bloqueio = tripLockError(trip);
+  if (bloqueio) return bloqueio;
 
   const isMultipart = req.headers.get("content-type")?.includes("multipart/form-data");
   if (!isMultipart) return errorResponse("Envie o arquivo como multipart/form-data");

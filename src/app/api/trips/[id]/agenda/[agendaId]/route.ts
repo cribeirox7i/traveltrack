@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { urlHttpSchema } from "@/lib/urlSegura";
-import { errorResponse, requireSession, sessionCanAccessTrip } from "@/lib/api-helpers";
+import { errorResponse, requireSession, sessionCanAccessTrip, tripLockError } from "@/lib/api-helpers";
 import { deleteAgenda, getAgenda, updateAgenda } from "@/lib/sheets/agenda";
 import { deleteAnexo, uploadAnexo } from "@/lib/sheets/anexos";
 import { getTrip, listTripDays } from "@/lib/sheets/trips";
@@ -35,6 +35,8 @@ export async function PATCH(
 
   const trip = await getTrip(id);
   if (!trip) return errorResponse("Viagem não encontrada", 404);
+  const bloqueio = tripLockError(trip);
+  if (bloqueio) return bloqueio;
 
   const isMultipart = req.headers.get("content-type")?.includes("multipart/form-data");
   let raw: Record<string, unknown>;
@@ -121,6 +123,8 @@ export async function DELETE(
 
   const trip = await getTrip(id);
   if (!trip) return errorResponse("Viagem não encontrada", 404);
+  const bloqueio = tripLockError(trip);
+  if (bloqueio) return bloqueio;
 
   await deleteAgenda(agendaId);
 

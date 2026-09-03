@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { errorResponse, requireSession, sessionCanAccessTrip } from "@/lib/api-helpers";
+import { errorResponse, requireSession, sessionCanAccessTrip, tripLockError } from "@/lib/api-helpers";
 import { listDespesasByTrip, updateDespesaStatus } from "@/lib/sheets/financas";
+import { getTrip } from "@/lib/sheets/trips";
 
 // Os dois vocabulários possíveis (débito e crédito compartilham a mesma coluna `status` na
 // aba Despesas - ver StatusLancamento em lib/sheets/types.ts). Não valida aqui qual vocabulário
@@ -22,6 +23,12 @@ export async function PATCH(
   const { id, despesaId } = await params;
   if (!(await sessionCanAccessTrip(auth.session, id))) {
     return errorResponse("Sem acesso a esta viagem", 403);
+  }
+
+  const trip = await getTrip(id);
+  if (trip) {
+    const bloqueio = tripLockError(trip);
+    if (bloqueio) return bloqueio;
   }
 
   const parsed = patchSchema.safeParse(await req.json());

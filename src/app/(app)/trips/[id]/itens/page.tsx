@@ -7,6 +7,7 @@ import {
   useCollaborators,
   useMeiosPagamento,
   useOfflineCollection,
+  useOfflineTrip,
   useOnlineStatus,
 } from "@/lib/offline/useOfflineData";
 import {
@@ -18,8 +19,10 @@ import {
   type ItemAnexoInfo,
 } from "@/lib/offline/sync";
 import { CATEGORIAS_ITEM, CategoriaItem } from "@/lib/sheets/types";
+import { viagemBloqueada } from "@/lib/tripStatus";
 import type { SegundoTrecho } from "@/lib/gemini";
 import { TimeField } from "@/components/TimeField";
+import { AnexoViewer } from "@/components/AnexoViewer";
 import { InfoDisclaimer } from "@/components/InfoDisclaimer";
 import { FILTER_SELECT_CLASS } from "@/lib/uiClasses";
 import {
@@ -128,6 +131,10 @@ export default function ItensPage() {
   const searchParams = useSearchParams();
   const { data: session } = useSession();
   const { items, loading } = useOfflineCollection<Item>("itens", tripId);
+  const { trip } = useOfflineTrip<{ id: string; status?: string; data_fim: string }>(tripId);
+  // Viagem concluída/cancelada: tela vira somente-leitura (o backend também recusa - ver
+  // `tripLockError`). Enquanto o trip ainda não carregou do IndexedDB, não bloqueia.
+  const bloqueada = !!trip && viagemBloqueada(trip);
   // Anexos extras de TODOS os itens da viagem, filtrados por item no uso (ver `extrasDoItem`
   // abaixo) - mesmo padrão de `todosMeiosPagamento`, uma chamada só em vez de uma por item.
   const { items: todosExtras } = useOfflineCollection<ItemAnexoInfo>("itemAnexos", tripId);
@@ -156,6 +163,7 @@ export default function ItensPage() {
    * anterior à inicial (ver `corrigirCronologia` em lib/gemini.ts). */
   const [avisosAnalise, setAvisosAnalise] = useState<string[]>([]);
   const [viewingItem, setViewingItem] = useState<Item | null>(null);
+  const [anexoAberto, setAnexoAberto] = useState<{ fileId: string; nome: string } | null>(null);
   const [filtroCategoria, setFiltroCategoria] = useState<CategoriaItem | "">("");
   const [filtroData, setFiltroData] = useState("");
   const [filtroPessoa, setFiltroPessoa] = useState("");
@@ -166,11 +174,11 @@ export default function ItensPage() {
   // tela Roteiro > Agenda, que só lista itens, não tem formulário próprio).
   useEffect(() => {
     const id = searchParams.get("editar");
-    if (!id || formOpen) return;
+    if (!id || formOpen || bloqueada) return;
     const item = items.find((i) => i.id === id);
     if (item) openEditForm(item);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams, items]);
+  }, [searchParams, items, bloqueada]);
 
   const nomePorPessoa = useMemo(
     () => Object.fromEntries(collaborators.map((c) => [c.id, c.nome])),
@@ -457,7 +465,7 @@ export default function ItensPage() {
           Traslados, passagens, hospedagem, alimentação, atrativos, repasses e documentos da
           viagem, num lugar só. Substitui as antigas telas de Lançamentos e Anexos.
         </InfoDisclaimer>
-        {!formOpen && (
+        {!formOpen && !bloqueada && (
           <button
             type="button"
             onClick={openNewForm}
@@ -467,6 +475,13 @@ export default function ItensPage() {
           </button>
         )}
       </div>
+
+      {bloqueada && (
+        <p className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
+          Viagem concluída ou cancelada - itens em somente leitura. Reabra mudando o status na tela
+          Editar viagem.
+        </p>
+      )}
 
       <div className="flex flex-wrap items-end gap-2">
         <div>
@@ -637,14 +652,13 @@ export default function ItensPage() {
                   <ul className="flex flex-col gap-1">
                     {extrasDoEditingItem.map((a) => (
                       <li key={a.id} className="flex items-center justify-between gap-2 text-sm">
-                        <a
-                          href={`/api/trips/${tripId}/anexos/${a.file_id}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="truncate text-blue-600 dark:text-blue-400 hover:underline"
+                        <button
+                          type="button"
+                          onClick={() => setAnexoAberto({ fileId: a.file_id, nome: a.nome })}
+                          className="truncate text-left text-blue-600 dark:text-blue-400 hover:underline"
                         >
                           📎 {a.nome}
-                        </a>
+                        </button>
                         <button
                           type="button"
                           onClick={() => handleRemoveExtra(a)}
@@ -927,22 +941,24 @@ export default function ItensPage() {
                 {resumoItem(item, nomePorMeio) || item.descricao}
               </p>
             </div>
-            <div className="flex shrink-0 gap-2" onClick={(e) => e.stopPropagation()}>
-              <button
-                type="button"
-                onClick={() => openEditForm(item)}
-                className="text-[11px] font-medium text-slate-600 dark:text-slate-400 hover:underline"
-              >
-                Editar
-              </button>
-              <button
-                type="button"
-                onClick={() => handleDelete(item)}
-                className="text-[11px] font-medium text-red-600 dark:text-red-400 hover:underline"
-              >
-                Excluir
-              </button>
-            </div>
+            {!bloqueada && (
+              <div className="flex shrink-0 gap-2" onClick={(e) => e.stopPropagation()}>
+                <button
+                  type="button"
+                  onClick={() => openEditForm(item)}
+                  className="text-[11px] font-medium text-slate-600 dark:text-slate-400 hover:underline"
+                >
+                  Editar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDelete(item)}
+                  className="text-[11px] font-medium text-red-600 dark:text-red-400 hover:underline"
+                >
+                  Excluir
+                </button>
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -955,12 +971,22 @@ export default function ItensPage() {
         extraAnexos={
           viewingItem ? todosExtras.filter((a) => a.item_id === viewingItem.id) : undefined
         }
+        podeEditar={!bloqueada}
         onClose={() => setViewingItem(null)}
         onEditar={(item) => {
           setViewingItem(null);
           openEditForm(item);
         }}
       />
+
+      {anexoAberto && (
+        <AnexoViewer
+          tripId={tripId}
+          fileId={anexoAberto.fileId}
+          nome={anexoAberto.nome}
+          onClose={() => setAnexoAberto(null)}
+        />
+      )}
     </div>
   );
 }

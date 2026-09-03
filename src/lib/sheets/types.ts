@@ -1,3 +1,5 @@
+import type { TripStatus } from "../tripStatus";
+
 export type SheetTab =
   | "Ambientes"
   | "Users"
@@ -33,6 +35,7 @@ export const SHEET_HEADERS: Record<SheetTab, string[]> = {
     "capa_url",
     "custo_modo",
     "ambiente_id",
+    "status",
   ],
   TripDays: [
     "id",
@@ -229,6 +232,12 @@ export interface TripRow {
    * UserTrip, Despesas, Receitas, Agenda) NÃO repetem essa coluna de propósito: elas chegam pelo
    * `trip_id`, e duplicar o ambiente criaria duas fontes de verdade que podem divergir. */
   ambiente_id: string;
+  /** Status da viagem: `""` = automático (viagem com data_fim já passada conta como "concluida",
+   * senão "planejada"); valor explícito (`planejada`/`concluida`/`cancelada`) vence o automático.
+   * Viagem concluída ou cancelada fica bloqueada para edição - só este campo continua editável.
+   * Ver `lib/tripStatus.ts` (`statusViagem`/`viagemBloqueada`). Linha antiga sem essa coluna é
+   * tratada como automático. */
+  status: TripStatus | "";
 }
 
 export interface TripDayRow {

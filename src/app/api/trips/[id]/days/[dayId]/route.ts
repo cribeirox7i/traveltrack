@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { errorResponse, requireTripEditor } from "@/lib/api-helpers";
+import { errorResponse, requireTripEditor, tripLockError } from "@/lib/api-helpers";
 import { deleteTripDay } from "@/lib/sheets/trips";
 
 /** Remove um dia da grade - ver `deleteTripDay` pra regra completa de reindexação de datas,
@@ -12,6 +12,8 @@ export async function DELETE(
   const { id, dayId } = await params;
   const auth = await requireTripEditor(id);
   if ("error" in auth) return auth.error;
+  const bloqueio = tripLockError(auth.trip);
+  if (bloqueio) return bloqueio;
 
   try {
     await deleteTripDay(id, dayId);

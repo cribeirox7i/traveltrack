@@ -8,6 +8,14 @@ import { pullTripDetail, pullTrips } from "@/lib/offline/sync";
 import { apiFetch } from "@/lib/apiFetch";
 import { CityAutocomplete } from "@/components/CityAutocomplete";
 import { diffDays } from "@/lib/dateRange";
+import {
+  TRIP_STATUS_BADGE,
+  TRIP_STATUS_LABEL,
+  TRIP_STATUS_OPTIONS,
+  statusViagem,
+  viagemBloqueada,
+  type TripStatus,
+} from "@/lib/tripStatus";
 
 interface TripMeta {
   id: string;
@@ -21,6 +29,7 @@ interface TripMeta {
   capa_url: string;
   custo_modo?: "por_pessoa" | "total" | "";
   criado_por: string;
+  status?: string;
 }
 
 /** Mesma estrutura de campos de "Nova viagem" - só troca "Quantidade de dias" (aqui só leitura,
@@ -44,8 +53,12 @@ export default function EditarViagemPage() {
     capa_url: "",
     custo_modo: "por_pessoa" as "por_pessoa" | "total",
   });
+  // `""` = automático (a data decide entre planejada/concluida). Editável mesmo com a viagem
+  // bloqueada - é a forma de reabrir.
+  const [statusForm, setStatusForm] = useState<TripStatus | "">("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const bloqueada = !!trip && viagemBloqueada(trip);
   // A leitura desta tela vem do IndexedDB e funciona offline, mas o PATCH da viagem é do servidor
   // e não tem equivalente local - sem sinal o botão fica desabilitado em vez de falhar.
   const online = useOnlineStatus();
@@ -62,16 +75,23 @@ export default function EditarViagemPage() {
       capa_url: trip.capa_url ?? "",
       custo_modo: trip.custo_modo === "total" ? "total" : "por_pessoa",
     });
+    const s = trip.status;
+    setStatusForm(s === "planejada" || s === "concluida" || s === "cancelada" ? s : "");
   }, [trip]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setSaving(true);
+    // Viagem bloqueada: só o status pode ir no PATCH (o backend recusa o resto). Fora disso,
+    // manda o formulário inteiro mais o status.
+    const body = bloqueada
+      ? { status: statusForm }
+      : { ...form, qtd_pessoas: String(form.qtd_pessoas), status: statusForm };
     const res = await apiFetch(`/api/trips/${tripId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...form, qtd_pessoas: String(form.qtd_pessoas) }),
+      body: JSON.stringify(body),
     });
     if (!res.ok) {
       setError(res.error);
@@ -111,6 +131,44 @@ export default function EditarViagemPage() {
         onSubmit={handleSubmit}
         className="flex flex-col gap-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4"
       >
+        <div>
+          <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
+            Status da viagem
+          </label>
+          <select
+            value={statusForm}
+            onChange={(e) => setStatusForm(e.target.value as TripStatus | "")}
+            className="w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
+          >
+            <option value="">
+              Automático (pela data){" "}
+              {trip.data_fim ? `- hoje: ${TRIP_STATUS_LABEL[statusViagem({ status: "", data_fim: trip.data_fim })]}` : ""}
+            </option>
+            {TRIP_STATUS_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
+            Uma viagem cuja data já passou fica <strong>Concluída</strong> sozinha. Viagem concluída
+            ou cancelada não pode ser editada - só este campo. Volte para <strong>Planejada</strong>{" "}
+            (ou Automático, se ainda não terminou) para reabrir.
+          </p>
+        </div>
+
+        {bloqueada && (
+          <p className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
+            Esta viagem está{" "}
+            <span className={`rounded px-1.5 py-0.5 font-medium ${TRIP_STATUS_BADGE[statusViagem(trip)]}`}>
+              {TRIP_STATUS_LABEL[statusViagem(trip)]}
+            </span>{" "}
+            e os demais campos estão bloqueados. Mude o status acima e salve para reabrir.
+          </p>
+        )}
+
+        {!bloqueada && (
+        <>
         <div>
           <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Nome</label>
           <input
@@ -217,6 +275,8 @@ export default function EditarViagemPage() {
             valor por pessoa.
           </p>
         </div>
+        </>
+        )}
 
         {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 

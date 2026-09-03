@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, requireAdmin, requireSession, requireTripEditor, sessionCanAccessTrip } from "@/lib/api-helpers";
+import { viagemBloqueada } from "@/lib/tripStatus";
 import {
   changeTripStartDate,
   deleteTrip,
@@ -34,6 +35,9 @@ const patchSchema = z.object({
   cidade_origem_lon: z.string().optional(),
   capa_url: urlHttpSchema.or(z.literal("")).optional(),
   custo_modo: z.enum(["por_pessoa", "total"]).optional(),
+  // Único campo que continua editável numa viagem concluída/cancelada (ver checagem abaixo).
+  // `""` volta ao automático (data_fim decide).
+  status: z.enum(["planejada", "concluida", "cancelada"]).or(z.literal("")).optional(),
   // Não é um campo qualquer da linha - mudar isso desloca a grade inteira de dias (e a Agenda
   // junto), ver `changeTripStartDate`. Tratado à parte abaixo, não entra no `updateTrip` genérico.
   data_inicio: z.string().date().optional(),
@@ -53,6 +57,17 @@ export async function PATCH(
   if (!parsed.success) return errorResponse(parsed.error.issues[0].message);
 
   const { data_inicio, ...resto } = parsed.data;
+
+  // Viagem concluída/cancelada só aceita mudança no próprio campo `status` (é a saída para
+  // reabrir). Qualquer outro campo, incluindo `data_inicio`, responde 423.
+  const mexeEmOutroCampo =
+    data_inicio !== undefined || Object.keys(resto).some((k) => k !== "status");
+  if (mexeEmOutroCampo && viagemBloqueada(auth.trip)) {
+    return errorResponse(
+      "Viagem concluída ou cancelada - só o status pode ser alterado. Mude para Planejada para reabrir.",
+      423
+    );
+  }
 
   try {
     if (data_inicio) await changeTripStartDate(id, data_inicio);

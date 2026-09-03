@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { detectarTipoVoucher } from "@/lib/fileValidation";
 import { GeminiIndisponivelError, analisarVoucher } from "@/lib/gemini";
-import { errorResponse, requireSession, sessionCanAccessTrip } from "@/lib/api-helpers";
+import { errorResponse, requireSession, sessionCanAccessTrip, tripLockError } from "@/lib/api-helpers";
 import { excedeuLimite } from "@/lib/rateLimit";
 import { getTrip } from "@/lib/sheets/trips";
 
@@ -45,6 +45,10 @@ export async function POST(
   }
 
   const trip = await getTrip(id);
+  if (trip) {
+    const bloqueio = tripLockError(trip);
+    if (bloqueio) return bloqueio;
+  }
   const periodoViagem = trip ? { inicio: trip.data_inicio, fim: trip.data_fim } : undefined;
 
   const buffer = Buffer.from(await file.arrayBuffer());

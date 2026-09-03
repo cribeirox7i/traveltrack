@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { errorResponse, requireSession, sessionCanAccessTrip } from "@/lib/api-helpers";
+import { errorResponse, requireSession, sessionCanAccessTrip, tripLockError } from "@/lib/api-helpers";
 import { createReceita, listReceitasByTrip } from "@/lib/sheets/financas";
+import { getTrip } from "@/lib/sheets/trips";
 
 const createSchema = z.object({
   id: z.string().min(1).optional(),
@@ -37,6 +38,12 @@ export async function POST(
   const { user } = auth.session;
   if (!(await sessionCanAccessTrip(auth.session, id))) {
     return errorResponse("Sem acesso a esta viagem", 403);
+  }
+
+  const trip = await getTrip(id);
+  if (trip) {
+    const bloqueio = tripLockError(trip);
+    if (bloqueio) return bloqueio;
   }
 
   const parsed = createSchema.safeParse(await req.json());

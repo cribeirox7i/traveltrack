@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { urlHttpSchema } from "@/lib/urlSegura";
 import { detectarTipoVoucher } from "@/lib/fileValidation";
-import { errorResponse, requireSession, sessionCanAccessTrip } from "@/lib/api-helpers";
+import { errorResponse, requireSession, sessionCanAccessTrip, tripLockError } from "@/lib/api-helpers";
 import { CATEGORIAS_ITEM_FINANCEIRAS } from "@/lib/sheets/types";
 import { CATEGORIA_ITEM_DRIVE, ItemEditableInput, createItem, listItensByTrip } from "@/lib/sheets/itens";
 import { uploadAnexo } from "@/lib/sheets/anexos";
@@ -111,6 +111,8 @@ export async function POST(
 
   const trip = await getTrip(id);
   if (!trip) return errorResponse("Viagem não encontrada", 404);
+  const bloqueio = tripLockError(trip);
+  if (bloqueio) return bloqueio;
 
   const isMultipart = req.headers.get("content-type")?.includes("multipart/form-data");
 

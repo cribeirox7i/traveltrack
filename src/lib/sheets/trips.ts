@@ -12,6 +12,7 @@ import {
 import { deleteAnexo, deleteTripFolder } from "./anexos";
 import { listAgendaByTrip } from "./agenda";
 import { Role, TripDayRow, TripRow, UserRow, UserTripRow } from "./types";
+import type { TripStatus } from "../tripStatus";
 
 export async function listAllTrips(): Promise<TripRow[]> {
   return readSheet<TripRow>("Trips");
@@ -109,6 +110,8 @@ export async function createTrip(input: {
     capa_url: input.capa_url ?? "",
     custo_modo: input.custo_modo ?? "por_pessoa",
     ambiente_id: input.ambiente_id,
+    // Nasce em automático: sem data passada ainda, `statusViagem` devolve "planejada".
+    status: "",
   };
 
   const dayIds = input.dayIds && input.dayIds.length === days.length ? input.dayIds : null;
@@ -155,6 +158,7 @@ export async function updateTrip(
     cidade_origem_lon?: string;
     capa_url?: string;
     custo_modo?: "por_pessoa" | "total";
+    status?: TripStatus | "";
   }
 ): Promise<void> {
   await updateRow("Trips", id, patch);

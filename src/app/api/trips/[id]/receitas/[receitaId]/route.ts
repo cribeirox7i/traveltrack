@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { errorResponse, requireSession, sessionCanAccessTrip } from "@/lib/api-helpers";
+import { errorResponse, requireSession, sessionCanAccessTrip, tripLockError } from "@/lib/api-helpers";
 import { listReceitasByTrip, updateReceitaStatus } from "@/lib/sheets/financas";
+import { getTrip } from "@/lib/sheets/trips";
 
 const patchSchema = z.object({
   status: z.enum(["recebido", "a_receber"]),
@@ -17,6 +18,12 @@ export async function PATCH(
   const { id, receitaId } = await params;
   if (!(await sessionCanAccessTrip(auth.session, id))) {
     return errorResponse("Sem acesso a esta viagem", 403);
+  }
+
+  const trip = await getTrip(id);
+  if (trip) {
+    const bloqueio = tripLockError(trip);
+    if (bloqueio) return bloqueio;
   }
 
   const parsed = patchSchema.safeParse(await req.json());

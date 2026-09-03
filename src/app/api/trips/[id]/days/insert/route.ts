@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { errorResponse, requireTripEditor } from "@/lib/api-helpers";
+import { errorResponse, requireTripEditor, tripLockError } from "@/lib/api-helpers";
 import { insertTripDay } from "@/lib/sheets/trips";
 
 const bodySchema = z.object({ afterDayId: z.string().min(1).nullable() });
@@ -16,6 +16,8 @@ export async function POST(
   const { id } = await params;
   const auth = await requireTripEditor(id);
   if ("error" in auth) return auth.error;
+  const bloqueio = tripLockError(auth.trip);
+  if (bloqueio) return bloqueio;
 
   const parsed = bodySchema.safeParse(await req.json());
   if (!parsed.success) return errorResponse(parsed.error.issues[0].message);

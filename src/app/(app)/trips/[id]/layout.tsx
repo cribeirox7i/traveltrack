@@ -8,6 +8,7 @@ import { TripTabs } from "@/components/TripTabs";
 import { TRIP_TAB_SLUGS } from "@/lib/tripTabs";
 import { useOfflineTrip } from "@/lib/offline/useOfflineData";
 import { isOnline } from "@/lib/offline/sync";
+import { TRIP_STATUS_BADGE, TRIP_STATUS_LABEL, statusViagem } from "@/lib/tripStatus";
 
 interface TripMeta {
   id: string;
@@ -15,6 +16,7 @@ interface TripMeta {
   data_inicio: string;
   data_fim: string;
   qtd_pessoas: string;
+  status?: string;
 }
 
 function formatDateBR(iso: string): string {
@@ -65,8 +67,13 @@ export default function TripLayout({ children }: { children: React.ReactNode }) 
         >
           {trip.nome}
         </Link>
-        <p className="text-xs text-slate-500 dark:text-slate-400">
-          {formatDateBR(trip.data_inicio)} - {formatDateBR(trip.data_fim)} · {trip.qtd_pessoas} pessoa(s)
+        <p className="flex flex-wrap items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+          <span>
+            {formatDateBR(trip.data_inicio)} - {formatDateBR(trip.data_fim)} · {trip.qtd_pessoas} pessoa(s)
+          </span>
+          <span className={`rounded px-1.5 py-0.5 font-medium ${TRIP_STATUS_BADGE[statusViagem(trip)]}`}>
+            {TRIP_STATUS_LABEL[statusViagem(trip)]}
+          </span>
         </p>
       </div>
       <TripTabs tripId={id} />

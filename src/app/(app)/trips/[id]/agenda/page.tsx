@@ -1,17 +1,19 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import {
-  getLocalAnexoUrl,
   useCollaborators,
   useMeiosPagamento,
   useOfflineCollection,
+  useOfflineTrip,
 } from "@/lib/offline/useOfflineData";
+import { viagemBloqueada } from "@/lib/tripStatus";
 import { deleteItemOffline, type ItemAnexoInfo } from "@/lib/offline/sync";
 import { hrefSeguro } from "@/lib/urlSegura";
 import { CATEGORIA_LABEL, IconeItem, ItemDetalhesPopup, type Item } from "@/components/ItemDetalhesPopup";
+import { AnexoViewer } from "@/components/AnexoViewer";
 import { InfoDisclaimer } from "@/components/InfoDisclaimer";
 
 interface TripDay {
@@ -77,6 +79,8 @@ export default function AgendaPage() {
   const { items: days, loading: loadingDays } = useOfflineCollection<TripDay>("tripDays", tripId);
   const { items: itens, loading: loadingItens } = useOfflineCollection<Item>("itens", tripId);
   const { items: todosExtras } = useOfflineCollection<ItemAnexoInfo>("itemAnexos", tripId);
+  const { trip } = useOfflineTrip<{ id: string; status?: string; data_fim: string }>(tripId);
+  const bloqueada = !!trip && viagemBloqueada(trip);
   const collaborators = useCollaborators(tripId);
   const meiosPagamento = useMeiosPagamento().filter((m) => m.ativo === "true");
   const nomePorPessoa = useMemo(
@@ -90,35 +94,7 @@ export default function AgendaPage() {
 
   const [openDay, setOpenDay] = useState<string | null>(null);
   const [viewingItem, setViewingItem] = useState<Item | null>(null);
-  const [localUrls, setLocalUrls] = useState<Record<string, string>>({});
-
-  // Mesmo padrão da tela de Itens: resolve, pra cada anexo já baixado neste aparelho, um object
-  // URL que abre offline - os que ainda não foram baixados caem pro link ao vivo do Drive
-  // (anexo_url) na renderização.
-  useEffect(() => {
-    let cancelled = false;
-    const created: string[] = [];
-    (async () => {
-      const entries = await Promise.all(
-        itens
-          .filter((i) => i.anexo_file_id)
-          .map(async (i) => {
-            const url = await getLocalAnexoUrl(i.anexo_file_id);
-            if (url) created.push(url);
-            return [i.anexo_file_id, url] as const;
-          })
-      );
-      if (cancelled) {
-        created.forEach((u) => URL.revokeObjectURL(u));
-        return;
-      }
-      setLocalUrls(Object.fromEntries(entries.filter(([, url]) => url) as [string, string][]));
-    })();
-    return () => {
-      cancelled = true;
-      created.forEach((u) => URL.revokeObjectURL(u));
-    };
-  }, [itens]);
+  const [anexoAberto, setAnexoAberto] = useState<{ fileId: string; nome: string } | null>(null);
 
   const sortedDays = [...days].sort((a, b) => a.data.localeCompare(b.data));
   const itensPorDia = new Map<string, Item[]>();
@@ -148,13 +124,22 @@ export default function AgendaPage() {
           tomada...) ficam no Dashboard da viagem. &ldquo;Atualizar&rdquo; na barra superior busca
           a temperatura. Toque numa data pra abrir.
         </InfoDisclaimer>
-        <Link
-          href={`/trips/${tripId}/itens`}
-          className="shrink-0 rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800"
-        >
-          + Novo Item
-        </Link>
+        {!bloqueada && (
+          <Link
+            href={`/trips/${tripId}/itens`}
+            className="shrink-0 rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800"
+          >
+            + Novo Item
+          </Link>
+        )}
       </div>
+
+      {bloqueada && (
+        <p className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
+          Viagem concluída ou cancelada - roteiro em somente leitura. Reabra mudando o status na
+          tela Editar viagem.
+        </p>
+      )}
 
       {loading && <p className="text-sm text-slate-500 dark:text-slate-400">Carregando...</p>}
       {!loading && sortedDays.length === 0 && (
@@ -263,14 +248,13 @@ export default function AgendaPage() {
                               </a>
                             )}
                             {item.anexo_file_id && (
-                              <a
-                                href={localUrls[item.anexo_file_id] ?? `/api/trips/${tripId}/anexos/${item.anexo_file_id}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
+                              <button
+                                type="button"
+                                onClick={() => setAnexoAberto({ fileId: item.anexo_file_id, nome: item.anexo_nome })}
                                 className="truncate text-slate-500 dark:text-slate-400 hover:text-blue-600 hover:underline"
                               >
                                 📎 {item.anexo_nome || "anexo"}
-                              </a>
+                              </button>
                             )}
                             {item.anexo_nome && !item.anexo_file_id && (
                               <span className="text-slate-400 dark:text-slate-500" title="Envia quando voltar o sinal">
@@ -279,34 +263,38 @@ export default function AgendaPage() {
                             )}
                           </div>
                         </div>
-                        <div
-                          className="flex shrink-0 items-center gap-3 text-xs font-medium"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <Link
-                            href={`/trips/${tripId}/itens?editar=${item.id}`}
-                            className="text-slate-500 dark:text-slate-400 hover:text-slate-800"
+                        {!bloqueada && (
+                          <div
+                            className="flex shrink-0 items-center gap-3 text-xs font-medium"
+                            onClick={(e) => e.stopPropagation()}
                           >
-                            Editar
-                          </Link>
-                          <button
-                            type="button"
-                            onClick={() => handleDelete(item.id)}
-                            className="text-red-500 dark:text-red-400 hover:text-red-700"
-                          >
-                            Excluir
-                          </button>
-                        </div>
+                            <Link
+                              href={`/trips/${tripId}/itens?editar=${item.id}`}
+                              className="text-slate-500 dark:text-slate-400 hover:text-slate-800"
+                            >
+                              Editar
+                            </Link>
+                            <button
+                              type="button"
+                              onClick={() => handleDelete(item.id)}
+                              className="text-red-500 dark:text-red-400 hover:text-red-700"
+                            >
+                              Excluir
+                            </button>
+                          </div>
+                        )}
                       </li>
                     ))}
                   </ul>
 
-                  <Link
-                    href={`/trips/${tripId}/itens`}
-                    className="mt-3 inline-block text-xs font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800"
-                  >
-                    + Novo item nesta data
-                  </Link>
+                  {!bloqueada && (
+                    <Link
+                      href={`/trips/${tripId}/itens`}
+                      className="mt-3 inline-block text-xs font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800"
+                    >
+                      + Novo item nesta data
+                    </Link>
+                  )}
                 </div>
               )}
             </div>
@@ -322,12 +310,22 @@ export default function AgendaPage() {
         extraAnexos={
           viewingItem ? todosExtras.filter((a) => a.item_id === viewingItem.id) : undefined
         }
+        podeEditar={!bloqueada}
         onClose={() => setViewingItem(null)}
         onEditar={(item) => {
           setViewingItem(null);
           router.push(`/trips/${tripId}/itens?editar=${item.id}`);
         }}
       />
+
+      {anexoAberto && (
+        <AnexoViewer
+          tripId={tripId}
+          fileId={anexoAberto.fileId}
+          nome={anexoAberto.nome}
+          onClose={() => setAnexoAberto(null)}
+        />
+      )}
     </div>
   );
 }

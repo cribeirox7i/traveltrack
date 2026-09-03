@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useOfflineCollection, useOfflineTrip, useOnlineStatus } from "@/lib/offline/useOfflineData";
+import { viagemBloqueada } from "@/lib/tripStatus";
 import { pullTripDetail, pullTrips, saveDaysOffline } from "@/lib/offline/sync";
 import { apiFetch } from "@/lib/apiFetch";
 import { CityAutocomplete } from "@/components/CityAutocomplete";
@@ -12,6 +13,8 @@ import { InfoDisclaimer } from "@/components/InfoDisclaimer";
 interface TripMeta {
   id: string;
   criado_por: string;
+  status?: string;
+  data_fim: string;
 }
 
 interface TripDay {
@@ -72,9 +75,12 @@ export default function ItinerarioPage() {
   const { id: tripId } = useParams<{ id: string }>();
   const { data: session } = useSession();
   const { trip } = useOfflineTrip<TripMeta>(tripId);
-  // Admin edita qualquer viagem; usuário comum só a própria (criada por ele).
+  const bloqueada = !!trip && viagemBloqueada(trip);
+  // Admin edita qualquer viagem; usuário comum só a própria (criada por ele). Viagem concluída ou
+  // cancelada trava a edição pra todo mundo (o backend também recusa - ver `tripLockError`).
   const canEdit =
-    session?.user.role === "admin" || (!!trip && trip.criado_por === session?.user.id);
+    !bloqueada &&
+    (session?.user.role === "admin" || (!!trip && trip.criado_por === session?.user.id));
   const { items, loading } = useOfflineCollection<TripDay>("tripDays", tripId);
   const [days, setDays] = useState<TripDay[]>([]);
   const [isSaving, setIsSaving] = useState(false);
@@ -249,6 +255,12 @@ export default function ItinerarioPage() {
 
   return (
     <div className="flex flex-col gap-3">
+      {bloqueada && (
+        <p className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
+          Viagem concluída ou cancelada - edição bloqueada. Reabra mudando o status na tela Editar
+          viagem.
+        </p>
+      )}
       <InfoDisclaimer>
         {canEdit ? (
           <>

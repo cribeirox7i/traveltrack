@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { errorResponse, requireSession, sessionCanAccessTrip } from "@/lib/api-helpers";
+import { errorResponse, requireSession, sessionCanAccessTrip, tripLockError } from "@/lib/api-helpers";
 import { deleteAnexo } from "@/lib/sheets/anexos";
 import { deleteItemAnexo, getItemAnexo } from "@/lib/sheets/itemAnexos";
 import { getTrip } from "@/lib/sheets/trips";
@@ -24,6 +24,10 @@ export async function DELETE(
   }
 
   const trip = await getTrip(id);
+  if (trip) {
+    const bloqueio = tripLockError(trip);
+    if (bloqueio) return bloqueio;
+  }
 
   await deleteItemAnexo(anexoId);
   let avisoAnexo: string | undefined;

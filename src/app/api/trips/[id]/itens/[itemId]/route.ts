@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { urlHttpSchema } from "@/lib/urlSegura";
 import { detectarTipoVoucher } from "@/lib/fileValidation";
-import { errorResponse, requireSession, sessionCanAccessTrip } from "@/lib/api-helpers";
+import { errorResponse, requireSession, sessionCanAccessTrip, tripLockError } from "@/lib/api-helpers";
 import { CATEGORIAS_ITEM_FINANCEIRAS } from "@/lib/sheets/types";
 import { CATEGORIA_ITEM_DRIVE, ItemEditableInput, deleteItem, listItensByTrip, updateItem } from "@/lib/sheets/itens";
 import { deleteAnexo, uploadAnexo } from "@/lib/sheets/anexos";
@@ -94,6 +94,8 @@ export async function PATCH(
 
   const trip = await getTrip(id);
   if (!trip) return errorResponse("Viagem não encontrada", 404);
+  const bloqueio = tripLockError(trip);
+  if (bloqueio) return bloqueio;
 
   const isMultipart = req.headers.get("content-type")?.includes("multipart/form-data");
 
@@ -166,6 +168,10 @@ export async function DELETE(
   if (!existente) return errorResponse("Item não encontrado", 404);
 
   const trip = await getTrip(id);
+  if (trip) {
+    const bloqueio = tripLockError(trip);
+    if (bloqueio) return bloqueio;
+  }
   const extras = (await listItemAnexosByTrip(id)).filter((a) => a.item_id === itemId);
 
   await deleteItem(itemId);

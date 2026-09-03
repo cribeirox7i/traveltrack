@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { errorResponse, requireSession, sessionCanAccessTrip } from "@/lib/api-helpers";
+import { errorResponse, requireSession, sessionCanAccessTrip, tripLockError } from "@/lib/api-helpers";
 import {
   DAY_AUTO_FIELDS,
   DAY_PATCHABLE_FIELDS,
@@ -63,6 +63,12 @@ export async function PUT(
     const isOwner = trip?.criado_por === user.id;
     if (user.role !== "admin" && !isOwner) {
       return errorResponse("Só o administrador ou quem criou a viagem pode editar Orçamento/Itinerário", 403);
+    }
+    // Viagem concluída/cancelada não aceita edição de Itinerário/Orçamento. Os campos de clima
+    // (DAY_AUTO_FIELDS) não caem aqui - seguem liberados pro botão "Atualizar" global.
+    if (trip) {
+      const bloqueio = tripLockError(trip);
+      if (bloqueio) return bloqueio;
     }
   }
 

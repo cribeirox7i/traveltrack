@@ -6,6 +6,14 @@ import { useSession } from "next-auth/react";
 import { useOfflineTrips } from "@/lib/offline/useOfflineData";
 import { deleteTripOffline, listOfflineTripIds, setTripOffline, syncEvents } from "@/lib/offline/sync";
 import { hrefSeguro } from "@/lib/urlSegura";
+import { FILTER_SELECT_CLASS } from "@/lib/uiClasses";
+import {
+  TRIP_STATUS_BADGE,
+  TRIP_STATUS_LABEL,
+  TRIP_STATUS_OPTIONS,
+  statusViagem,
+  type TripStatus,
+} from "@/lib/tripStatus";
 
 interface TripItem {
   id: string;
@@ -15,6 +23,7 @@ interface TripItem {
   qtd_pessoas: string;
   capa_url: string;
   criado_por: string;
+  status?: string;
 }
 
 function formatDateBR(iso: string): string {
@@ -60,8 +69,13 @@ function TripCard({
         <div className="flex items-start justify-between gap-2">
           <Link href={`/trips/${trip.id}`} className="min-w-0 flex-1">
             <p className="font-semibold text-slate-900 dark:text-slate-100">{trip.nome}</p>
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-              {formatDateBR(trip.data_inicio)} - {formatDateBR(trip.data_fim)}
+            <p className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+              <span>
+                {formatDateBR(trip.data_inicio)} - {formatDateBR(trip.data_fim)}
+              </span>
+              <span className={`rounded px-1.5 py-0.5 font-medium ${TRIP_STATUS_BADGE[statusViagem(trip)]}`}>
+                {TRIP_STATUS_LABEL[statusViagem(trip)]}
+              </span>
             </p>
             <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
               {trip.qtd_pessoas} pessoa(s)
@@ -135,6 +149,9 @@ export default function TripsPage() {
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleteWarning, setDeleteWarning] = useState<string | null>(null);
+  const [filtroStatus, setFiltroStatus] = useState<TripStatus | "">("");
+
+  const visiveis = trips.filter((t) => !filtroStatus || statusViagem(t) === filtroStatus);
 
   const refresh = useCallback(async () => {
     setOfflineIds(new Set(await listOfflineTripIds()));
@@ -190,8 +207,23 @@ export default function TripsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">Viagens</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">Viagens</h1>
+          <select
+            value={filtroStatus}
+            onChange={(e) => setFiltroStatus(e.target.value as TripStatus | "")}
+            aria-label="Filtrar por status"
+            className={FILTER_SELECT_CLASS}
+          >
+            <option value="">Todos os status</option>
+            {TRIP_STATUS_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </div>
         <Link
           href="/trips/novo"
           className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
@@ -218,8 +250,14 @@ export default function TripsPage() {
         </p>
       )}
 
+      {!loading && trips.length > 0 && visiveis.length === 0 && (
+        <p className="text-sm text-slate-500 dark:text-slate-400">
+          Nenhuma viagem com esse status.
+        </p>
+      )}
+
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {trips.map((t) => (
+        {visiveis.map((t) => (
           <TripCard
             key={t.id}
             trip={t}
