@@ -4,3 +4,8 @@
  * ("Cartão de Crédito BB") sem cortar. */
 export const FILTER_SELECT_CLASS =
   "w-40 rounded-lg border border-slate-300 dark:border-slate-700 px-2 py-1.5 text-xs";
+
+/** Variante compacta do filtro: largura pelo conteúdo, pra caber ao lado de título/botão numa
+ * barra de cabeçalho (lista de viagens) em vez de numa fileira de filtros alinhados. */
+export const FILTER_SELECT_COMPACT_CLASS =
+  "w-auto max-w-full rounded-lg border border-slate-300 dark:border-slate-700 px-2 py-1.5 text-xs";

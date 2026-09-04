@@ -6,7 +6,7 @@ import { useSession } from "next-auth/react";
 import { useOfflineTrips } from "@/lib/offline/useOfflineData";
 import { deleteTripOffline, listOfflineTripIds, setTripOffline, syncEvents } from "@/lib/offline/sync";
 import { hrefSeguro } from "@/lib/urlSegura";
-import { FILTER_SELECT_CLASS } from "@/lib/uiClasses";
+import { FILTER_SELECT_COMPACT_CLASS } from "@/lib/uiClasses";
 import {
   TRIP_STATUS_BADGE,
   TRIP_STATUS_LABEL,
@@ -149,7 +149,7 @@ export default function TripsPage() {
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleteWarning, setDeleteWarning] = useState<string | null>(null);
-  const [filtroStatus, setFiltroStatus] = useState<TripStatus | "">("");
+  const [filtroStatus, setFiltroStatus] = useState<TripStatus | "">("planejada");
 
   const visiveis = trips.filter((t) => !filtroStatus || statusViagem(t) === filtroStatus);
 
@@ -207,16 +207,18 @@ export default function TripsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">Viagens</h1>
+      <div className="flex flex-nowrap items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <h1 className="whitespace-nowrap text-xl font-semibold text-slate-900 dark:text-slate-100">
+            Viagens
+          </h1>
           <select
             value={filtroStatus}
             onChange={(e) => setFiltroStatus(e.target.value as TripStatus | "")}
             aria-label="Filtrar por status"
-            className={FILTER_SELECT_CLASS}
+            className={FILTER_SELECT_COMPACT_CLASS}
           >
-            <option value="">Todos os status</option>
+            <option value="">Todos</option>
             {TRIP_STATUS_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
@@ -226,7 +228,7 @@ export default function TripsPage() {
         </div>
         <Link
           href="/trips/novo"
-          className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+          className="shrink-0 whitespace-nowrap rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800"
         >
           + Nova viagem
         </Link>
