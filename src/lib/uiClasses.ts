@@ -5,7 +5,8 @@
 export const FILTER_SELECT_CLASS =
   "w-40 rounded-lg border border-slate-300 dark:border-slate-700 px-2 py-1.5 text-xs";
 
-/** Variante compacta do filtro: largura pelo conteúdo, pra caber ao lado de título/botão numa
- * barra de cabeçalho (lista de viagens) em vez de numa fileira de filtros alinhados. */
+/** Variante compacta do filtro: largura pelo conteúdo e `h-9` (36px, a mesma altura do botão
+ * primário `py-2 text-sm`), pra ficar lado a lado com o botão numa barra de cabeçalho (lista de
+ * viagens) em vez de numa fileira de filtros alinhados. */
 export const FILTER_SELECT_COMPACT_CLASS =
-  "w-auto max-w-full rounded-lg border border-slate-300 dark:border-slate-700 px-2 py-1.5 text-xs";
+  "h-9 w-auto max-w-full rounded-lg border border-slate-300 dark:border-slate-700 px-2 text-sm";

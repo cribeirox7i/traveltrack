@@ -208,10 +208,10 @@ export default function TripsPage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-nowrap items-center justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-2">
-          <h1 className="whitespace-nowrap text-xl font-semibold text-slate-900 dark:text-slate-100">
-            Viagens
-          </h1>
+        <h1 className="min-w-0 truncate text-xl font-semibold text-slate-900 dark:text-slate-100">
+          Viagens
+        </h1>
+        <div className="flex shrink-0 items-center gap-2">
           <select
             value={filtroStatus}
             onChange={(e) => setFiltroStatus(e.target.value as TripStatus | "")}
@@ -225,13 +225,13 @@ export default function TripsPage() {
               </option>
             ))}
           </select>
+          <Link
+            href="/trips/novo"
+            className="inline-flex h-9 items-center whitespace-nowrap rounded-lg bg-slate-900 px-3 text-sm font-medium text-white hover:bg-slate-800"
+          >
+            + Nova viagem
+          </Link>
         </div>
-        <Link
-          href="/trips/novo"
-          className="shrink-0 whitespace-nowrap rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800"
-        >
-          + Nova viagem
-        </Link>
       </div>
 
       {deleteError && <p className="text-sm text-red-600 dark:text-red-400">{deleteError}</p>}
