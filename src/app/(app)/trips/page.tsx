@@ -69,16 +69,14 @@ function TripCard({
         <div className="flex items-start justify-between gap-2">
           <Link href={`/trips/${trip.id}`} className="min-w-0 flex-1">
             <p className="font-semibold text-slate-900 dark:text-slate-100">{trip.nome}</p>
-            <p className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
-              <span>
-                {formatDateBR(trip.data_inicio)} - {formatDateBR(trip.data_fim)}
-              </span>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              {formatDateBR(trip.data_inicio)} - {formatDateBR(trip.data_fim)}
+            </p>
+            <p className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
               <span className={`rounded px-1.5 py-0.5 font-medium ${TRIP_STATUS_BADGE[statusViagem(trip)]}`}>
                 {TRIP_STATUS_LABEL[statusViagem(trip)]}
               </span>
-            </p>
-            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-              {trip.qtd_pessoas} pessoa(s)
+              <span>{trip.qtd_pessoas} pessoa(s)</span>
             </p>
           </Link>
           <div className="flex shrink-0 items-center gap-1">
