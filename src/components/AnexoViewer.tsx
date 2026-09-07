@@ -29,7 +29,7 @@ export function AnexoViewer({
   const [estado, setEstado] = useState<
     | { fase: "carregando" }
     | { fase: "erro"; msg: string }
-    | { fase: "pronto"; url: string; tipo: "imagem" | "pdf" | "outro" }
+    | { fase: "pronto"; url: string; blob: Blob; tipo: "imagem" | "pdf" | "outro" }
   >({ fase: "carregando" });
 
   // `onClose` numa ref pra o efeito de history/popstate não reassinar a cada render.
@@ -115,6 +115,7 @@ export function AnexoViewer({
         setEstado({
           fase: "pronto",
           url: urlCriada,
+          blob,
           tipo: ehPdf ? "pdf" : ehImagem ? "imagem" : "outro",
         });
       } catch (err) {
@@ -163,7 +164,9 @@ export function AnexoViewer({
           <img src={estado.url} alt={nome || "Anexo"} className="mx-auto block h-auto max-w-full" />
         )}
 
-        {estado.fase === "pronto" && estado.tipo === "pdf" && <PdfCanvas url={estado.url} />}
+        {estado.fase === "pronto" && estado.tipo === "pdf" && (
+          <PdfCanvas blob={estado.blob} url={estado.url} />
+        )}
 
         {estado.fase === "pronto" && estado.tipo === "outro" && (
           <div className="flex flex-col items-center gap-3 p-6 text-center text-sm text-white/80">
@@ -186,8 +189,12 @@ export function AnexoViewer({
  * Renderiza todas as páginas do PDF em `<canvas>` empilhados. pdf.js é carregado por `import()`
  * dinâmico (só entra no bundle de quem abre um PDF) e o worker vem do próprio bundle - mesmo
  * padrão de `lib/ocr.ts`.
+ *
+ * Os bytes chegam pelo `blob` já em memória (não por `fetch(url)` sobre o object URL: buscar um
+ * `blob:` via fetch cai na CSP `connect-src` e quebrava com "Failed to fetch"). O `url` fica só
+ * para o link "Baixar PDF" do fallback de erro.
  */
-function PdfCanvas({ url }: { url: string }) {
+function PdfCanvas({ blob, url }: { blob: Blob; url: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(true);
@@ -205,7 +212,7 @@ function PdfCanvas({ url }: { url: string }) {
           import.meta.url
         ).toString();
 
-        const buffer = await (await fetch(url)).arrayBuffer();
+        const buffer = await blob.arrayBuffer();
         if (cancelado) return;
 
         doc = await pdfjs.getDocument({ data: buffer }).promise;
@@ -251,7 +258,7 @@ function PdfCanvas({ url }: { url: string }) {
         // ignore
       }
     };
-  }, [url]);
+  }, [blob]);
 
   return (
     <div className="p-2">
