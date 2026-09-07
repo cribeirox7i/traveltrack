@@ -103,7 +103,10 @@ function api(action, payload) {
     }
   } catch (err) {
     Logger.log('api(' + action + ') error: ' + (err && err.stack ? err.stack : err));
-    return erro('Erro ao executar a ação');
+    // Este endpoint só aceita chamadas com o segredo compartilhado (servidor-a-servidor), então
+    // devolver a mensagem real do erro para o chamador não vaza nada para o usuário final e evita
+    // 500 cego quando o Drive/planilha falha (cota cheia, escopo faltando, lock, etc).
+    return erro('Erro ao executar a ação (' + action + '): ' + (err && err.message ? err.message : err));
   }
 }
 
