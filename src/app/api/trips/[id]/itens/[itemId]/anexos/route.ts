@@ -56,23 +56,31 @@ export async function POST(
   }
 
   const buffer = Buffer.from(await file.arrayBuffer());
-  const anexo = await uploadAnexo({
-    tripId: trip.id,
-    tripName: trip.nome,
-    categoria: CATEGORIA_ITEM_DRIVE[item.categoria],
-    filename: file.name,
-    mimeType: tipoDetectado,
-    base64Data: buffer.toString("base64"),
-  });
+  try {
+    const anexo = await uploadAnexo({
+      tripId: trip.id,
+      tripName: trip.nome,
+      categoria: CATEGORIA_ITEM_DRIVE[item.categoria],
+      filename: file.name,
+      mimeType: tipoDetectado,
+      base64Data: buffer.toString("base64"),
+    });
 
-  const criado = await createItemAnexo({
-    itemId,
-    tripId: id,
-    fileId: anexo.fileId,
-    nome: anexo.name,
-    url: anexo.url,
-    criadoPor: user.id,
-  });
+    const criado = await createItemAnexo({
+      itemId,
+      tripId: id,
+      fileId: anexo.fileId,
+      nome: anexo.name,
+      url: anexo.url,
+      criadoPor: user.id,
+    });
 
-  return NextResponse.json(criado, { status: 201 });
+    return NextResponse.json(criado, { status: 201 });
+  } catch (err) {
+    console.error("upload de anexo extra falhou:", err);
+    return errorResponse(
+      err instanceof Error ? `Falha ao enviar o anexo: ${err.message}` : "Falha ao enviar o anexo",
+      502
+    );
+  }
 }

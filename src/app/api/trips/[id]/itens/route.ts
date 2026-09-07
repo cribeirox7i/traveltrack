@@ -144,14 +144,22 @@ export async function POST(
       return errorResponse("Arquivo precisa ser PDF, JPG, JPEG, PNG ou BMP");
     }
     const buffer = Buffer.from(await file.arrayBuffer());
-    anexo = await uploadAnexo({
-      tripId: trip.id,
-      tripName: trip.nome,
-      categoria: CATEGORIA_ITEM_DRIVE[parsed.data.categoria],
-      filename: file.name,
-      mimeType: tipoDetectado,
-      base64Data: buffer.toString("base64"),
-    });
+    try {
+      anexo = await uploadAnexo({
+        tripId: trip.id,
+        tripName: trip.nome,
+        categoria: CATEGORIA_ITEM_DRIVE[parsed.data.categoria],
+        filename: file.name,
+        mimeType: tipoDetectado,
+        base64Data: buffer.toString("base64"),
+      });
+    } catch (err) {
+      console.error("uploadAnexo (createItem) falhou:", err);
+      return errorResponse(
+        err instanceof Error ? `Falha ao enviar o anexo: ${err.message}` : "Falha ao enviar o anexo",
+        502
+      );
+    }
   }
 
   const criado = await createItem({

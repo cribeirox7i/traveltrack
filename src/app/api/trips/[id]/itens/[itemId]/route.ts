@@ -127,14 +127,22 @@ export async function PATCH(
       return errorResponse("Arquivo precisa ser PDF, JPG, JPEG, PNG ou BMP");
     }
     const buffer = Buffer.from(await file.arrayBuffer());
-    anexo = await uploadAnexo({
-      tripId: trip.id,
-      tripName: trip.nome,
-      categoria: CATEGORIA_ITEM_DRIVE[parsed.data.categoria],
-      filename: file.name,
-      mimeType: tipoDetectado,
-      base64Data: buffer.toString("base64"),
-    });
+    try {
+      anexo = await uploadAnexo({
+        tripId: trip.id,
+        tripName: trip.nome,
+        categoria: CATEGORIA_ITEM_DRIVE[parsed.data.categoria],
+        filename: file.name,
+        mimeType: tipoDetectado,
+        base64Data: buffer.toString("base64"),
+      });
+    } catch (err) {
+      console.error("uploadAnexo (updateItem) falhou:", err);
+      return errorResponse(
+        err instanceof Error ? `Falha ao enviar o anexo: ${err.message}` : "Falha ao enviar o anexo",
+        502
+      );
+    }
     // Best-effort: o item já tem o anexo novo vinculado independente disso funcionar.
     if (existente.anexo_file_id) {
       await deleteAnexo(existente.anexo_file_id, trip.id, trip.nome).catch(() => {});
