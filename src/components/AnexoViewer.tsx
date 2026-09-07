@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import { getAnexoFile } from "@/lib/offline/db";
 
 /**
@@ -134,15 +141,109 @@ export function AnexoViewer({
     };
   }, [tripId, fileId, nome]);
 
-  // Zoom do visualizador. A pinça nativa fica desligada no app inteiro (viewport travado em
-  // `app/layout.tsx`), então o zoom aqui e por botao / duplo toque, com scroll pra deslocar.
-  const [zoom, setZoom] = useState(1);
+  // Zoom do visualizador. A pinça nativa do navegador fica desligada no app inteiro (viewport
+  // travado em `app/layout.tsx`), então o zoom aqui e reimplementado no proprio componente: por
+  // botao, duplo toque OU pinça de dois dedos (pointer events), sempre esticando a largura do
+  // conteudo e usando o scroll do container pra deslocar.
   const ZOOM_MIN = 1;
   const ZOOM_MAX = 4;
-  const clampZoom = (z: number) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(z * 10) / 10));
-  const maisZoom = () => setZoom((z) => clampZoom(z + 0.5));
-  const menosZoom = () => setZoom((z) => clampZoom(z - 0.5));
-  const alternarZoom = () => setZoom((z) => (z > ZOOM_MIN ? ZOOM_MIN : 2));
+  const clampZoom = (z: number) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(z * 100) / 100));
+  const [zoom, setZoom] = useState(1);
+  const [pinchAtivo, setPinchAtivo] = useState(false);
+
+  const scrollRef = useRef<HTMLDivElement>(null);
+  // Ponteiros de toque ativos (id -> posicao de tela) e o estado inicial da pinça em curso.
+  const ponteirosRef = useRef(new Map<number, { x: number; y: number }>());
+  const pinchRef = useRef<{ distIni: number; zoomIni: number } | null>(null);
+  // Ancora a aplicar ao scroll depois que a nova largura entrou no layout (ver useLayoutEffect).
+  const ancoraRef = useRef<{ cx: number; cy: number; mx: number; my: number } | null>(null);
+
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    const a = ancoraRef.current;
+    if (!el || !a) return;
+    el.scrollLeft = a.cx * zoom - a.mx;
+    el.scrollTop = a.cy * zoom - a.my;
+    ancoraRef.current = null;
+  }, [zoom]);
+
+  /** Muda o zoom mantendo o ponto `(clienteX, clienteY)` da tela sob o dedo/cursor. */
+  const zoomAncorado = useCallback(
+    (proximo: number, clienteX: number, clienteY: number) => {
+      const el = scrollRef.current;
+      setZoom((atual) => {
+        const alvo = clampZoom(proximo);
+        if (alvo === atual) {
+          ancoraRef.current = null;
+          return atual;
+        }
+        if (el) {
+          const rect = el.getBoundingClientRect();
+          const mx = clienteX - rect.left;
+          const my = clienteY - rect.top;
+          ancoraRef.current = {
+            cx: (el.scrollLeft + mx) / atual,
+            cy: (el.scrollTop + my) / atual,
+            mx,
+            my,
+          };
+        }
+        return alvo;
+      });
+    },
+    []
+  );
+
+  const zoomNoCentro = useCallback(
+    (proximo: number) => {
+      const el = scrollRef.current;
+      if (!el) return setZoom(clampZoom(proximo));
+      const rect = el.getBoundingClientRect();
+      zoomAncorado(proximo, rect.left + rect.width / 2, rect.top + rect.height / 2);
+    },
+    [zoomAncorado]
+  );
+
+  const maisZoom = () => zoomNoCentro(zoom + 0.5);
+  const menosZoom = () => zoomNoCentro(zoom - 0.5);
+  const alternarZoom = () => zoomNoCentro(zoom > ZOOM_MIN ? ZOOM_MIN : 2);
+
+  const distanciaPonteiros = () => {
+    const [a, b] = [...ponteirosRef.current.values()];
+    return Math.hypot(a.x - b.x, a.y - b.y);
+  };
+  const meioPonteiros = () => {
+    const [a, b] = [...ponteirosRef.current.values()];
+    return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+  };
+
+  const onPointerDown = (e: ReactPointerEvent) => {
+    if (e.pointerType === "mouse") return;
+    ponteirosRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (ponteirosRef.current.size === 2) {
+      pinchRef.current = { distIni: distanciaPonteiros(), zoomIni: zoom };
+      setPinchAtivo(true);
+    }
+  };
+  const onPointerMove = (e: ReactPointerEvent) => {
+    if (!ponteirosRef.current.has(e.pointerId)) return;
+    ponteirosRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    const pinch = pinchRef.current;
+    if (pinch && ponteirosRef.current.size === 2) {
+      const dist = distanciaPonteiros();
+      if (pinch.distIni > 0) {
+        const meio = meioPonteiros();
+        zoomAncorado((pinch.zoomIni * dist) / pinch.distIni, meio.x, meio.y);
+      }
+    }
+  };
+  const onPointerUp = (e: ReactPointerEvent) => {
+    if (!ponteirosRef.current.delete(e.pointerId)) return;
+    if (ponteirosRef.current.size < 2) {
+      pinchRef.current = null;
+      setPinchAtivo(false);
+    }
+  };
 
   const podeZoom =
     estado.fase === "pronto" && (estado.tipo === "imagem" || estado.tipo === "pdf");
@@ -230,7 +331,16 @@ export function AnexoViewer({
         )}
       </div>
 
-      <div className="flex-1 overflow-auto overscroll-contain bg-neutral-900">
+      <div
+        ref={scrollRef}
+        onPointerDown={podeZoom ? onPointerDown : undefined}
+        onPointerMove={podeZoom ? onPointerMove : undefined}
+        onPointerUp={podeZoom ? onPointerUp : undefined}
+        onPointerCancel={podeZoom ? onPointerUp : undefined}
+        onDoubleClick={podeZoom ? alternarZoom : undefined}
+        style={{ touchAction: pinchAtivo ? "none" : "pan-x pan-y" }}
+        className="flex-1 overflow-auto overscroll-contain bg-neutral-900"
+      >
         {estado.fase === "carregando" && (
           <p className="p-6 text-center text-sm text-white/70">Carregando anexo...</p>
         )}
@@ -240,7 +350,7 @@ export function AnexoViewer({
         )}
 
         {estado.fase === "pronto" && estado.tipo === "imagem" && (
-          <div className="w-full p-2" onDoubleClick={alternarZoom}>
+          <div className="w-full p-2">
             {/* eslint-disable-next-line @next/next/no-img-element -- blob local do anexo, sem otimização de next/image */}
             <img
               src={estado.url}
@@ -256,7 +366,7 @@ export function AnexoViewer({
         )}
 
         {estado.fase === "pronto" && estado.tipo === "pdf" && (
-          <PdfCanvas blob={estado.blob} url={estado.url} zoom={zoom} onToggleZoom={alternarZoom} />
+          <PdfCanvas blob={estado.blob} url={estado.url} zoom={zoom} />
         )}
 
         {estado.fase === "pronto" && estado.tipo === "outro" && (
@@ -289,17 +399,7 @@ export function AnexoViewer({
  * (`fator` abaixo) e o `zoom` so estica a largura do container por CSS - rapido e suficiente
  * ate 4x.
  */
-function PdfCanvas({
-  blob,
-  url,
-  zoom,
-  onToggleZoom,
-}: {
-  blob: Blob;
-  url: string;
-  zoom: number;
-  onToggleZoom: () => void;
-}) {
+function PdfCanvas({ blob, url, zoom }: { blob: Blob; url: string; zoom: number }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(true);
@@ -368,7 +468,7 @@ function PdfCanvas({
   }, [blob]);
 
   return (
-    <div className="p-2" onDoubleClick={onToggleZoom}>
+    <div className="p-2">
       {carregando && !erro && (
         <p className="p-6 text-center text-sm text-white/70">Renderizando PDF...</p>
       )}
