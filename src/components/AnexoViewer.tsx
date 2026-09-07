@@ -134,9 +134,45 @@ export function AnexoViewer({
     };
   }, [tripId, fileId, nome]);
 
+  // Zoom do visualizador. A pinça nativa fica desligada no app inteiro (viewport travado em
+  // `app/layout.tsx`), então o zoom aqui e por botao / duplo toque, com scroll pra deslocar.
+  const [zoom, setZoom] = useState(1);
+  const ZOOM_MIN = 1;
+  const ZOOM_MAX = 4;
+  const clampZoom = (z: number) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(z * 10) / 10));
+  const maisZoom = () => setZoom((z) => clampZoom(z + 0.5));
+  const menosZoom = () => setZoom((z) => clampZoom(z - 0.5));
+  const alternarZoom = () => setZoom((z) => (z > ZOOM_MIN ? ZOOM_MIN : 2));
+
+  const podeZoom =
+    estado.fase === "pronto" && (estado.tipo === "imagem" || estado.tipo === "pdf");
+
+  const compartilhar = useCallback(async () => {
+    if (estado.fase !== "pronto") return;
+    const arquivo = new File([estado.blob], nome || "anexo", {
+      type: estado.blob.type || "application/octet-stream",
+    });
+    if (typeof navigator.canShare === "function" && navigator.canShare({ files: [arquivo] })) {
+      try {
+        await navigator.share({ files: [arquivo], title: nome || "Anexo" });
+        return;
+      } catch (err) {
+        // Usuario cancelou a folha de compartilhamento - nao cai pro download.
+        if (err instanceof DOMException && err.name === "AbortError") return;
+      }
+    }
+    // Sem Web Share (ou falhou por outro motivo): baixa o arquivo.
+    const a = document.createElement("a");
+    a.href = estado.url;
+    a.download = nome || "anexo";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }, [estado, nome]);
+
   return (
     <div className="fixed inset-0 z-[100] flex flex-col bg-black/95">
-      <div className="flex items-center gap-3 px-2 py-2 text-white">
+      <div className="flex items-center gap-1 px-2 py-2 text-white">
         <button
           type="button"
           onClick={fechar}
@@ -147,7 +183,51 @@ export function AnexoViewer({
             <path strokeLinecap="round" d="M6 6l12 12M18 6L6 18" />
           </svg>
         </button>
-        <span className="min-w-0 flex-1 truncate text-sm font-medium">{nome || "Anexo"}</span>
+        <span className="min-w-0 flex-1 truncate px-1 text-sm font-medium">{nome || "Anexo"}</span>
+
+        {podeZoom && (
+          <>
+            <button
+              type="button"
+              onClick={menosZoom}
+              disabled={zoom <= ZOOM_MIN}
+              aria-label="Diminuir zoom"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full hover:bg-white/15 disabled:opacity-35"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-5 w-5">
+                <path strokeLinecap="round" d="M5 12h14" />
+              </svg>
+            </button>
+            <span className="w-11 shrink-0 text-center text-xs tabular-nums text-white/80">
+              {Math.round(zoom * 100)}%
+            </span>
+            <button
+              type="button"
+              onClick={maisZoom}
+              disabled={zoom >= ZOOM_MAX}
+              aria-label="Aumentar zoom"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full hover:bg-white/15 disabled:opacity-35"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-5 w-5">
+                <path strokeLinecap="round" d="M12 5v14M5 12h14" />
+              </svg>
+            </button>
+          </>
+        )}
+
+        {estado.fase === "pronto" && (
+          <button
+            type="button"
+            onClick={compartilhar}
+            aria-label="Compartilhar ou baixar"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full hover:bg-white/15"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-5 w-5">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v13M8 7l4-4 4 4" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13v6a1 1 0 001 1h12a1 1 0 001-1v-6" />
+            </svg>
+          </button>
+        )}
       </div>
 
       <div className="flex-1 overflow-auto overscroll-contain bg-neutral-900">
@@ -160,12 +240,23 @@ export function AnexoViewer({
         )}
 
         {estado.fase === "pronto" && estado.tipo === "imagem" && (
-          // eslint-disable-next-line @next/next/no-img-element -- blob local do anexo, sem otimização de next/image
-          <img src={estado.url} alt={nome || "Anexo"} className="mx-auto block h-auto max-w-full" />
+          <div className="w-full p-2" onDoubleClick={alternarZoom}>
+            {/* eslint-disable-next-line @next/next/no-img-element -- blob local do anexo, sem otimização de next/image */}
+            <img
+              src={estado.url}
+              alt={nome || "Anexo"}
+              draggable={false}
+              style={{
+                width: zoom === 1 ? "auto" : `${zoom * 100}%`,
+                maxWidth: zoom === 1 ? "100%" : "none",
+              }}
+              className="mx-auto block h-auto select-none"
+            />
+          </div>
         )}
 
         {estado.fase === "pronto" && estado.tipo === "pdf" && (
-          <PdfCanvas blob={estado.blob} url={estado.url} />
+          <PdfCanvas blob={estado.blob} url={estado.url} zoom={zoom} onToggleZoom={alternarZoom} />
         )}
 
         {estado.fase === "pronto" && estado.tipo === "outro" && (
@@ -193,8 +284,22 @@ export function AnexoViewer({
  * Os bytes chegam pelo `blob` já em memória (não por `fetch(url)` sobre o object URL: buscar um
  * `blob:` via fetch cai na CSP `connect-src` e quebrava com "Failed to fetch"). O `url` fica só
  * para o link "Baixar PDF" do fallback de erro.
+ *
+ * O zoom nao re-renderiza as paginas: elas sao rasterizadas uma vez com folga de resolucao
+ * (`fator` abaixo) e o `zoom` so estica a largura do container por CSS - rapido e suficiente
+ * ate 4x.
  */
-function PdfCanvas({ blob, url }: { blob: Blob; url: string }) {
+function PdfCanvas({
+  blob,
+  url,
+  zoom,
+  onToggleZoom,
+}: {
+  blob: Blob;
+  url: string;
+  zoom: number;
+  onToggleZoom: () => void;
+}) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(true);
@@ -222,20 +327,22 @@ function PdfCanvas({ blob, url }: { blob: Blob; url: string }) {
         if (!container) return;
         container.innerHTML = "";
 
-        const larguraAlvo = Math.min(container.clientWidth || 360, 1000);
+        const larguraBase = Math.min(container.clientWidth || 360, 900);
+        // Rasteriza com folga (2x a 3x) pra o zoom por CSS ate 4x nao ficar borrado demais.
+        const fator = Math.min(Math.max(window.devicePixelRatio || 1, 2), 3);
+        const larguraRender = Math.min(larguraBase * fator, 2600);
 
         for (let n = 1; n <= doc.numPages; n++) {
           const page = await doc.getPage(n);
           if (cancelado) return;
           const base = page.getViewport({ scale: 1 });
-          const escala = (larguraAlvo / base.width) * Math.min(window.devicePixelRatio || 1, 2);
+          const escala = larguraRender / base.width;
           const viewport = page.getViewport({ scale: escala });
 
           const canvas = document.createElement("canvas");
           canvas.width = viewport.width;
           canvas.height = viewport.height;
-          canvas.className = "mx-auto mb-2 block h-auto w-full max-w-full bg-white";
-          canvas.style.maxWidth = `${larguraAlvo}px`;
+          canvas.className = "mx-auto mb-2 block h-auto w-full bg-white";
           const ctx = canvas.getContext("2d");
           if (!ctx) continue;
           container.appendChild(canvas);
@@ -261,7 +368,7 @@ function PdfCanvas({ blob, url }: { blob: Blob; url: string }) {
   }, [blob]);
 
   return (
-    <div className="p-2">
+    <div className="p-2" onDoubleClick={onToggleZoom}>
       {carregando && !erro && (
         <p className="p-6 text-center text-sm text-white/70">Renderizando PDF...</p>
       )}
@@ -277,7 +384,14 @@ function PdfCanvas({ blob, url }: { blob: Blob; url: string }) {
           </a>
         </div>
       )}
-      <div ref={containerRef} />
+      <div
+        ref={containerRef}
+        className="mx-auto"
+        style={{
+          width: zoom === 1 ? undefined : `${zoom * 100}%`,
+          maxWidth: zoom === 1 ? "900px" : "none",
+        }}
+      />
     </div>
   );
 }
