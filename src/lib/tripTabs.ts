@@ -17,6 +17,7 @@ export const TRIP_TAB_SLUGS = [
   "itens",
   "orcamento",
   "relatorio",
+  "cambio",
 ] as const;
 
 export type TripTabSlug = (typeof TRIP_TAB_SLUGS)[number];
@@ -43,6 +44,7 @@ export const TRIP_TAB_GROUPS: TripTabGroup[] = [
     tabs: [
       { slug: "orcamento", label: "Orçamento" },
       { slug: "relatorio", label: "Relatório" },
+      { slug: "cambio", label: "Câmbio" },
     ],
   },
   {

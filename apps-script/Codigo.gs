@@ -40,7 +40,10 @@ const ESTRUTURA = {
   // linha por arquivo extra - `trip_id` vem duplicado (não só `item_id`) pelo mesmo motivo de
   // Itens/TripDays: rota de download/exclusão de anexo confirma dono da pasta no Drive sem
   // precisar ir buscar o item pai primeiro.
-  ItemAnexos: ['id', 'item_id', 'trip_id', 'file_id', 'nome', 'url', 'criado_por', 'criado_em']
+  ItemAnexos: ['id', 'item_id', 'trip_id', 'file_id', 'nome', 'url', 'criado_por', 'criado_em'],
+  // Operações de câmbio de uma viagem (menu Financeiro > Câmbio) - precisa bater com CambioRow em
+  // src/lib/sheets/types.ts. `taxa_efetiva` = R$ por unidade da moeda, já com IOF/tarifas.
+  Cambio: ['id', 'trip_id', 'data', 'moeda', 'qtd_moeda', 'qtd_reais', 'taxa_efetiva', 'descricao', 'criado_por', 'criado_em']
 };
 
 // ---------- PONTO DE ENTRADA DO WEB APP ----------

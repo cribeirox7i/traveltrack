@@ -13,7 +13,8 @@ export type SheetTab =
   | "Agenda"
   | "Countries"
   | "Itens"
-  | "ItemAnexos";
+  | "ItemAnexos"
+  | "Cambio";
 
 export const SHEET_HEADERS: Record<SheetTab, string[]> = {
   // Tenant do sistema: cada ambiente tem seus próprios usuários e viagens, e quem está num
@@ -163,6 +164,23 @@ export const SHEET_HEADERS: Record<SheetTab, string[]> = {
   // por arquivo extra; `trip_id` duplicado pelo mesmo motivo de Itens/TripDays (rota de
   // download/exclusão confirma a pasta no Drive sem precisar buscar o item pai primeiro).
   ItemAnexos: ["id", "item_id", "trip_id", "file_id", "nome", "url", "criado_por", "criado_em"],
+  // Operações de câmbio de uma viagem (comprar moeda estrangeira com reais) - ver menu Financeiro
+  // > Câmbio. `taxa_efetiva` é R$ por 1 unidade da moeda, já com IOF/tarifas (uma taxa só, o
+  // "custo efetivo da transação"). Não repete `ambiente_id` - chega pelo `trip_id`, igual às
+  // outras abas filhas. Numa 2ª fase, o custo médio ponderado destes eventos converte itens em
+  // moeda estrangeira para R$ no Relatório.
+  Cambio: [
+    "id",
+    "trip_id",
+    "data",
+    "moeda",
+    "qtd_moeda",
+    "qtd_reais",
+    "taxa_efetiva",
+    "descricao",
+    "criado_por",
+    "criado_em",
+  ],
 };
 
 /**
@@ -490,6 +508,28 @@ export interface ItemAnexoRow {
   file_id: string;
   nome: string;
   url: string;
+  criado_por: string;
+  criado_em: string;
+}
+
+/**
+ * Uma operação de câmbio da viagem: você comprou `qtd_moeda` de `moeda` pagando `qtd_reais`, a uma
+ * `taxa_efetiva` (R$ por unidade, já com IOF/tarifas - é o "custo efetivo" e o "custo unitário" ao
+ * mesmo tempo, uma taxa só). O app não deriva nada: os três números são digitados. A tela mostra
+ * `qtd_reais / qtd_moeda` só como conferência.
+ */
+export interface CambioRow {
+  [key: string]: string;
+  id: string;
+  trip_id: string;
+  /** Data da operação (yyyy-MM-dd). */
+  data: string;
+  /** Código ISO da moeda comprada, em maiúsculas (ex.: "USD", "EUR", "ARS"). */
+  moeda: string;
+  qtd_moeda: string;
+  qtd_reais: string;
+  taxa_efetiva: string;
+  descricao: string;
   criado_por: string;
   criado_em: string;
 }

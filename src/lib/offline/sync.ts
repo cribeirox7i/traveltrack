@@ -50,6 +50,17 @@ interface AgendaPayload {
  * campos usados varia por categoria - o servidor é quem decide o que é relevante. */
 type ItemPayload = Record<string, string> & { id: string };
 
+/** Campos de uma operação de câmbio - todos texto, sem `file`. */
+interface CambioPayload {
+  id: string;
+  data: string;
+  moeda: string;
+  qtd_moeda: string;
+  qtd_reais: string;
+  taxa_efetiva: string;
+  descricao: string;
+}
+
 export function isOnline(): boolean {
   return typeof navigator === "undefined" ? true : navigator.onLine;
 }
@@ -101,13 +112,14 @@ export async function pullTrips(): Promise<void> {
 /** Atualiza dias/despesas/receitas/agenda de UMA viagem no cache local - chamado ao abrir a viagem. */
 export async function pullTripDetail(tripId: string): Promise<void> {
   if (!isOnline()) return;
-  const [days, despesas, receitas, agenda, itens, itemAnexos] = await Promise.all([
+  const [days, despesas, receitas, agenda, itens, itemAnexos, cambio] = await Promise.all([
     getJson<Record<string, unknown>[]>(`/api/trips/${tripId}/days`),
     getJson<Record<string, unknown>[]>(`/api/trips/${tripId}/despesas`),
     getJson<Record<string, unknown>[]>(`/api/trips/${tripId}/receitas`),
     getJson<Record<string, unknown>[]>(`/api/trips/${tripId}/agenda`),
     getJson<Record<string, unknown>[]>(`/api/trips/${tripId}/itens`),
     getJson<Record<string, unknown>[]>(`/api/trips/${tripId}/itens-anexos`),
+    getJson<Record<string, unknown>[]>(`/api/trips/${tripId}/cambio`),
   ]);
   if (days) await putAllReplacing("tripDays", days as never, tripId);
   if (despesas) {
@@ -130,6 +142,10 @@ export async function pullTripDetail(tripId: string): Promise<void> {
   // `addItemAnexoOnline`/`removeItemAnexoOnline`), então não precisa de `protectedIds` - não
   // existe uma criação pendente na fila pra proteger.
   if (itemAnexos) await putAllReplacing("itemAnexos", itemAnexos as never, tripId);
+  if (cambio) {
+    const protectedIds = await pendingCreateIds("createCambio", tripId);
+    await putAllReplacing("cambio", cambio as never, tripId, protectedIds);
+  }
   notifyChange();
 }
 
@@ -782,6 +798,29 @@ async function sendOutboxEntry(entry: OutboxEntry): Promise<"ok" | "network-erro
         res = await fetch(`/api/trips/${entry.tripId}/itens/${itemId}`, { method: "DELETE" });
         break;
       }
+      case "createCambio":
+        res = await fetch(`/api/trips/${entry.tripId}/cambio`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(entry.payload),
+        });
+        break;
+      case "updateCambio": {
+        const { cambioId, ...fields } = entry.payload as Omit<CambioPayload, "id"> & {
+          cambioId: string;
+        };
+        res = await fetch(`/api/trips/${entry.tripId}/cambio/${cambioId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(fields),
+        });
+        break;
+      }
+      case "deleteCambio": {
+        const { cambioId } = entry.payload as { cambioId: string };
+        res = await fetch(`/api/trips/${entry.tripId}/cambio/${cambioId}`, { method: "DELETE" });
+        break;
+      }
       default:
         return "Ação desconhecida na fila";
     }
@@ -891,6 +930,7 @@ export async function deleteTripOffline(
   await deleteByTrip("agenda", tripId);
   await deleteByTrip("itens", tripId);
   await deleteByTrip("itemAnexos", tripId);
+  await deleteByTrip("cambio", tripId);
   await deleteTripImage(tripId);
   await removeOutboxByTrip(tripId);
 
@@ -1174,6 +1214,64 @@ export async function updateItemOffline(
 export async function deleteItemOffline(tripId: string, itemId: string): Promise<void> {
   await deleteOne("itens", itemId);
   await enqueueOutbox({ localId: uuid(), kind: "deleteItem", tripId, payload: { itemId } });
+  notifyChange();
+  void pushOutbox();
+}
+
+// ---------- Câmbio (menu Financeiro > Câmbio) ----------
+// Mutação otimista + fila, igual aos Itens (sem `file`). `criado_por`/`criado_por_role` são do
+// servidor, mas a linha local já nasce com o autor atual pra tela poder liberar Editar/Excluir
+// pro próprio registro mesmo antes de sincronizar - o backend continua sendo a garantia.
+
+interface CambioFields {
+  data: string;
+  moeda: string;
+  qtd_moeda: string;
+  qtd_reais: string;
+  taxa_efetiva: string;
+  descricao: string;
+}
+
+export async function createCambioOffline(
+  tripId: string,
+  fields: CambioFields,
+  autor: { id: string; role: string }
+): Promise<void> {
+  const id = uuid();
+  await putOne("cambio", {
+    id,
+    trip_id: tripId,
+    ...fields,
+    criado_por: autor.id,
+    criado_por_role: autor.role,
+    criado_em: new Date().toISOString(),
+  });
+  const payload: CambioPayload = { id, ...fields };
+  await enqueueOutbox({ localId: uuid(), kind: "createCambio", tripId, payload });
+  notifyChange();
+  void pushOutbox();
+}
+
+export async function updateCambioOffline(
+  tripId: string,
+  cambioId: string,
+  fields: CambioFields
+): Promise<void> {
+  const existing = await getOne("cambio", cambioId);
+  await putOne("cambio", { ...(existing ?? { trip_id: tripId }), id: cambioId, ...fields });
+  await enqueueOutbox({
+    localId: uuid(),
+    kind: "updateCambio",
+    tripId,
+    payload: { cambioId, ...fields },
+  });
+  notifyChange();
+  void pushOutbox();
+}
+
+export async function deleteCambioOffline(tripId: string, cambioId: string): Promise<void> {
+  await deleteOne("cambio", cambioId);
+  await enqueueOutbox({ localId: uuid(), kind: "deleteCambio", tripId, payload: { cambioId } });
   notifyChange();
   void pushOutbox();
 }

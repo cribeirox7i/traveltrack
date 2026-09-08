@@ -22,6 +22,20 @@ export async function listUsers(): Promise<UserRow[]> {
   return readSheet<UserRow>("Users");
 }
 
+/**
+ * Só o papel (`role`) de cada id pedido - uma leitura da aba Users, sem devolver nome/email/hash.
+ * Pra enriquecer listas com "papel de quem criou" sem precisar do `listUsers` inteiro (que só o
+ * admin deveria consumir) nem de um `findUserById` por id (uma leitura da aba cada).
+ */
+export async function listUserRolesByIds(ids: string[]): Promise<Record<string, Role>> {
+  const alvo = new Set(ids.filter(Boolean));
+  if (alvo.size === 0) return {};
+  const users = await readSheet<UserRow>("Users");
+  const out: Record<string, Role> = {};
+  for (const u of users) if (alvo.has(u.id)) out[u.id] = u.role;
+  return out;
+}
+
 /** Usuários de UM ambiente. `ambienteId` vazio devolve lista vazia de propósito: "sem ambiente"
  * não é um ambiente que se possa listar (é o estado do admin global), e devolver todos aqui seria
  * exatamente o vazamento que o multitenant existe pra evitar. */

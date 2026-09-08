@@ -8,7 +8,8 @@ export type DataTab =
   | "anexos"
   | "agenda"
   | "itens"
-  | "itemAnexos";
+  | "itemAnexos"
+  | "cambio";
 
 export interface OutboxEntry {
   localId: string;
@@ -24,7 +25,10 @@ export interface OutboxEntry {
     | "updateReceitaStatus"
     | "createItem"
     | "updateItem"
-    | "deleteItem";
+    | "deleteItem"
+    | "createCambio"
+    | "updateCambio"
+    | "deleteCambio";
   tripId?: string;
   payload: unknown;
   createdAt: number;
@@ -67,6 +71,7 @@ interface TravelTrackDB extends DBSchema {
   agenda: { key: string; value: RowBase; indexes: { trip_id: string } };
   itens: { key: string; value: RowBase; indexes: { trip_id: string } };
   itemAnexos: { key: string; value: RowBase; indexes: { trip_id: string } };
+  cambio: { key: string; value: RowBase; indexes: { trip_id: string } };
   tripImages: { key: string; value: TripImageRow };
   outbox: { key: string; value: OutboxEntry };
   meta: { key: string; value: { key: string; value: unknown } };
@@ -74,9 +79,10 @@ interface TravelTrackDB extends DBSchema {
 
 const DB_NAME = "traveltrack-offline";
 // 6: store `itemAnexos` (anexos extras de um Item, além do principal - ver "Anexos múltiplos por
-// Item"). O `upgrade` abaixo é aditivo (só cria o que falta), então subir a versão não descarta
-// nada já baixado nos aparelhos que estavam em versões anteriores.
-const DB_VERSION = 6;
+// Item"). 7: store `cambio` (operações de câmbio da viagem - menu Financeiro > Câmbio). O
+// `upgrade` abaixo é aditivo (só cria o que falta), então subir a versão não descarta nada já
+// baixado nos aparelhos que estavam em versões anteriores.
+const DB_VERSION = 7;
 
 let dbPromise: Promise<IDBPDatabase<TravelTrackDB>> | null = null;
 
@@ -117,6 +123,9 @@ export function getDB(): Promise<IDBPDatabase<TravelTrackDB>> {
         if (!db.objectStoreNames.contains("itemAnexos")) {
           db.createObjectStore("itemAnexos", { keyPath: "id" }).createIndex("trip_id", "trip_id");
         }
+        if (!db.objectStoreNames.contains("cambio")) {
+          db.createObjectStore("cambio", { keyPath: "id" }).createIndex("trip_id", "trip_id");
+        }
         if (!db.objectStoreNames.contains("tripImages")) {
           db.createObjectStore("tripImages", { keyPath: "trip_id" });
         }
@@ -148,7 +157,7 @@ export async function putAll(tab: DataTab, rows: RowBase[]): Promise<void> {
  * para reconciliar a store inteira (trips).
  */
 export async function putAllReplacing(
-  tab: "trips" | "tripDays" | "despesas" | "receitas" | "agenda" | "itens" | "itemAnexos",
+  tab: "trips" | "tripDays" | "despesas" | "receitas" | "agenda" | "itens" | "itemAnexos" | "cambio",
   rows: RowBase[],
   tripId?: string,
   // Ids que nunca devem ser apagados mesmo se ausentes de `rows` - a linha criada offline há
@@ -167,7 +176,7 @@ export async function putAllReplacing(
   // esse índice.
   if (tripId) {
     const tx = db.transaction(
-      tab as "tripDays" | "despesas" | "receitas" | "agenda" | "itens" | "itemAnexos",
+      tab as "tripDays" | "despesas" | "receitas" | "agenda" | "itens" | "itemAnexos" | "cambio",
       "readwrite"
     );
     const existingKeys = await tx.store.index("trip_id").getAllKeys(IDBKeyRange.only(tripId));
@@ -205,7 +214,7 @@ export async function putAnexoFile(row: AnexoFileRow): Promise<void> {
 }
 
 export async function listByTrip(
-  tab: "tripDays" | "despesas" | "receitas" | "anexos" | "agenda" | "itens" | "itemAnexos",
+  tab: "tripDays" | "despesas" | "receitas" | "anexos" | "agenda" | "itens" | "itemAnexos" | "cambio",
   tripId: string
 ) {
   const db = await getDB();
@@ -238,7 +247,16 @@ export async function deleteOne(tab: DataTab, id: string): Promise<void> {
 }
 
 export async function deleteByTrip(
-  tab: "tripDays" | "despesas" | "receitas" | "anexos" | "anexoFiles" | "agenda" | "itens" | "itemAnexos",
+  tab:
+    | "tripDays"
+    | "despesas"
+    | "receitas"
+    | "anexos"
+    | "anexoFiles"
+    | "agenda"
+    | "itens"
+    | "itemAnexos"
+    | "cambio",
   tripId: string
 ): Promise<void> {
   const db = await getDB();

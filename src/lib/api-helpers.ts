@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import type { Session } from "next-auth";
 import { getTrip, userCanAccessTrip } from "@/lib/sheets/trips";
+import { findUserById } from "@/lib/sheets/users";
 import type { TripRow } from "@/lib/sheets/types";
 import { viagemBloqueada } from "@/lib/tripStatus";
 
@@ -134,6 +135,30 @@ export async function requireTripEditor(
 
 export function errorResponse(message: string, status = 400) {
   return NextResponse.json({ error: message }, { status });
+}
+
+/**
+ * "Esta sessão pode editar/excluir um registro criado por `criadoPorUserId`?" - regra de
+ * hierarquia usada onde qualquer colaborador INSERE mas a edição respeita o papel:
+ * - `admin`: qualquer registro (só existe um admin geral).
+ * - `gestor`: os próprios + os criados por um `user` (do ambiente dele - garantido pelo
+ *   `sessionCanAccessTrip` que já filtra a viagem por ambiente antes desta checagem).
+ * - `user`: só os próprios.
+ *
+ * Faz um lookup em Users pra descobrir o papel do criador. Se o criador não existe mais, só o
+ * próprio autor (impossível) ou o admin passam - o gestor não herda um registro órfão.
+ */
+export async function canManageByHierarchy(
+  session: ApiSession,
+  criadoPorUserId: string
+): Promise<boolean> {
+  const { user } = session;
+  if (user.role === "admin") return true;
+  if (criadoPorUserId && criadoPorUserId === user.id) return true;
+  if (user.role !== "gestor") return false;
+
+  const criador = await findUserById(criadoPorUserId);
+  return criador?.role === "user";
 }
 
 /**
