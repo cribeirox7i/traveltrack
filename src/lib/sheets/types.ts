@@ -158,6 +158,12 @@ export const SHEET_HEADERS: Record<SheetTab, string[]> = {
     "meio_pagamento_id",
     "criado_por",
     "criado_em",
+    // Moeda em que `valor` está expresso (código ISO, ex.: "USD"). Vazio = BRL (reais - o
+    // comportamento histórico). Só relevante nas categorias financeiras. Item em moeda
+    // estrangeira é convertido pra R$ no Relatório pelo custo médio ponderado do Câmbio da
+    // viagem (ver `computeRelatorio`), com queda pra cotação do dia (Countries.rate_brl) quando
+    // não há câmbio daquela moeda.
+    "moeda",
   ],
   // Anexos ADICIONAIS de um Item (além do `anexo_file_id` que já mora na própria linha de Itens -
   // esse continua sendo o único "principal", o único que passa pela análise do Gemini). Uma linha
@@ -495,6 +501,9 @@ export interface ItemRow {
   meio_pagamento_id: string;
   criado_por: string;
   criado_em: string;
+  /** Código ISO da moeda de `valor` (ex.: "USD", "EUR"). Vazio/"BRL" = reais. Ver comentário em
+   * `SHEET_HEADERS.Itens`. */
+  moeda: string;
 }
 
 /** Anexo ADICIONAL de um Item - o principal continua vivendo em `anexo_file_id`/`anexo_nome`/

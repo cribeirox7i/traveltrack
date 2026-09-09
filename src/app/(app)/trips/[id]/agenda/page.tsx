@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import {
   useCollaborators,
+  useCountries,
   useMeiosPagamento,
   useOfflineCollection,
   useOfflineTrip,
@@ -79,6 +80,23 @@ export default function AgendaPage() {
   const { items: days, loading: loadingDays } = useOfflineCollection<TripDay>("tripDays", tripId);
   const { items: itens, loading: loadingItens } = useOfflineCollection<Item>("itens", tripId);
   const { items: todosExtras } = useOfflineCollection<ItemAnexoInfo>("itemAnexos", tripId);
+  const { items: cambios } = useOfflineCollection<{
+    id: string;
+    moeda: string;
+    qtd_moeda: string;
+    qtd_reais: string;
+    taxa_efetiva: string;
+  }>("cambio", tripId);
+  const countries = useCountries();
+  const cotacoesCambio = useMemo(() => {
+    const out: Record<string, number> = {};
+    for (const c of countries) {
+      const code = (c.currency_code || "").trim().toUpperCase();
+      const rate = Number(String(c.rate_brl).replace(",", "."));
+      if (code && Number.isFinite(rate) && rate > 0 && !out[code]) out[code] = rate;
+    }
+    return out;
+  }, [countries]);
   const { trip } = useOfflineTrip<{ id: string; status?: string; data_fim: string }>(tripId);
   const bloqueada = !!trip && viagemBloqueada(trip);
   const collaborators = useCollaborators(tripId);
@@ -310,6 +328,8 @@ export default function AgendaPage() {
         extraAnexos={
           viewingItem ? todosExtras.filter((a) => a.item_id === viewingItem.id) : undefined
         }
+        cambios={cambios}
+        cotacoes={cotacoesCambio}
         podeEditar={!bloqueada}
         onClose={() => setViewingItem(null)}
         onEditar={(item) => {

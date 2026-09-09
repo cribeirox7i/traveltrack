@@ -55,6 +55,16 @@ const createSchema = z
     data_pagamento: optionalStr,
     pagador_id: optionalStr,
     meio_pagamento_id: optionalStr,
+    moeda: z
+      .string()
+      .trim()
+      .toUpperCase()
+      .refine(
+        (v) => v === "" || v === "BRL" || /^[A-Z]{3}$/.test(v),
+        "Moeda precisa ser um código de 3 letras (ex.: USD)"
+      )
+      .optional()
+      .default(""),
   })
   .superRefine((data, ctx) => {
     if (!data.valor) return;
@@ -75,7 +85,7 @@ const createSchema = z
  * categoria no meio do preenchimento falhar por um campo que já não é mais exibido). */
 function limparCamposNaoFinanceiros(data: ItemEditableInput): ItemEditableInput {
   if (CATEGORIAS_ITEM_FINANCEIRAS.has(data.categoria)) return data;
-  return { ...data, valor: "", status: "", pagador_id: "", meio_pagamento_id: "", data_pagamento: "" };
+  return { ...data, valor: "", status: "", pagador_id: "", meio_pagamento_id: "", data_pagamento: "", moeda: "" };
 }
 
 export async function GET(

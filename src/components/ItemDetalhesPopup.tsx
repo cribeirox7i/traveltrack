@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { CATEGORIAS_ITEM, CategoriaItem } from "@/lib/sheets/types";
+import type { CambioEventoLike } from "@/lib/cambioCalc";
+import { converterValorParaBRL, custoMedioPorMoeda } from "@/lib/cambioCalc";
 import { AnexoViewer } from "@/components/AnexoViewer";
 
 /** Anexo extra de um item (além do principal) - mesmos campos de `ItemAnexoInfo` em
@@ -44,6 +46,8 @@ export interface Item {
   data_pagamento: string;
   pagador_id: string;
   meio_pagamento_id: string;
+  /** Código ISO da moeda de `valor` - vazio/"BRL" = reais. */
+  moeda: string;
 }
 
 export const CATEGORIA_LABEL: Record<CategoriaItem, string> = Object.fromEntries(
@@ -89,8 +93,12 @@ export function formatDataBR(iso: string): string {
   return d && m && y ? `${d}/${m}/${y}` : iso;
 }
 
-function formatMoney(valor: string): string {
+function formatMoney(valor: string | number): string {
   return `R$ ${Number(valor).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function formatMoedaEstrangeira(valor: string, moeda: string): string {
+  return `${Number(valor).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${moeda}`;
 }
 
 
@@ -132,12 +140,16 @@ function ItemDetalhes({
   nomePorPessoa,
   nomePorMeio,
   extraAnexos,
+  cambios,
+  cotacoes,
   onAbrirAnexo,
 }: {
   item: Item;
   nomePorPessoa: Record<string, string>;
   nomePorMeio: Record<string, string>;
   extraAnexos: ItemAnexoExtra[];
+  cambios: CambioEventoLike[];
+  cotacoes: Record<string, number>;
   onAbrirAnexo: (fileId: string, nome: string) => void;
 }) {
   const [labelInicio, labelFim] = LABELS_INICIO_FIM[item.categoria] ?? ["Início", "Término"];
@@ -157,7 +169,24 @@ function ItemDetalhes({
     pares.push({ label: "Passageiro", valor: nomePorPessoa[item.passageiro_id] ?? item.passageiro_id });
   }
   if (item.valor) {
-    pares.push({ label: "Valor", valor: formatMoney(item.valor) });
+    const moedaEstrangeira = item.moeda && item.moeda !== "BRL" ? item.moeda : "";
+    if (moedaEstrangeira) {
+      pares.push({ label: "Valor", valor: formatMoedaEstrangeira(item.valor, moedaEstrangeira) });
+      const conv = converterValorParaBRL(
+        item.valor,
+        moedaEstrangeira,
+        custoMedioPorMoeda(cambios),
+        cotacoes
+      );
+      if (conv.fonte === "cambio" || conv.fonte === "cotacao") {
+        pares.push({
+          label: conv.fonte === "cambio" ? "Valor em R$ (câmbio)" : "Valor em R$ (cotação)",
+          valor: formatMoney(conv.valorBRL),
+        });
+      }
+    } else {
+      pares.push({ label: "Valor", valor: formatMoney(item.valor) });
+    }
     if (item.status) pares.push({ label: "Status", valor: STATUS_LABEL[item.status] ?? item.status });
     if (item.pagador_id) {
       pares.push({
@@ -234,6 +263,8 @@ export function ItemDetalhesPopup({
   nomePorPessoa,
   nomePorMeio,
   extraAnexos = [],
+  cambios = [],
+  cotacoes = {},
   podeEditar = true,
   onClose,
   onEditar,
@@ -245,6 +276,11 @@ export function ItemDetalhesPopup({
   /** Anexos extras deste item (já filtrados pelo chamador - lista inteira da viagem vem de
    * `useOfflineCollection<ItemAnexoInfo>("itemAnexos", tripId)`). */
   extraAnexos?: ItemAnexoExtra[];
+  /** Eventos de câmbio da viagem + cotação do dia por moeda (`Countries.rate_brl`) - só pra
+   * mostrar o valor em R$ de um item lançado em moeda estrangeira. Ausentes = não mostra a
+   * conversão (o valor na moeda ainda aparece). */
+  cambios?: CambioEventoLike[];
+  cotacoes?: Record<string, number>;
   /** `false` numa viagem concluída/cancelada - esconde o botão "Editar" (a tela só lê). */
   podeEditar?: boolean;
   onClose: () => void;
@@ -279,6 +315,8 @@ export function ItemDetalhesPopup({
           nomePorPessoa={nomePorPessoa}
           nomePorMeio={nomePorMeio}
           extraAnexos={extraAnexos}
+          cambios={cambios}
+          cotacoes={cotacoes}
           onAbrirAnexo={(fileId, nome) => setAnexoAberto({ fileId, nome })}
         />
         <div className="flex gap-2 pt-1">

@@ -48,6 +48,7 @@ export const ITEM_EDITABLE_FIELDS = [
   "data_pagamento",
   "pagador_id",
   "meio_pagamento_id",
+  "moeda",
 ] as const;
 
 export type ItemEditableInput = Partial<Record<(typeof ITEM_EDITABLE_FIELDS)[number], string>> & {

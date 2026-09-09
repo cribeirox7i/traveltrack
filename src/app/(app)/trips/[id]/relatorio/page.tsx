@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useParams } from "next/navigation";
 import {
   useCollaborators,
+  useCountries,
   useMeiosPagamento,
   useOfflineCollection,
   useOfflineTrip,
@@ -19,6 +20,15 @@ interface ItemFinanceiro {
   status?: string;
   pagador_id?: string;
   meio_pagamento_id?: string;
+  moeda?: string;
+}
+
+interface CambioEvento {
+  id: string;
+  moeda: string;
+  qtd_moeda: string;
+  qtd_reais: string;
+  taxa_efetiva: string;
 }
 
 const STATUS_OPCOES = [
@@ -41,6 +51,8 @@ export default function RelatorioPage() {
     { id: string } & Record<string, unknown>
   >("tripDays", tripId);
   const { items: itens, loading: loadingItens } = useOfflineCollection<ItemFinanceiro>("itens", tripId);
+  const { items: cambios } = useOfflineCollection<CambioEvento>("cambio", tripId);
+  const countries = useCountries();
   const collaborators = useCollaborators(tripId);
   const meiosPagamento = useMeiosPagamento().filter((m) => m.ativo === "true");
 
@@ -62,12 +74,21 @@ export default function RelatorioPage() {
     .filter((i) => !filtroPagador || i.pagador_id === filtroPagador);
   const temFiltroAtivo = Boolean(filtroStatus || filtroMeioPagamento || filtroPagador);
 
+  const cotacoes: Record<string, number> = {};
+  for (const c of countries) {
+    const code = (c.currency_code || "").trim().toUpperCase();
+    const rate = Number(String(c.rate_brl).replace(",", "."));
+    if (code && Number.isFinite(rate) && rate > 0 && !cotacoes[code]) cotacoes[code] = rate;
+  }
+
   const relatorio = computeRelatorio(
     tripId,
     Number(trip.qtd_pessoas) || 0,
     days,
     itensFiltrados,
-    trip.custo_modo
+    trip.custo_modo,
+    cambios,
+    cotacoes
   );
 
   return (
@@ -132,6 +153,31 @@ export default function RelatorioPage() {
           </button>
         )}
       </div>
+
+      {relatorio.avisosConversao.length > 0 && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300">
+          {relatorio.avisosConversao.map((aviso) => (
+            <p key={aviso}>⚠️ {aviso}</p>
+          ))}
+        </div>
+      )}
+
+      {relatorio.taxasConversao.length > 0 && (
+        <p className="text-xs text-slate-500 dark:text-slate-400">
+          Itens em moeda estrangeira convertidos pra R$:{" "}
+          {relatorio.taxasConversao
+            .filter((t) => t.fonte !== "sem_taxa")
+            .map(
+              (t) =>
+                `${t.moeda} a ${t.taxa.toLocaleString("pt-BR", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 4,
+                })} (${t.fonte === "cambio" ? "custo médio do câmbio" : "cotação do dia"})`
+            )
+            .join(" · ")}
+          .
+        </p>
+      )}
 
       <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
         {/* `table-fixed` + largura fixa por coluna (definida no `<th>`) - sem isso, a largura de

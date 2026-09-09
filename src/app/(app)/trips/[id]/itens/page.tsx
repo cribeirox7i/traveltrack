@@ -5,11 +5,13 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
   useCollaborators,
+  useCountries,
   useMeiosPagamento,
   useOfflineCollection,
   useOfflineTrip,
   useOnlineStatus,
 } from "@/lib/offline/useOfflineData";
+import { converterValorParaBRL, custoMedioPorMoeda } from "@/lib/cambioCalc";
 import {
   addItemAnexoOnline,
   createItemOffline,
@@ -87,6 +89,7 @@ const emptyForm = {
   url: "",
   descricao: "",
   valor: "",
+  moeda: "",
   status: "" as "" | "pago" | "a_pagar",
   data_pagamento: "",
   pagador_id: "",
@@ -94,6 +97,10 @@ const emptyForm = {
 };
 
 type FormState = typeof emptyForm;
+
+function formatBRL(v: number): string {
+  return `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
 
 /** A "data do item" (usada pra ordenar a lista) é derivada do `data_inicio`/`hora_inicio` nas
  * categorias que têm essa noção (ver `LABELS_INICIO_FIM`) - evita pedir a mesma data duas vezes.
@@ -141,6 +148,20 @@ export default function ItensPage() {
   const collaborators = useCollaborators(tripId);
   const todosMeiosPagamento = useMeiosPagamento();
   const online = useOnlineStatus();
+  // Câmbio da viagem + países do roteiro alimentam o select de Moeda do item e a conversão pra
+  // R$ mostrada ao lado do valor (custo médio do câmbio, ou cotação do dia como queda).
+  const { items: cambios } = useOfflineCollection<{
+    id: string;
+    moeda: string;
+    qtd_moeda: string;
+    qtd_reais: string;
+    taxa_efetiva: string;
+  }>("cambio", tripId);
+  const { items: diasViagem } = useOfflineCollection<Record<string, string> & { id: string }>(
+    "tripDays",
+    tripId
+  );
+  const countries = useCountries();
   const [formOpen, setFormOpen] = useState(false);
   // null = criando um item novo; string = editando o item com este id.
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -206,6 +227,50 @@ export default function ItensPage() {
   );
 
   const isFinanceira = FINANCEIRAS.has(form.categoria);
+
+  const medioPorMoeda = useMemo(() => custoMedioPorMoeda(cambios), [cambios]);
+  const cotacoesFallback = useMemo(() => {
+    const out: Record<string, number> = {};
+    for (const c of countries) {
+      const code = (c.currency_code || "").trim().toUpperCase();
+      const rate = Number(String(c.rate_brl).replace(",", "."));
+      if (code && Number.isFinite(rate) && rate > 0 && !out[code]) out[code] = rate;
+    }
+    return out;
+  }, [countries]);
+
+  // Moedas oferecidas no select do item: R$ + as com câmbio registrado + as dos países do
+  // roteiro. `<datalist>`-free: é um <select> mesmo, a lista é curta e conhecida.
+  const moedasItem = useMemo(() => {
+    const nomePorCode: Record<string, string> = {};
+    for (const c of countries) {
+      const code = (c.currency_code || "").trim().toUpperCase();
+      if (code && !nomePorCode[code] && c.currency_name) nomePorCode[code] = c.currency_name;
+    }
+    const paisesDaViagem = new Set<string>();
+    for (const d of diasViagem) {
+      for (const p of [d.origem_pais, d.destino_pais, d.pernoite_pais]) {
+        if (p?.trim()) paisesDaViagem.add(p.trim().toLowerCase());
+      }
+    }
+    const codes = new Set<string>(Object.keys(medioPorMoeda));
+    for (const c of countries) {
+      const code = (c.currency_code || "").trim().toUpperCase();
+      if (code && paisesDaViagem.has((c.country || "").trim().toLowerCase())) codes.add(code);
+    }
+    // A moeda que o item já usava entra sempre, mesmo que não esteja mais no roteiro nem no câmbio.
+    if (form.moeda) codes.add(form.moeda);
+    codes.delete("BRL");
+    return [...codes]
+      .sort()
+      .map((code) => ({ code, label: nomePorCode[code] ? `${code} - ${nomePorCode[code]}` : code }));
+  }, [countries, diasViagem, medioPorMoeda, form.moeda]);
+
+  // Conversão pra R$ do valor digitado, na moeda escolhida - dica ao lado do campo.
+  const conversaoValor = useMemo(() => {
+    if (!form.valor || !form.moeda || form.moeda === "BRL") return null;
+    return converterValorParaBRL(form.valor, form.moeda, medioPorMoeda, cotacoesFallback);
+  }, [form.valor, form.moeda, medioPorMoeda, cotacoesFallback]);
 
   // Extras do item que está sendo editado agora - só faz sentido com editingId (item novo ainda
   // não existe pro servidor aceitar upload de extra) e com o principal já preenchido (ver botão
@@ -315,6 +380,7 @@ export default function ItensPage() {
       url: item.url,
       descricao: item.descricao,
       valor: item.valor,
+      moeda: item.moeda === "BRL" ? "" : item.moeda,
       status: item.status === "pago" || item.status === "a_pagar" ? item.status : "",
       data_pagamento: item.data_pagamento,
       pagador_id: item.pagador_id,
@@ -834,8 +900,18 @@ export default function ItensPage() {
               <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                 Dados financeiros
               </h3>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-              <Campo label="Valor" compact>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-6">
+              <Campo label="Moeda" compact>
+                <select value={form.moeda} onChange={(e) => setField("moeda", e.target.value)} className={inputClass}>
+                  <option value="">R$ (Real)</option>
+                  {moedasItem.map((m) => (
+                    <option key={m.code} value={m.code}>
+                      {m.label}
+                    </option>
+                  ))}
+                </select>
+              </Campo>
+              <Campo label={form.moeda && form.moeda !== "BRL" ? `Valor (${form.moeda})` : "Valor"} compact>
                 <input type="number" min={0} step="0.01" value={form.valor} onChange={(e) => setField("valor", e.target.value)} className={`${inputClass} text-right`} />
               </Campo>
               <Campo label="Status" compact>
@@ -872,6 +948,19 @@ export default function ItensPage() {
                 </select>
               </Campo>
               </div>
+              {conversaoValor && (
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  {conversaoValor.fonte === "cambio" && (
+                    <>≈ {formatBRL(conversaoValor.valorBRL)} pelo custo médio do câmbio ({formatBRL(conversaoValor.taxa)}/{form.moeda}).</>
+                  )}
+                  {conversaoValor.fonte === "cotacao" && (
+                    <>≈ {formatBRL(conversaoValor.valorBRL)} pela cotação do dia ({formatBRL(conversaoValor.taxa)}/{form.moeda}) - ainda não há câmbio de {form.moeda} registrado nesta viagem.</>
+                  )}
+                  {conversaoValor.fonte === "sem_taxa" && (
+                    <>Sem câmbio nem cotação de {form.moeda} - registre um câmbio dessa moeda no Financeiro pra converter no Relatório.</>
+                  )}
+                </p>
+              )}
             </div>
           )}
 
@@ -971,6 +1060,8 @@ export default function ItensPage() {
         extraAnexos={
           viewingItem ? todosExtras.filter((a) => a.item_id === viewingItem.id) : undefined
         }
+        cambios={cambios}
+        cotacoes={cotacoesFallback}
         podeEditar={!bloqueada}
         onClose={() => setViewingItem(null)}
         onEditar={(item) => {
