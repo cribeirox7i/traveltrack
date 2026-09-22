@@ -25,6 +25,7 @@ import { converterValorParaBRL, custoMedioPorMoeda } from "@/lib/cambioCalc";
 import { viagemBloqueada } from "@/lib/tripStatus";
 import type { SegundoTrecho } from "@/lib/gemini";
 import { TimeField } from "@/components/TimeField";
+import { MoneyInput } from "@/components/MoneyInput";
 import { AnexoViewer } from "@/components/AnexoViewer";
 import { InfoDisclaimer } from "@/components/InfoDisclaimer";
 import { FILTER_SELECT_CLASS } from "@/lib/uiClasses";
@@ -519,6 +520,42 @@ export default function ItensPage() {
     await deleteItemOffline(tripId, item.id);
   }
 
+  /** Duplica um item: mesmos campos, SEM o anexo (principal nem extras) - o usuário anexa de
+   * novo se fizer sentido pra cópia. Já abre a edição da cópia na sequência, pra ajustar data/
+   * descrição/valor sem precisar caçar o item novo na lista. */
+  async function handleDuplicate(item: Item) {
+    const fields: Record<string, string> = {
+      data: item.data,
+      horario: item.horario,
+      classificacao_id: item.classificacao_id,
+      subclassificacao_id: item.subclassificacao_id,
+      descricao: item.descricao,
+      financeiro_ativo: item.financeiro_ativo,
+      roteiro_ativo: item.roteiro_ativo,
+      moeda: item.moeda,
+      valor: item.valor,
+      natureza: item.natureza,
+      status: item.status,
+      data_pagamento: item.data_pagamento,
+      pagador_id: item.pagador_id,
+      meio_pagamento_id: item.meio_pagamento_id,
+      localizador: item.localizador,
+      nome_companhia: item.nome_companhia,
+      numero: item.numero,
+      origem: item.origem,
+      destino: item.destino,
+      nome_local: item.nome_local,
+      endereco: item.endereco,
+      data_inicio: item.data_inicio,
+      hora_inicio: item.hora_inicio,
+      data_fim: item.data_fim,
+      hora_fim: item.hora_fim,
+      url: item.url,
+    };
+    const novoId = await createItemOffline(tripId, fields);
+    openEditForm({ ...item, id: novoId, anexo_file_id: "", anexo_nome: "", anexo_url: "" });
+  }
+
   const ordenados = [...items]
     .filter((i) => !filtroClassificacao || i.classificacao_id === filtroClassificacao)
     .filter((i) => !filtroData || i.data === filtroData)
@@ -851,7 +888,7 @@ export default function ItensPage() {
                       </select>
                     </Campo>
                     <Campo label={form.moeda ? `Qtde moeda (${form.moeda})` : "Qtde moeda"} compact>
-                      <input type="number" min={0} step="0.01" value={form.valor} onChange={(e) => setField("valor", e.target.value)} className={`${inputClass} text-right`} />
+                      <MoneyInput value={form.valor} onChange={(v) => setField("valor", v)} className={`${inputClass} text-right`} />
                     </Campo>
                     <Campo label={form.natureza === "credito" ? "Quem contribuiu" : "Pago Por"} compact>
                       <select value={form.pagador_id} onChange={(e) => setPagador(e.target.value)} className={inputClass}>
@@ -1041,6 +1078,13 @@ export default function ItensPage() {
                   className="text-[11px] font-medium text-slate-600 dark:text-slate-400 hover:underline"
                 >
                   Editar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDuplicate(item)}
+                  className="text-[11px] font-medium text-slate-600 dark:text-slate-400 hover:underline"
+                >
+                  Duplicar
                 </button>
                 <button
                   type="button"

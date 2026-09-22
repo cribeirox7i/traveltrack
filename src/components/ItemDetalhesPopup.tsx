@@ -148,6 +148,9 @@ function ItemDetalhes({
     if (item.data_pagamento) pares.push({ label: "Data pagamento", valor: formatDataBR(item.data_pagamento) });
     if (item.valor) {
       const moedaEstrangeira = item.moeda && item.moeda !== "BRL" ? item.moeda : "";
+      // Moeda sempre aparece explícita (nunca em branco) - "" no banco significa Real, mas a
+      // tela mostra "R$ (Real)" por extenso em vez de simplesmente omitir a linha.
+      pares.push({ label: "Moeda", valor: moedaEstrangeira || "R$ (Real)" });
       if (moedaEstrangeira) {
         pares.push({ label: "Valor", valor: formatMoedaEstrangeira(item.valor, moedaEstrangeira) });
         const conv = converterValorParaBRL(

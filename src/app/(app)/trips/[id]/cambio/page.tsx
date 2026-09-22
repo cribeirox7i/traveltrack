@@ -17,6 +17,7 @@ import {
 import { resumoCambioPorMoeda } from "@/lib/cambioCalc";
 import { viagemBloqueada } from "@/lib/tripStatus";
 import { InfoDisclaimer } from "@/components/InfoDisclaimer";
+import { MoneyInput } from "@/components/MoneyInput";
 import { FILTER_SELECT_CLASS } from "@/lib/uiClasses";
 
 interface CambioEvento {
@@ -38,7 +39,6 @@ interface FormState {
   moeda: string;
   qtd_moeda: string;
   qtd_reais: string;
-  taxa_efetiva: string;
   descricao: string;
 }
 
@@ -47,7 +47,6 @@ const emptyForm: FormState = {
   moeda: "",
   qtd_moeda: "",
   qtd_reais: "",
-  taxa_efetiva: "",
   descricao: "",
 };
 
@@ -56,8 +55,14 @@ function num(v: string): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+/** Grava com vírgula decimal (padrão ABNT), não ponto - diferente do resto do app (Itens/
+ * Orçamento continuam gravando com ponto, formato que os cálculos deles esperam), aqui é seguro:
+ * todo consumo de Cambio.qtd_moeda/qtd_reais/taxa_efetiva passa pelo `num()` acima (ou pelo
+ * mesmo padrão em cambioCalc.ts), que já aceita vírgula OU ponto. `MoneyInput` sempre entrega um
+ * único ponto decimal (sem separador de milhar), então trocar por vírgula aqui não tem risco de
+ * sobra de caractere. */
 function normalizar(v: string): string {
-  return v.trim().replace(",", ".");
+  return v.trim().replace(".", ",");
 }
 
 function formatMoney(value: number): string {
@@ -181,7 +186,6 @@ export default function CambioPage() {
       moeda: evento.moeda,
       qtd_moeda: evento.qtd_moeda,
       qtd_reais: evento.qtd_reais,
-      taxa_efetiva: evento.taxa_efetiva,
       descricao: evento.descricao,
     });
     setError(null);
@@ -212,7 +216,6 @@ export default function CambioPage() {
     for (const [campo, rotulo] of [
       ["qtd_moeda", "quantidade de moeda"],
       ["qtd_reais", "quantidade de reais"],
-      ["taxa_efetiva", "taxa efetiva"],
     ] as const) {
       if (num(form[campo]) <= 0) {
         setError(`Informe a ${rotulo} (número maior que zero)`);
@@ -220,12 +223,15 @@ export default function CambioPage() {
       }
     }
 
+    // Taxa efetiva não é mais digitada - é sempre a divisão simples reais/moeda (pedido do
+    // usuário, 2026-09-22: menos um campo pra preencher, e a divisão já era exatamente o que a
+    // "dica" do formulário mostrava antes).
     const fields = {
       data: form.data,
       moeda,
       qtd_moeda: normalizar(form.qtd_moeda),
       qtd_reais: normalizar(form.qtd_reais),
-      taxa_efetiva: normalizar(form.taxa_efetiva),
+      taxa_efetiva: normalizar((num(form.qtd_reais) / num(form.qtd_moeda)).toFixed(6)),
       descricao: form.descricao.trim(),
     };
 
@@ -548,39 +554,27 @@ export default function CambioPage() {
               </label>
               <label className="col-span-1 flex flex-col gap-1 text-xs font-medium text-slate-600 dark:text-slate-400">
                 Qtd de moeda
-                <input
-                  inputMode="decimal"
+                <MoneyInput
                   value={form.qtd_moeda}
-                  onChange={(e) => setForm((f) => ({ ...f, qtd_moeda: e.target.value }))}
-                  placeholder="300"
+                  onChange={(v) => setForm((f) => ({ ...f, qtd_moeda: v }))}
                   className="rounded-lg border border-slate-300 dark:border-slate-700 px-2 py-1.5 text-sm font-normal"
                 />
               </label>
               <label className="col-span-1 flex flex-col gap-1 text-xs font-medium text-slate-600 dark:text-slate-400">
                 Qtd de reais
-                <input
-                  inputMode="decimal"
+                <MoneyInput
                   value={form.qtd_reais}
-                  onChange={(e) => setForm((f) => ({ ...f, qtd_reais: e.target.value }))}
-                  placeholder="1617,95"
+                  onChange={(v) => setForm((f) => ({ ...f, qtd_reais: v }))}
                   className="rounded-lg border border-slate-300 dark:border-slate-700 px-2 py-1.5 text-sm font-normal"
                 />
               </label>
-              <label className="col-span-2 flex flex-col gap-1 text-xs font-medium text-slate-600 dark:text-slate-400">
-                Taxa efetiva (R$ por unidade, com IOF e tarifas)
-                <input
-                  inputMode="decimal"
-                  value={form.taxa_efetiva}
-                  onChange={(e) => setForm((f) => ({ ...f, taxa_efetiva: e.target.value }))}
-                  placeholder="5,3930"
-                  className="rounded-lg border border-slate-300 dark:border-slate-700 px-2 py-1.5 text-sm font-normal"
-                />
-                {dicaUnitario !== null && (
-                  <span className="font-normal text-slate-400">
-                    Pelos valores acima: {formatTaxa(dicaUnitario)} R$/{form.moeda || "moeda"}
-                  </span>
-                )}
-              </label>
+              {/* Taxa efetiva não é mais digitada - é sempre reais/moeda (ver handleSubmit). Só
+                  mostra o que vai ser gravado, como conferência antes de salvar. */}
+              {dicaUnitario !== null && (
+                <p className="col-span-2 text-xs text-slate-400">
+                  Taxa efetiva: {formatTaxa(dicaUnitario)} R$/{form.moeda || "moeda"} (reais ÷ moeda)
+                </p>
+              )}
               <label className="col-span-2 flex flex-col gap-1 text-xs font-medium text-slate-600 dark:text-slate-400">
                 Descrição (opcional)
                 <input

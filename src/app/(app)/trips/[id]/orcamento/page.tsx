@@ -7,6 +7,7 @@ import { useOfflineCollection, useOfflineTrip } from "@/lib/offline/useOfflineDa
 import { viagemBloqueada } from "@/lib/tripStatus";
 import { saveDaysOffline } from "@/lib/offline/sync";
 import { InfoDisclaimer } from "@/components/InfoDisclaimer";
+import { MoneyInput } from "@/components/MoneyInput";
 
 interface TripMeta {
   id: string;
@@ -52,14 +53,6 @@ const FIELD_LABELS: Record<string, string> = Object.fromEntries(
   COST_FIELDS.map((f) => [f.key, f.fullLabel])
 );
 
-function parseDecimal(raw: string): number {
-  const cleaned = raw.trim();
-  const num = cleaned.includes(",")
-    ? Number(cleaned.replace(/\./g, "").replace(",", "."))
-    : Number(cleaned);
-  return Math.max(0, num || 0);
-}
-
 function formatDecimal(value: string): string {
   const num = Number(value) || 0;
   return num.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -95,7 +88,6 @@ export default function OrcamentoPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
   const [focusedCell, setFocusedCell] = useState<FocusedCell | null>(null);
-  const [editingKey, setEditingKey] = useState<string | null>(null);
 
   // Snapshot do que já está sincronizado, pra "Salvar" enviar só os campos que mudaram de fato.
   const snapshotRef = useRef<Record<string, TripDay>>({});
@@ -122,19 +114,12 @@ export default function OrcamentoPage() {
     setIsDirty(true);
   }
 
-  function normalizeCostOnBlur(dayId: string, field: keyof TripDay, rawValue: string) {
-    const num = parseDecimal(rawValue);
-    updateLocal(dayId, field, String(num));
-    const key = `${dayId}:${field}`;
-    setEditingKey((current) => (current === key ? null : current));
-  }
-
   function replicateColumn(scope: "all" | "down") {
     if (!focusedCell) return;
     const { dayId, field } = focusedCell;
     const sourceDay = days.find((d) => d.id === dayId);
     if (!sourceDay) return;
-    const value = String(parseDecimal(sourceDay[field]));
+    const value = String(Math.max(0, Number(sourceDay[field]) || 0));
 
     function apply(d: TripDay): TripDay {
       return { ...d, [field]: value };
@@ -285,32 +270,21 @@ export default function OrcamentoPage() {
                     {day[f.key] || "-"}
                   </td>
                 ))}
-                {COST_FIELDS.map((f) => {
-                  const isEditingHere = editingKey === `${day.id}:${f.key}`;
-                  return (
-                    <td key={f.key} className="px-1 py-1">
-                      <input
-                        type="text"
-                        inputMode="decimal"
-                        value={isEditingHere ? day[f.key] : formatDecimal(day[f.key])}
-                        onChange={(e) =>
-                          updateLocal(day.id, f.key, e.target.value.replace(/[^0-9.,]/g, ""))
-                        }
-                        onFocus={() => {
-                          setFocusedCell({ dayId: day.id, field: f.key });
-                          setEditingKey(`${day.id}:${f.key}`);
-                        }}
-                        onBlur={(e) => normalizeCostOnBlur(day.id, f.key, e.target.value)}
-                        disabled={isSaving || !canEdit}
-                        // `w-full` mantém o input preenchendo a coluna (é o que alinha cabeçalho,
-                        // dados e totais); o `min-w` é o que impede a coluna de encolher até o
-                        // tamanho do rótulo curto do cabeçalho ("TRAS.") num viewport estreito -
-                        // 82px = os 96px (min-w-24) de antes, 15% mais estreito.
-                        className="w-full min-w-[82px] rounded-md border border-slate-300 dark:border-slate-700 px-1.5 py-0.5 text-right text-xs"
-                      />
-                    </td>
-                  );
-                })}
+                {COST_FIELDS.map((f) => (
+                  <td key={f.key} className="px-1 py-1">
+                    <MoneyInput
+                      value={day[f.key]}
+                      onChange={(v) => updateLocal(day.id, f.key, v || "0")}
+                      onFocus={() => setFocusedCell({ dayId: day.id, field: f.key })}
+                      disabled={isSaving || !canEdit}
+                      // `w-full` mantém o input preenchendo a coluna (é o que alinha cabeçalho,
+                      // dados e totais); o `min-w` é o que impede a coluna de encolher até o
+                      // tamanho do rótulo curto do cabeçalho ("TRAS.") num viewport estreito -
+                      // 82px = os 96px (min-w-24) de antes, 15% mais estreito.
+                      className="w-full min-w-[82px] rounded-md border border-slate-300 dark:border-slate-700 px-1.5 py-0.5 text-right text-xs"
+                    />
+                  </td>
+                ))}
               </tr>
             ))}
           </tbody>

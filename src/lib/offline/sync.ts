@@ -1202,12 +1202,13 @@ export async function deleteAgendaOffline(tripId: string, agendaId: string): Pro
 /** Cria um Item de viagem otimista - `fields` é o mesmo conjunto de campos aceito pela API (ver
  * `ITEM_EDITABLE_FIELDS` em lib/sheets/itens.ts), fora `file`, incluindo `natureza` (campo
  * explícito do acordeão Financeiro desde a reforma de 2026-09-21 - não é mais calculado no
- * servidor a partir de categoria). */
+ * servidor a partir de categoria). Devolve o id local do item criado - usado por `duplicarItem`
+ * (tela Itens) pra já abrir a edição da cópia sem precisar esperar sincronizar. */
 export async function createItemOffline(
   tripId: string,
   fields: Record<string, string>,
   file?: File | null
-): Promise<void> {
+): Promise<string> {
   const id = uuid();
   await putOne("itens", {
     id,
@@ -1225,6 +1226,7 @@ export async function createItemOffline(
   await enqueueOutbox({ localId: uuid(), kind: "createItem", tripId, payload });
   notifyChange();
   void pushOutbox();
+  return id;
 }
 
 export async function updateItemOffline(
