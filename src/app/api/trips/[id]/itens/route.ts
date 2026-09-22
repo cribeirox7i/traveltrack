@@ -3,8 +3,7 @@ import { z } from "zod";
 import { urlHttpSchema } from "@/lib/urlSegura";
 import { detectarTipoVoucher } from "@/lib/fileValidation";
 import { errorResponse, requireSession, sessionCanAccessTrip, tripLockError } from "@/lib/api-helpers";
-import { CATEGORIAS_ITEM_FINANCEIRAS } from "@/lib/sheets/types";
-import { CATEGORIA_ITEM_DRIVE, ItemEditableInput, createItem, listItensByTrip } from "@/lib/sheets/itens";
+import { ItemEditableInput, createItem, listItensByTrip } from "@/lib/sheets/itens";
 import { uploadAnexo } from "@/lib/sheets/anexos";
 import { getTrip } from "@/lib/sheets/trips";
 
@@ -13,25 +12,22 @@ import { getTrip } from "@/lib/sheets/trips";
 const MAX_FILE_BYTES = 4 * 1024 * 1024;
 
 const optionalStr = z.string().optional().default("");
+const boolStr = z.enum(["true", "false"]).optional().default("false");
 
+/** Reforma do cadastro (2026-09-21): sem mais `categoria` fixa - `classificacao_id`/
+ * `subclassificacao_id` são FK pras abas curadas pelo admin, e `financeiro_ativo`/`roteiro_ativo`
+ * decidem quais campos valem (pelo menos um precisa ser `"true"` - ver `superRefine`). */
 const createSchema = z
   .object({
     id: z.string().min(1).optional(),
-    categoria: z.enum([
-      "traslado",
-      "passagem",
-      "hospedagem",
-      "alimentacao",
-      "atrativo",
-      "repasse",
-      "documento",
-      "outro",
-    ]),
-    tipo: optionalStr,
+    classificacao_id: z.string().min(1, "Escolha a classificação"),
+    subclassificacao_id: optionalStr,
+    financeiro_ativo: boolStr,
+    roteiro_ativo: boolStr,
     localizador: optionalStr,
     nome_companhia: optionalStr,
     numero: optionalStr,
-    data: z.string().date("Data do item é obrigatória"),
+    data: z.string().date("Data é obrigatória"),
     horario: z
       .string()
       .regex(/^\d{2}:\d{2}$/, "Horário deve estar no formato HH:MM")
@@ -46,15 +42,9 @@ const createSchema = z
     hora_inicio: optionalStr,
     data_fim: optionalStr,
     hora_fim: optionalStr,
-    tipo_documento: optionalStr,
-    passageiro_id: optionalStr,
     url: urlHttpSchema.or(z.literal("")).optional().default(""),
     descricao: z.string().min(1, "Descrição é obrigatória"),
     valor: optionalStr,
-    status: z.enum(["pago", "a_pagar"]).or(z.literal("")).optional().default(""),
-    data_pagamento: optionalStr,
-    pagador_id: optionalStr,
-    meio_pagamento_id: optionalStr,
     moeda: z
       .string()
       .trim()
@@ -65,9 +55,22 @@ const createSchema = z
       )
       .optional()
       .default(""),
+    status: z.enum(["pago", "a_pagar"]).or(z.literal("")).optional().default(""),
+    natureza: z.enum(["debito", "credito"]).or(z.literal("")).optional().default(""),
+    data_pagamento: optionalStr,
+    pagador_id: optionalStr,
+    meio_pagamento_id: optionalStr,
   })
   .superRefine((data, ctx) => {
-    if (!data.valor) return;
+    if (data.financeiro_ativo === "false" && data.roteiro_ativo === "false") {
+      ctx.addIssue({
+        code: "custom",
+        path: ["financeiro_ativo"],
+        message: "Marque Financeiro, Roteiro, ou os dois",
+      });
+      return;
+    }
+    if (data.financeiro_ativo === "false" || !data.valor) return;
     if (Number.isNaN(Number(data.valor)) || Number(data.valor) <= 0) {
       ctx.addIssue({ code: "custom", path: ["valor"], message: "Valor precisa ser um número positivo" });
       return;
@@ -80,12 +83,39 @@ const createSchema = z
     }
   });
 
-/** Documento/Outro não têm campo financeiro (ver `categoriaNatureza`) - zera valor/pagador/meio
- * mesmo que o cliente tenha mandado algo, em vez de rejeitar (evita um formulário que trocou de
- * categoria no meio do preenchimento falhar por um campo que já não é mais exibido). */
-function limparCamposNaoFinanceiros(data: ItemEditableInput): ItemEditableInput {
-  if (CATEGORIAS_ITEM_FINANCEIRAS.has(data.categoria)) return data;
-  return { ...data, valor: "", status: "", pagador_id: "", meio_pagamento_id: "", data_pagamento: "", moeda: "" };
+/** Limpa os campos do acordeão que ficou desmarcado - evita salvar valor/pagador de um Financeiro
+ * desabilitado, ou início/fim de um Roteiro desabilitado (o usuário pode ter preenchido e
+ * desmarcado depois). */
+function limparAcordeoesInativos(data: ItemEditableInput): ItemEditableInput {
+  const limpo = { ...data };
+  if (data.financeiro_ativo === "false") {
+    Object.assign(limpo, {
+      valor: "",
+      moeda: "",
+      status: "",
+      natureza: "",
+      data_pagamento: "",
+      pagador_id: "",
+      meio_pagamento_id: "",
+    });
+  }
+  if (data.roteiro_ativo === "false") {
+    Object.assign(limpo, {
+      localizador: "",
+      nome_companhia: "",
+      numero: "",
+      origem: "",
+      destino: "",
+      nome_local: "",
+      endereco: "",
+      data_inicio: "",
+      hora_inicio: "",
+      data_fim: "",
+      hora_fim: "",
+      url: "",
+    });
+  }
+  return limpo;
 }
 
 export async function GET(
@@ -158,7 +188,9 @@ export async function POST(
       anexo = await uploadAnexo({
         tripId: trip.id,
         tripName: trip.nome,
-        categoria: CATEGORIA_ITEM_DRIVE[parsed.data.categoria],
+        // Classificação é dado livre do admin agora - não dá mais pra mapear pra uma pasta fixa
+        // do Drive por categoria (CATEGORIA_ITEM_DRIVE). Tudo cai em "outros".
+        categoria: "outros",
         filename: file.name,
         mimeType: tipoDetectado,
         base64Data: buffer.toString("base64"),
@@ -173,7 +205,7 @@ export async function POST(
   }
 
   const criado = await createItem({
-    ...limparCamposNaoFinanceiros(parsed.data),
+    ...limparAcordeoesInativos(parsed.data),
     trip_id: id,
     criado_por: user.id,
     ...(anexo

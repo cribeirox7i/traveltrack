@@ -15,6 +15,7 @@ import type { Role } from "@/lib/sheets/types";
 const links: { href: string; label: string; icon: string; roles?: Role[] }[] = [
   { href: "/trips", label: "Viagens", icon: "🧳" },
   { href: "/admin/ambientes", label: "Ambientes", icon: "🏢", roles: ["admin"] },
+  { href: "/admin/classificacoes", label: "Classificações", icon: "🏷️", roles: ["admin"] },
   { href: "/admin/usuarios", label: "Usuários", icon: "👤", roles: ["admin", "gestor"] },
   { href: "/admin/acessos", label: "Acessos", icon: "🔑", roles: ["admin", "gestor"] },
   { href: "/parametros", label: "Parâmetros", icon: "⚙️" },

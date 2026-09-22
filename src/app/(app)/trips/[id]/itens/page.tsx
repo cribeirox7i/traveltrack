@@ -4,14 +4,15 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
+  useClassificacoes,
   useCollaborators,
   useCountries,
   useMeiosPagamento,
   useOfflineCollection,
   useOfflineTrip,
   useOnlineStatus,
+  useSubclassificacoes,
 } from "@/lib/offline/useOfflineData";
-import { converterValorParaBRL, custoMedioPorMoeda } from "@/lib/cambioCalc";
 import {
   addItemAnexoOnline,
   createItemOffline,
@@ -20,7 +21,7 @@ import {
   updateItemOffline,
   type ItemAnexoInfo,
 } from "@/lib/offline/sync";
-import { CATEGORIAS_ITEM, CategoriaItem } from "@/lib/sheets/types";
+import { converterValorParaBRL, custoMedioPorMoeda } from "@/lib/cambioCalc";
 import { viagemBloqueada } from "@/lib/tripStatus";
 import type { SegundoTrecho } from "@/lib/gemini";
 import { TimeField } from "@/components/TimeField";
@@ -28,54 +29,55 @@ import { AnexoViewer } from "@/components/AnexoViewer";
 import { InfoDisclaimer } from "@/components/InfoDisclaimer";
 import { FILTER_SELECT_CLASS } from "@/lib/uiClasses";
 import {
-  CATEGORIA_ICONE,
-  CATEGORIA_LABEL,
   IconeItem,
   ItemDetalhesPopup,
-  LABELS_INICIO_FIM,
   formatDataBR,
   type Item,
 } from "@/components/ItemDetalhesPopup";
 
-const FINANCEIRAS = new Set<CategoriaItem>([
-  "traslado",
-  "passagem",
-  "hospedagem",
-  "alimentacao",
-  "atrativo",
-  "repasse",
-]);
-
-const TIPOS_TRASLADO = ["Ônibus", "Van", "Carro", "Outros"];
-const TIPOS_PASSAGEM = ["Ônibus", "Van", "Carro", "Avião", "Embarcação", "Trem"];
-const TIPOS_ATRATIVO = ["Excursão", "Ingresso", "Bar", "Ponto Turístico"];
 const STATUS_PAGAMENTO = [
   { value: "a_pagar", label: "A pagar" },
   { value: "pago", label: "Pago" },
 ];
-const TIPOS_DOCUMENTO = [
-  "Taxa",
-  "Pedágio",
-  "RG",
-  "CPF",
-  "Passaporte",
-  "Visto",
-  "CNH",
-  "PID",
-  "Seguro",
-  "Cartão de Vacina",
-];
 
 const ACCEPT_VOUCHER = ".pdf,.jpg,.jpeg,.png,.bmp,application/pdf,image/jpeg,image/png,image/bmp";
 
+// Mapeia a `categoria` antiga (8 valores fixos) que a análise de voucher ainda devolve pra um
+// nome de Classificação - documento/outro caem em "Atrativo" (mesma decisão da migração dos itens
+// antigos, ver scripts/migrate-itens-classificacao.js). É só uma AJUDA pra pré-selecionar o
+// dropdown - o usuário confere/troca antes de salvar.
+const NOME_CLASSIFICACAO_POR_CATEGORIA_ANTIGA: Record<string, string> = {
+  traslado: "Traslado",
+  passagem: "Passagem",
+  hospedagem: "Hospedagem",
+  alimentacao: "Alimentação",
+  atrativo: "Atrativo",
+  repasse: "Atrativo".replace("Atrativo", "Repasse"),
+  documento: "Atrativo",
+  outro: "Atrativo",
+};
+
+function todayISO(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
 const emptyForm = {
-  categoria: "traslado" as CategoriaItem,
-  tipo: "",
+  data: "",
+  classificacao_id: "",
+  subclassificacao_id: "",
+  descricao: "",
+  financeiroAtivo: false,
+  roteiroAtivo: false,
+  moeda: "",
+  valor: "",
+  natureza: "debito" as "debito" | "credito",
+  pago: true,
+  data_pagamento: "",
+  pagador_id: "",
+  meio_pagamento_id: "",
   localizador: "",
   nome_companhia: "",
   numero: "",
-  data: "",
-  horario: "",
   origem: "",
   destino: "",
   nome_local: "",
@@ -84,16 +86,7 @@ const emptyForm = {
   hora_inicio: "",
   data_fim: "",
   hora_fim: "",
-  tipo_documento: "",
-  passageiro_id: "",
   url: "",
-  descricao: "",
-  valor: "",
-  moeda: "",
-  status: "" as "" | "pago" | "a_pagar",
-  data_pagamento: "",
-  pagador_id: "",
-  meio_pagamento_id: "",
 };
 
 type FormState = typeof emptyForm;
@@ -102,34 +95,22 @@ function formatBRL(v: number): string {
   return `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-/** A "data do item" (usada pra ordenar a lista) é derivada do `data_inicio`/`hora_inicio` nas
- * categorias que têm essa noção (ver `LABELS_INICIO_FIM`) - evita pedir a mesma data duas vezes.
- * Nas categorias sem início/fim (Repasse/Documento/Outro), o usuário digita direto em
- * `data`/`horario`. */
-function derivarDataHorario(form: FormState): { data: string; horario: string } {
-  if (LABELS_INICIO_FIM[form.categoria]) {
-    return { data: form.data_inicio, horario: form.hora_inicio };
-  }
-  return { data: form.data, horario: form.horario };
-}
-
+/** Resumo de uma linha na lista - a reforma tirou o "formato por categoria" (era condicional a
+ * `categoria`, que agora é dado livre); mostra o que tiver preenchido do Roteiro, senão o meio de
+ * pagamento, senão a descrição. */
 function resumoItem(item: Item, nomePorMeio: Record<string, string>): string {
-  switch (item.categoria) {
-    case "traslado":
-    case "passagem":
-      return [item.nome_companhia, item.numero, item.origem && item.destino ? `${item.origem} → ${item.destino}` : ""]
-        .filter(Boolean)
-        .join(" · ");
-    case "hospedagem":
-    case "alimentacao":
-      return [item.nome_local, item.endereco].filter(Boolean).join(" · ");
-    case "atrativo":
-      return [item.tipo, item.nome_companhia].filter(Boolean).join(" · ");
-    case "documento":
-      return item.tipo_documento || "-";
-    default:
-      return nomePorMeio[item.meio_pagamento_id] ?? "";
-  }
+  const roteiro = [
+    item.nome_companhia,
+    item.numero,
+    item.origem && item.destino ? `${item.origem} → ${item.destino}` : "",
+    item.nome_local,
+    item.endereco,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  if (roteiro) return roteiro;
+  if (item.meio_pagamento_id) return nomePorMeio[item.meio_pagamento_id] ?? "";
+  return "";
 }
 
 export default function ItensPage() {
@@ -148,8 +129,10 @@ export default function ItensPage() {
   const collaborators = useCollaborators(tripId);
   const todosMeiosPagamento = useMeiosPagamento();
   const online = useOnlineStatus();
-  // Câmbio da viagem + países do roteiro alimentam o select de Moeda do item e a conversão pra
-  // R$ mostrada ao lado do valor (custo médio do câmbio, ou cotação do dia como queda).
+  const classificacoes = useClassificacoes();
+  const subclassificacoes = useSubclassificacoes();
+  // Câmbio da viagem + países do roteiro alimentam o select de Moeda e a conversão pra R$ ao
+  // lado do valor (custo médio do câmbio, ou cotação do dia como queda).
   const { items: cambios } = useOfflineCollection<{
     id: string;
     moeda: string;
@@ -162,6 +145,7 @@ export default function ItensPage() {
     tripId
   );
   const countries = useCountries();
+
   const [formOpen, setFormOpen] = useState(false);
   // null = criando um item novo; string = editando o item com este id.
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -173,22 +157,17 @@ export default function ItensPage() {
   const [analisando, setAnalisando] = useState(false);
   const [analisado, setAnalisado] = useState(false);
   const [segundoTrecho, setSegundoTrecho] = useState<SegundoTrecho | null>(null);
-  // Anexos extras (além do principal) só existem pra item já salvo com o principal preenchido -
-  // upload/remoção são imediatos, sem esperar o "Salvar" do formulário inteiro (ver
-  // `addItemAnexoOnline`/`removeItemAnexoOnline`, que exigem internet e não passam pelo outbox).
   const [addingExtra, setAddingExtra] = useState(false);
   const [removingExtraId, setRemovingExtraId] = useState<string | null>(null);
   const [extraError, setExtraError] = useState<string | null>(null);
   const extraFileInputRef = useRef<HTMLInputElement>(null);
-  /** O que a leitura do voucher corrigiu ou não conseguiu resolver sozinha - hoje, data final
-   * anterior à inicial (ver `corrigirCronologia` em lib/gemini.ts). */
   const [avisosAnalise, setAvisosAnalise] = useState<string[]>([]);
   const [viewingItem, setViewingItem] = useState<Item | null>(null);
   const [anexoAberto, setAnexoAberto] = useState<{ fileId: string; nome: string } | null>(null);
-  const [filtroCategoria, setFiltroCategoria] = useState<CategoriaItem | "">("");
+  const [filtroClassificacao, setFiltroClassificacao] = useState("");
   const [filtroData, setFiltroData] = useState("");
   const [filtroPessoa, setFiltroPessoa] = useState("");
-  const [ordenarPor, setOrdenarPor] = useState<"data" | "tipo" | "descricao">("data");
+  const [ordenarPor, setOrdenarPor] = useState<"data" | "classificacao" | "descricao">("data");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Suporta abrir direto num item pra editar via `?editar=<id>` (usado pelo link "Editar" da
@@ -209,6 +188,25 @@ export default function ItensPage() {
     () => Object.fromEntries(todosMeiosPagamento.map((m) => [m.id, m.nome])),
     [todosMeiosPagamento]
   );
+  const classificacoesAtivas = useMemo(
+    () => classificacoes.filter((c) => c.ativo === "true").sort((a, b) => a.nome.localeCompare(b.nome)),
+    [classificacoes]
+  );
+  const nomePorClassificacao = useMemo(
+    () => Object.fromEntries(classificacoes.map((c) => [c.id, c.nome])),
+    [classificacoes]
+  );
+  const nomePorSubclassificacao = useMemo(
+    () => Object.fromEntries(subclassificacoes.map((s) => [s.id, s.nome])),
+    [subclassificacoes]
+  );
+  const subclassificacoesDaClassificacao = useMemo(
+    () =>
+      subclassificacoes
+        .filter((s) => s.classificacao_id === form.classificacao_id && s.ativo === "true")
+        .sort((a, b) => a.nome.localeCompare(b.nome)),
+    [subclassificacoes, form.classificacao_id]
+  );
   // Contagem de extras por item, pro badge "📎 +N" na lista - não inclui o principal (esse já
   // aparece pelo 📎 simples, condicionado a `item.anexo_file_id`).
   const extrasPorItem = useMemo(() => {
@@ -226,8 +224,6 @@ export default function ItensPage() {
     [todosMeiosPagamento, form.pagador_id]
   );
 
-  const isFinanceira = FINANCEIRAS.has(form.categoria);
-
   const medioPorMoeda = useMemo(() => custoMedioPorMoeda(cambios), [cambios]);
   const cotacoesFallback = useMemo(() => {
     const out: Record<string, number> = {};
@@ -239,8 +235,6 @@ export default function ItensPage() {
     return out;
   }, [countries]);
 
-  // Moedas oferecidas no select do item: R$ + as com câmbio registrado + as dos países do
-  // roteiro. `<datalist>`-free: é um <select> mesmo, a lista é curta e conhecida.
   const moedasItem = useMemo(() => {
     const nomePorCode: Record<string, string> = {};
     for (const c of countries) {
@@ -258,7 +252,6 @@ export default function ItensPage() {
       const code = (c.currency_code || "").trim().toUpperCase();
       if (code && paisesDaViagem.has((c.country || "").trim().toLowerCase())) codes.add(code);
     }
-    // A moeda que o item já usava entra sempre, mesmo que não esteja mais no roteiro nem no câmbio.
     if (form.moeda) codes.add(form.moeda);
     codes.delete("BRL");
     return [...codes]
@@ -266,19 +259,10 @@ export default function ItensPage() {
       .map((code) => ({ code, label: nomePorCode[code] ? `${code} - ${nomePorCode[code]}` : code }));
   }, [countries, diasViagem, medioPorMoeda, form.moeda]);
 
-  // Conversão pra R$ do valor digitado, na moeda escolhida - dica ao lado do campo.
   const conversaoValor = useMemo(() => {
     if (!form.valor || !form.moeda || form.moeda === "BRL") return null;
     return converterValorParaBRL(form.valor, form.moeda, medioPorMoeda, cotacoesFallback);
   }, [form.valor, form.moeda, medioPorMoeda, cotacoesFallback]);
-
-  // Extras do item que está sendo editado agora - só faz sentido com editingId (item novo ainda
-  // não existe pro servidor aceitar upload de extra) e com o principal já preenchido (ver botão
-  // "+ Anexo extra" abaixo, que só aparece nessa condição).
-  const extrasDoEditingItem = useMemo(
-    () => (editingId ? todosExtras.filter((a) => a.item_id === editingId) : []),
-    [todosExtras, editingId]
-  );
 
   function setField<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -311,24 +295,6 @@ export default function ItensPage() {
     setForm((prev) => ({ ...prev, pagador_id: pagadorId, meio_pagamento_id: "" }));
   }
 
-  /** Troca de categoria no formulário. Quando a categoria de origem não tinha início/fim
-   * (Repasse/Documento/Outro, só `data`/`horario`) e a de destino tem (`LABELS_INICIO_FIM`),
-   * transporta o que já foi digitado em `data`/`horario` pra `data_inicio`/`hora_inicio` - evita
-   * o usuário redigitar a mesma data ao só ajustar a categoria. Só preenche campo ainda vazio,
-   * nunca sobrescreve início/fim já digitado. */
-  function handleCategoriaChange(categoria: CategoriaItem) {
-    setForm((prev) => {
-      const indoParaInicioFim = !LABELS_INICIO_FIM[prev.categoria] && LABELS_INICIO_FIM[categoria];
-      if (!indoParaInicioFim) return { ...prev, categoria };
-      return {
-        ...prev,
-        categoria,
-        data_inicio: prev.data_inicio || prev.data,
-        hora_inicio: prev.hora_inicio || prev.horario,
-      };
-    });
-  }
-
   function openNewForm() {
     setError(null);
     setFile(null);
@@ -340,6 +306,7 @@ export default function ItensPage() {
     setEditingAnexoNome(null);
     setForm({
       ...emptyForm,
+      data: todayISO(),
       pagador_id: session?.user.id && collaborators.some((c) => c.id === session.user.id)
         ? session.user.id
         : "",
@@ -347,9 +314,6 @@ export default function ItensPage() {
     setFormOpen(true);
   }
 
-  /** `item` já vem com todo campo que existe em `FormState` (mesmos nomes de coluna) - o único
-   * ajuste é ignorar os campos que a tela não edita diretamente (natureza, anexo_*, que
-   * `updateItemOffline` preserva sozinho a menos que um arquivo novo seja escolhido aqui). */
   function openEditForm(item: Item) {
     setError(null);
     setFile(null);
@@ -360,13 +324,22 @@ export default function ItensPage() {
     setEditingId(item.id);
     setEditingAnexoNome(item.anexo_nome || null);
     setForm({
-      categoria: item.categoria,
-      tipo: item.tipo,
+      data: item.data,
+      classificacao_id: item.classificacao_id,
+      subclassificacao_id: item.subclassificacao_id,
+      descricao: item.descricao,
+      financeiroAtivo: item.financeiro_ativo === "true",
+      roteiroAtivo: item.roteiro_ativo === "true",
+      moeda: item.moeda === "BRL" ? "" : item.moeda,
+      valor: item.valor,
+      natureza: item.natureza === "credito" ? "credito" : "debito",
+      pago: item.status !== "a_pagar",
+      data_pagamento: item.data_pagamento,
+      pagador_id: item.pagador_id,
+      meio_pagamento_id: item.meio_pagamento_id,
       localizador: item.localizador,
       nome_companhia: item.nome_companhia,
       numero: item.numero,
-      data: item.data,
-      horario: item.horario,
       origem: item.origem,
       destino: item.destino,
       nome_local: item.nome_local,
@@ -375,16 +348,7 @@ export default function ItensPage() {
       hora_inicio: item.hora_inicio,
       data_fim: item.data_fim,
       hora_fim: item.hora_fim,
-      tipo_documento: item.tipo_documento,
-      passageiro_id: item.passageiro_id,
       url: item.url,
-      descricao: item.descricao,
-      valor: item.valor,
-      moeda: item.moeda === "BRL" ? "" : item.moeda,
-      status: item.status === "pago" || item.status === "a_pagar" ? item.status : "",
-      data_pagamento: item.data_pagamento,
-      pagador_id: item.pagador_id,
-      meio_pagamento_id: item.meio_pagamento_id,
     });
     setFormOpen(true);
   }
@@ -405,11 +369,12 @@ export default function ItensPage() {
     if (searchParams.get("editar")) router.push(`/trips/${tripId}/agenda`);
   }
 
-  /** Chamado pelo botão "Analisar voucher" - sobe o arquivo pro Gemini via
-   * `/api/trips/{id}/itens/analisar` e pré-preenche o formulário com o que ele identificar.
-   * Best-effort: se falhar (rede, cota do free tier, documento ilegível), o formulário continua
-   * vazio pra preenchimento manual - o upload em si só acontece de fato ao "Cadastrar", então
-   * nada se perde aqui além de uma tentativa de leitura. */
+  /** Chamado pelo botão "Analisar anexo" - sobe o arquivo pro Gemini e pré-preenche o formulário.
+   * A `categoria`/`tipo` que a análise devolve (enum antigo) só ajudam a PRÉ-SELECIONAR a
+   * Classificação/Subclassificação por nome (ver `NOME_CLASSIFICACAO_POR_CATEGORIA_ANTIGA`) - o
+   * usuário confere antes de salvar. Liga automaticamente o acordeão que tiver dado preenchido
+   * (valor -> Financeiro; início -> Roteiro), mas não salva sozinho: o checkbox continua sendo o
+   * que decide o que é gravado. */
   async function handleAnalisar() {
     if (!file) return;
     setError(null);
@@ -423,10 +388,28 @@ export default function ItensPage() {
         setError(data.error ?? "Não foi possível analisar o voucher");
         return;
       }
-      // `avisos` sai junto com `segundo_trecho`: os dois são metadados da leitura, não campos do
-      // Item - deixá-los cair no espalhamento sujaria o formulário com chaves que a API descarta.
-      const { segundo_trecho, avisos, ...campos } = data;
-      setForm((prev) => ({ ...prev, ...campos }));
+      const { segundo_trecho, avisos, categoria, tipo, ...campos } = data;
+
+      const nomeAlvo = NOME_CLASSIFICACAO_POR_CATEGORIA_ANTIGA[categoria] ?? "";
+      const classificacaoEncontrada = classificacoes.find(
+        (c) => c.nome.toLowerCase() === nomeAlvo.toLowerCase()
+      );
+      const subclassificacaoEncontrada = classificacaoEncontrada
+        ? subclassificacoes.find(
+            (s) =>
+              s.classificacao_id === classificacaoEncontrada.id &&
+              s.nome.toLowerCase() === String(tipo ?? "").toLowerCase()
+          )
+        : undefined;
+
+      setForm((prev) => ({
+        ...prev,
+        ...campos,
+        classificacao_id: classificacaoEncontrada?.id ?? prev.classificacao_id,
+        subclassificacao_id: subclassificacaoEncontrada?.id ?? prev.subclassificacao_id,
+        financeiroAtivo: prev.financeiroAtivo || Boolean(campos.valor),
+        roteiroAtivo: prev.roteiroAtivo || Boolean(campos.data_inicio),
+      }));
       setSegundoTrecho(segundo_trecho ?? null);
       setAvisosAnalise(Array.isArray(avisos) ? avisos : []);
       setAnalisado(true);
@@ -439,7 +422,7 @@ export default function ItensPage() {
 
   /** Troca os campos de trecho (origem/destino/início/fim/número) do formulário pelos do 2º
    * trecho identificado (normalmente a volta) - útil pra cadastrar um segundo Item a partir do
-   * mesmo PDF, sem digitar de novo. Categoria/anexo/descrição continuam como estavam. */
+   * mesmo PDF, sem digitar de novo. */
   function usarSegundoTrecho() {
     if (!segundoTrecho) return;
     setForm((prev) => ({
@@ -460,30 +443,66 @@ export default function ItensPage() {
     e.preventDefault();
     setError(null);
 
-    const { data, horario } = derivarDataHorario(form);
-    if (!data) {
+    if (!form.data) {
       setError("Preencha a data do item");
+      return;
+    }
+    if (!form.classificacao_id) {
+      setError("Escolha a classificação");
       return;
     }
     if (!form.descricao.trim()) {
       setError("Descrição é obrigatória");
       return;
     }
-    if (isFinanceira && form.valor && (!form.pagador_id || !form.meio_pagamento_id)) {
+    if (!form.financeiroAtivo && !form.roteiroAtivo) {
+      setError("Marque Financeiro, Roteiro, ou os dois");
+      return;
+    }
+    if (form.financeiroAtivo && form.valor && (!form.pagador_id || !form.meio_pagamento_id)) {
       setError("Informando o valor, é preciso indicar quem pagou e o meio de pagamento");
       return;
     }
 
+    const fields: Record<string, string> = {
+      data: form.data,
+      // `horario` só serve pra ordenar a lista/Agenda - herda do início do Roteiro quando ativo.
+      horario: form.roteiroAtivo ? form.hora_inicio : "",
+      classificacao_id: form.classificacao_id,
+      subclassificacao_id: form.subclassificacao_id,
+      descricao: form.descricao,
+      financeiro_ativo: form.financeiroAtivo ? "true" : "false",
+      roteiro_ativo: form.roteiroAtivo ? "true" : "false",
+      moeda: form.moeda,
+      valor: form.valor,
+      natureza: form.natureza,
+      status: form.pago ? "pago" : "a_pagar",
+      data_pagamento: form.data_pagamento,
+      pagador_id: form.pagador_id,
+      meio_pagamento_id: form.meio_pagamento_id,
+      localizador: form.localizador,
+      nome_companhia: form.nome_companhia,
+      numero: form.numero,
+      origem: form.origem,
+      destino: form.destino,
+      nome_local: form.nome_local,
+      endereco: form.endereco,
+      data_inicio: form.data_inicio,
+      hora_inicio: form.hora_inicio,
+      data_fim: form.data_fim,
+      hora_fim: form.hora_fim,
+      url: form.url,
+    };
+
     setSaving(true);
     try {
       if (editingId) {
-        await updateItemOffline(tripId, editingId, { ...form, data, horario }, file);
+        await updateItemOffline(tripId, editingId, fields, file);
         closeForm();
       } else {
-        await createItemOffline(tripId, { ...form, data, horario }, file);
+        await createItemOffline(tripId, fields, file);
         // Documento com 2 trechos (ida e volta): em vez de fechar, já deixa o formulário pronto
-        // pra cadastrar o segundo Item (mesmo anexo, campos trocados pelo trecho da volta) - sem
-        // isso o usuário teria que reabrir e reanalisar o mesmo PDF de novo.
+        // pra cadastrar o segundo Item (mesmo anexo, campos trocados pelo trecho da volta).
         if (segundoTrecho) {
           usarSegundoTrecho();
         } else {
@@ -496,22 +515,21 @@ export default function ItensPage() {
   }
 
   async function handleDelete(item: Item) {
-    if (!confirm(`Excluir este item (${CATEGORIA_LABEL[item.categoria]})?`)) return;
+    if (!confirm("Excluir este item?")) return;
     await deleteItemOffline(tripId, item.id);
   }
 
   const ordenados = [...items]
-    .filter((i) => !filtroCategoria || i.categoria === filtroCategoria)
+    .filter((i) => !filtroClassificacao || i.classificacao_id === filtroClassificacao)
     .filter((i) => !filtroData || i.data === filtroData)
-    .filter((i) => !filtroPessoa || i.pagador_id === filtroPessoa || i.passageiro_id === filtroPessoa)
+    .filter((i) => !filtroPessoa || i.pagador_id === filtroPessoa)
     .sort((a, b) => {
-      // Data+hora é sempre o desempate final, mesmo ordenando por tipo/descrição - dentro do
-      // mesmo grupo, a ordem cronológica continua fazendo sentido.
       const porDataHora = (a.data + a.horario).localeCompare(b.data + b.horario);
-      if (ordenarPor === "tipo") {
+      if (ordenarPor === "classificacao") {
         return (
-          (CATEGORIA_LABEL[a.categoria] ?? a.categoria).localeCompare(CATEGORIA_LABEL[b.categoria] ?? b.categoria) ||
-          porDataHora
+          (nomePorClassificacao[a.classificacao_id] ?? "").localeCompare(
+            nomePorClassificacao[b.classificacao_id] ?? ""
+          ) || porDataHora
         );
       }
       if (ordenarPor === "descricao") {
@@ -522,14 +540,14 @@ export default function ItensPage() {
       }
       return porDataHora;
     });
-  const temFiltroAtivo = Boolean(filtroCategoria || filtroData || filtroPessoa);
+  const temFiltroAtivo = Boolean(filtroClassificacao || filtroData || filtroPessoa);
 
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <InfoDisclaimer>
-          Traslados, passagens, hospedagem, alimentação, atrativos, repasses e documentos da
-          viagem, num lugar só. Substitui as antigas telas de Lançamentos e Anexos.
+          Roteiro e financeiro da viagem, num lugar só. Um item pode ser só financeiro, só
+          roteiro, ou os dois - marque os acordeões que fizerem sentido.
         </InfoDisclaimer>
         {!formOpen && !bloqueada && (
           <button
@@ -551,16 +569,16 @@ export default function ItensPage() {
 
       <div className="flex flex-wrap items-end gap-2">
         <div>
-          <label className="mb-1 block text-[11px] font-medium text-slate-600 dark:text-slate-400">Categoria</label>
+          <label className="mb-1 block text-[11px] font-medium text-slate-600 dark:text-slate-400">Classificação</label>
           <select
-            value={filtroCategoria}
-            onChange={(e) => setFiltroCategoria(e.target.value as CategoriaItem | "")}
+            value={filtroClassificacao}
+            onChange={(e) => setFiltroClassificacao(e.target.value)}
             className={FILTER_SELECT_CLASS}
           >
             <option value="">Todas</option>
-            {CATEGORIAS_ITEM.map((c) => (
-              <option key={c.value} value={c.value}>
-                {CATEGORIA_ICONE[c.value]} {c.label}
+            {classificacoesAtivas.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.nome}
               </option>
             ))}
           </select>
@@ -575,7 +593,7 @@ export default function ItensPage() {
           />
         </div>
         <div>
-          <label className="mb-1 block text-[11px] font-medium text-slate-600 dark:text-slate-400">Pessoa</label>
+          <label className="mb-1 block text-[11px] font-medium text-slate-600 dark:text-slate-400">Pessoa (pagou)</label>
           <select
             value={filtroPessoa}
             onChange={(e) => setFiltroPessoa(e.target.value)}
@@ -593,11 +611,11 @@ export default function ItensPage() {
           <label className="mb-1 block text-[11px] font-medium text-slate-600 dark:text-slate-400">Ordenar por</label>
           <select
             value={ordenarPor}
-            onChange={(e) => setOrdenarPor(e.target.value as "data" | "tipo" | "descricao")}
+            onChange={(e) => setOrdenarPor(e.target.value as "data" | "classificacao" | "descricao")}
             className={FILTER_SELECT_CLASS}
           >
             <option value="data">Data</option>
-            <option value="tipo">Tipo</option>
+            <option value="classificacao">Classificação</option>
             <option value="descricao">Descrição</option>
           </select>
         </div>
@@ -605,7 +623,7 @@ export default function ItensPage() {
           <button
             type="button"
             onClick={() => {
-              setFiltroCategoria("");
+              setFiltroClassificacao("");
               setFiltroData("");
               setFiltroPessoa("");
             }}
@@ -617,12 +635,11 @@ export default function ItensPage() {
       </div>
 
       {formOpen && (
-        // Modal fixo de propósito: clicar fora NÃO fecha (padrão pra todo modal do app, evita
-        // perder o preenchimento com um clique sem querer) - só o "✕" e o "Cancelar" fecham.
+        // Modal fixo de propósito: clicar fora NÃO fecha (padrão pra todo modal do app).
         <div className="fixed inset-0 z-30 flex items-start justify-center overflow-y-auto bg-black/40 p-4 sm:items-center">
           <form
             onSubmit={handleSubmit}
-            className="flex w-full max-w-[50rem] flex-col gap-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-xl"
+            className="flex w-full max-w-[42rem] flex-col gap-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-xl"
           >
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
@@ -638,46 +655,95 @@ export default function ItensPage() {
               </button>
             </div>
 
-            {/* Primeira opção: anexo (ver spec) - escolher o arquivo habilita "Analisar", que
-                tenta pré-preencher o resto do formulário lendo o voucher via Gemini. */}
-            <div className="flex flex-wrap items-end gap-3 rounded-xl border border-dashed border-slate-200 dark:border-slate-800 p-3">
-              <div className="flex-1 min-w-[220px]">
-                <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">
-                  Anexo (PDF ou imagem)
-                </label>
+            {/* Topo: Data / Classificação / Subclassificação / Descrição / Anexo / Analisar. */}
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <Campo label="Data" compact>
                 <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept={ACCEPT_VOUCHER}
-                  onChange={(e) => {
-                    setFile(e.target.files?.[0] ?? null);
-                    // Trocar o arquivo invalida a leitura anterior por inteiro, não só o "li com
-                    // sucesso": o 2º trecho e os avisos eram do documento antigo.
-                    setAnalisado(false);
-                    setSegundoTrecho(null);
-                    setAvisosAnalise([]);
-                  }}
-                  className="block w-full text-sm text-slate-600 dark:text-slate-400 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-900 file:px-3 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-slate-800"
+                  type="date"
+                  required
+                  value={form.data}
+                  onChange={(e) => setField("data", e.target.value)}
+                  className={inputClass}
                 />
-                {editingAnexoNome && !file && (
-                  <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
-                    Já tem um anexo (📎 {editingAnexoNome}) - escolha outro arquivo só se quiser
-                    substituí-lo.
-                  </p>
-                )}
-              </div>
-              <button
-                type="button"
-                onClick={handleAnalisar}
-                disabled={!file || analisando}
-                className="rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50"
-              >
-                {analisando ? "Analisando..." : "🔎 Analisar voucher"}
-              </button>
+              </Campo>
+              <Campo label="Classificação" compact>
+                <select
+                  required
+                  value={form.classificacao_id}
+                  onChange={(e) =>
+                    setForm((prev) => ({ ...prev, classificacao_id: e.target.value, subclassificacao_id: "" }))
+                  }
+                  className={inputClass}
+                >
+                  <option value="">Selecione...</option>
+                  {classificacoesAtivas.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.nome}
+                    </option>
+                  ))}
+                </select>
+              </Campo>
+              <Campo label="Subclassificação" compact>
+                <select
+                  value={form.subclassificacao_id}
+                  onChange={(e) => setField("subclassificacao_id", e.target.value)}
+                  disabled={!form.classificacao_id}
+                  className={inputClass}
+                >
+                  <option value="">Nenhuma</option>
+                  {subclassificacoesDaClassificacao.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.nome}
+                    </option>
+                  ))}
+                </select>
+              </Campo>
+              <Campo label="Anexo" compact>
+                <div className="flex items-center gap-2">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept={ACCEPT_VOUCHER}
+                    onChange={(e) => {
+                      setFile(e.target.files?.[0] ?? null);
+                      setAnalisado(false);
+                      setSegundoTrecho(null);
+                      setAvisosAnalise([]);
+                    }}
+                    className="hidden"
+                    id="input-anexo-item"
+                  />
+                  <label
+                    htmlFor="input-anexo-item"
+                    title={file ? file.name : "Anexar arquivo"}
+                    className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-slate-300 dark:border-slate-700 text-lg hover:bg-slate-50 dark:hover:bg-slate-800"
+                  >
+                    📎
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleAnalisar}
+                    disabled={!file || analisando}
+                    title="Analisar anexo"
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-300 dark:border-slate-700 text-lg hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40"
+                  >
+                    {analisando ? "…" : "🔎"}
+                  </button>
+                </div>
+              </Campo>
             </div>
+            {file && (
+              <p className="text-xs text-slate-400 dark:text-slate-500">📎 {file.name}</p>
+            )}
+            {editingAnexoNome && !file && (
+              <p className="text-xs text-slate-400 dark:text-slate-500">
+                Já tem um anexo (📎 {editingAnexoNome}) - escolha outro arquivo só se quiser
+                substituí-lo.
+              </p>
+            )}
             {analisado && (
               <p className="text-xs text-emerald-600 dark:text-emerald-400">
-                Preenchi o que consegui identificar no voucher - confira os campos abaixo antes de
+                Preenchi o que consegui identificar no anexo - confira os campos abaixo antes de
                 cadastrar.
               </p>
             )}
@@ -706,36 +772,38 @@ export default function ItensPage() {
               </div>
             )}
 
-            {/* Anexos extras: só depois que o item já existe e já tem o principal preenchido -
-                sem opção de "Analisar voucher", diferente do de cima. Upload/remoção acontecem na
-                hora (exigem internet), não esperam o "Salvar" deste formulário. */}
+            <Campo label="Descrição" grow>
+              <input required value={form.descricao} onChange={(e) => setField("descricao", e.target.value)} className={inputClass} />
+            </Campo>
+
             {editingId && editingAnexoNome && (
               <div className="flex flex-col gap-2 rounded-xl border border-dashed border-slate-200 dark:border-slate-800 p-3">
                 <label className="text-xs font-medium text-slate-600 dark:text-slate-400">
                   Anexos extras
                 </label>
-                {extrasDoEditingItem.length > 0 && (
+                {todosExtras.filter((a) => a.item_id === editingId).length > 0 && (
                   <ul className="flex flex-col gap-1">
-                    {extrasDoEditingItem.map((a) => (
-                      <li key={a.id} className="flex items-center justify-between gap-2 text-sm">
-                        <button
-                          type="button"
-                          onClick={() => setAnexoAberto({ fileId: a.file_id, nome: a.nome })}
-                          className="truncate text-left text-blue-600 dark:text-blue-400 hover:underline"
-                        >
-                          📎 {a.nome}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveExtra(a)}
-                          disabled={removingExtraId === a.id || !online}
-                          title={online ? undefined : "Remover anexo precisa de internet"}
-                          className="shrink-0 text-xs font-medium text-red-600 dark:text-red-400 hover:text-red-700 disabled:opacity-50"
-                        >
-                          {removingExtraId === a.id ? "Removendo..." : "Remover"}
-                        </button>
-                      </li>
-                    ))}
+                    {todosExtras
+                      .filter((a) => a.item_id === editingId)
+                      .map((a) => (
+                        <li key={a.id} className="flex items-center justify-between gap-2 text-sm">
+                          <button
+                            type="button"
+                            onClick={() => setAnexoAberto({ fileId: a.file_id, nome: a.nome })}
+                            className="truncate text-left text-blue-600 dark:text-blue-400 hover:underline"
+                          >
+                            📎 {a.nome}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveExtra(a)}
+                            disabled={removingExtraId === a.id || !online}
+                            className="shrink-0 text-xs font-medium text-red-600 dark:text-red-400 hover:text-red-700 disabled:opacity-50"
+                          >
+                            {removingExtraId === a.id ? "Removendo..." : "Remover"}
+                          </button>
+                        </li>
+                      ))}
                   </ul>
                 )}
                 <input
@@ -743,7 +811,6 @@ export default function ItensPage() {
                   type="file"
                   accept={ACCEPT_VOUCHER}
                   disabled={addingExtra || !online}
-                  title={online ? undefined : "Adicionar anexo precisa de internet"}
                   onChange={(e) => {
                     const f = e.target.files?.[0];
                     if (f) handleAddExtra(f);
@@ -757,240 +824,176 @@ export default function ItensPage() {
               </div>
             )}
 
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-              Dados do item
-            </h3>
-            <div className="min-w-[160px]">
-              <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">
-                Categoria
+            {/* Acordeão Financeiro */}
+            <div className="rounded-xl border border-slate-200 dark:border-slate-800">
+              <label className="flex cursor-pointer items-center gap-2 px-3 py-2.5">
+                <input
+                  type="checkbox"
+                  checked={form.financeiroAtivo}
+                  onChange={(e) => setField("financeiroAtivo", e.target.checked)}
+                  className="h-4 w-4"
+                />
+                <span className="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">
+                  💰 Financeiro
+                </span>
               </label>
-              <select
-                value={form.categoria}
-                onChange={(e) => handleCategoriaChange(e.target.value as CategoriaItem)}
-                className="w-full max-w-xs rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
-              >
-                {CATEGORIAS_ITEM.map((c) => (
-                  <option key={c.value} value={c.value}>
-                    {c.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Campos específicos por categoria */}
-          {(form.categoria === "traslado" || form.categoria === "passagem") && (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <Campo label="Tipo" compact>
-                <select
-                  value={form.tipo}
-                  onChange={(e) => setField("tipo", e.target.value)}
-                  className={inputClass}
-                >
-                  <option value="">Selecione...</option>
-                  {(form.categoria === "traslado" ? TIPOS_TRASLADO : TIPOS_PASSAGEM).map((t) => (
-                    <option key={t} value={t}>
-                      {t}
-                    </option>
-                  ))}
-                </select>
-              </Campo>
-              <Campo label="Companhia" compact>
-                <input value={form.nome_companhia} onChange={(e) => setField("nome_companhia", e.target.value)} className={inputClass} />
-              </Campo>
-              <Campo label="Localizador" compact>
-                <input value={form.localizador} onChange={(e) => setField("localizador", e.target.value)} className={inputClass} />
-              </Campo>
-              <Campo label="Número" compact>
-                <input value={form.numero} onChange={(e) => setField("numero", e.target.value)} className={inputClass} />
-              </Campo>
-              <Campo label="Origem" compact>
-                <input value={form.origem} onChange={(e) => setField("origem", e.target.value)} className={inputClass} />
-              </Campo>
-              <Campo label="Destino" compact>
-                <input value={form.destino} onChange={(e) => setField("destino", e.target.value)} className={inputClass} />
-              </Campo>
-              <CampoInicioFim form={form} setField={setField} />
-            </div>
-          )}
-
-          {(form.categoria === "hospedagem" || form.categoria === "alimentacao") && (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <Campo label={form.categoria === "hospedagem" ? "Hospedagem" : "Estabelecimento"} compact>
-                <input value={form.nome_local} onChange={(e) => setField("nome_local", e.target.value)} className={inputClass} />
-              </Campo>
-              <Campo label="Endereço" compact>
-                <input value={form.endereco} onChange={(e) => setField("endereco", e.target.value)} className={inputClass} />
-              </Campo>
-              <CampoInicioFim form={form} setField={setField} />
-            </div>
-          )}
-
-          {form.categoria === "atrativo" && (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <Campo label="Tipo" compact>
-                <select value={form.tipo} onChange={(e) => setField("tipo", e.target.value)} className={inputClass}>
-                  <option value="">Selecione...</option>
-                  {TIPOS_ATRATIVO.map((t) => (
-                    <option key={t} value={t}>
-                      {t}
-                    </option>
-                  ))}
-                </select>
-              </Campo>
-              <Campo label="Companhia" compact>
-                <input value={form.nome_companhia} onChange={(e) => setField("nome_companhia", e.target.value)} className={inputClass} />
-              </Campo>
-              <Campo label="Localizador" compact>
-                <input value={form.localizador} onChange={(e) => setField("localizador", e.target.value)} className={inputClass} />
-              </Campo>
-              <Campo label="Número" compact>
-                <input value={form.numero} onChange={(e) => setField("numero", e.target.value)} className={inputClass} />
-              </Campo>
-              <CampoInicioFim form={form} setField={setField} />
-            </div>
-          )}
-
-          {form.categoria === "documento" && (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <Campo label="Tipo de documento" compact>
-                <select value={form.tipo_documento} onChange={(e) => setField("tipo_documento", e.target.value)} className={inputClass}>
-                  <option value="">Selecione...</option>
-                  {TIPOS_DOCUMENTO.map((t) => (
-                    <option key={t} value={t}>
-                      {t}
-                    </option>
-                  ))}
-                </select>
-              </Campo>
-              <Campo label="Passageiro" compact>
-                <select value={form.passageiro_id} onChange={(e) => setField("passageiro_id", e.target.value)} className={inputClass}>
-                  <option value="">Selecione...</option>
-                  {collaborators.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.nome}
-                    </option>
-                  ))}
-                </select>
-              </Campo>
-            </div>
-          )}
-
-          {(form.categoria === "repasse" || form.categoria === "documento" || form.categoria === "outro") && (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <Campo label="Data do item" compact>
-                <div className="flex flex-col gap-1">
-                  <input type="date" required value={form.data} onChange={(e) => setField("data", e.target.value)} className={inputClass} />
-                  <TimeField value={form.horario} onChange={(v) => setField("horario", v)} />
+              {form.financeiroAtivo && (
+                <div className="flex flex-col gap-3 border-t border-slate-100 dark:border-slate-800 p-3">
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    <Campo label="Moeda" compact>
+                      <select value={form.moeda} onChange={(e) => setField("moeda", e.target.value)} className={inputClass}>
+                        <option value="">R$ (Real)</option>
+                        {moedasItem.map((m) => (
+                          <option key={m.code} value={m.code}>
+                            {m.label}
+                          </option>
+                        ))}
+                      </select>
+                    </Campo>
+                    <Campo label={form.moeda ? `Qtde moeda (${form.moeda})` : "Qtde moeda"} compact>
+                      <input type="number" min={0} step="0.01" value={form.valor} onChange={(e) => setField("valor", e.target.value)} className={`${inputClass} text-right`} />
+                    </Campo>
+                    <Campo label={form.natureza === "credito" ? "Quem contribuiu" : "Pago Por"} compact>
+                      <select value={form.pagador_id} onChange={(e) => setPagador(e.target.value)} className={inputClass}>
+                        <option value="">Selecione...</option>
+                        {collaborators.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.nome}
+                          </option>
+                        ))}
+                      </select>
+                    </Campo>
+                    <Campo label="Meio de pagamento" compact>
+                      <select value={form.meio_pagamento_id} onChange={(e) => setField("meio_pagamento_id", e.target.value)} className={inputClass}>
+                        <option value="">Selecione...</option>
+                        {meiosPagamento.map((m) => (
+                          <option key={m.id} value={m.id}>
+                            {m.nome}
+                          </option>
+                        ))}
+                      </select>
+                    </Campo>
+                  </div>
+                  {conversaoValor && (
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      {conversaoValor.fonte === "cambio" && (
+                        <>≈ {formatBRL(conversaoValor.valorBRL)} pelo custo médio do câmbio ({formatBRL(conversaoValor.taxa)}/{form.moeda}).</>
+                      )}
+                      {conversaoValor.fonte === "cotacao" && (
+                        <>≈ {formatBRL(conversaoValor.valorBRL)} pela cotação do dia ({formatBRL(conversaoValor.taxa)}/{form.moeda}) - sem câmbio de {form.moeda} registrado ainda.</>
+                      )}
+                      {conversaoValor.fonte === "sem_taxa" && (
+                        <>Sem câmbio nem cotação de {form.moeda} - registre um câmbio no Financeiro pra converter no Relatório.</>
+                      )}
+                    </p>
+                  )}
+                  <div className="flex flex-wrap items-center gap-4">
+                    <label className="flex items-center gap-2 text-xs font-medium text-slate-600 dark:text-slate-400">
+                      <input
+                        type="checkbox"
+                        checked={form.pago}
+                        onChange={(e) => setField("pago", e.target.checked)}
+                        className="h-4 w-4"
+                      />
+                      {form.pago ? STATUS_PAGAMENTO[1].label : STATUS_PAGAMENTO[0].label}
+                    </label>
+                    <label className="flex items-center gap-2 text-xs font-medium text-slate-600 dark:text-slate-400">
+                      Natureza
+                      <select
+                        value={form.natureza}
+                        onChange={(e) => setField("natureza", e.target.value as "debito" | "credito")}
+                        className="rounded-lg border border-slate-300 dark:border-slate-700 px-2 py-1 text-xs font-normal"
+                      >
+                        <option value="debito">Débito</option>
+                        <option value="credito">Crédito</option>
+                      </select>
+                    </label>
+                    <Campo label="Data pagamento" compact>
+                      <input type="date" value={form.data_pagamento} onChange={(e) => setField("data_pagamento", e.target.value)} className={inputClass} />
+                    </Campo>
+                  </div>
                 </div>
-              </Campo>
-            </div>
-          )}
-
-          <div className="flex flex-wrap gap-3">
-            <Campo label="URL" grow>
-              <input type="url" value={form.url} onChange={(e) => setField("url", e.target.value)} placeholder="https://..." className={inputClass} />
-            </Campo>
-            <Campo label="Descrição" grow>
-              <input required value={form.descricao} onChange={(e) => setField("descricao", e.target.value)} className={inputClass} />
-            </Campo>
-          </div>
-
-          {isFinanceira && (
-            <div className="flex flex-col gap-2 border-t border-slate-200 dark:border-slate-800 pt-3">
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                Dados financeiros
-              </h3>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-6">
-              <Campo label="Moeda" compact>
-                <select value={form.moeda} onChange={(e) => setField("moeda", e.target.value)} className={inputClass}>
-                  <option value="">R$ (Real)</option>
-                  {moedasItem.map((m) => (
-                    <option key={m.code} value={m.code}>
-                      {m.label}
-                    </option>
-                  ))}
-                </select>
-              </Campo>
-              <Campo label={form.moeda && form.moeda !== "BRL" ? `Valor (${form.moeda})` : "Valor"} compact>
-                <input type="number" min={0} step="0.01" value={form.valor} onChange={(e) => setField("valor", e.target.value)} className={`${inputClass} text-right`} />
-              </Campo>
-              <Campo label="Status" compact>
-                <select value={form.status} onChange={(e) => setField("status", e.target.value as FormState["status"])} className={inputClass}>
-                  <option value="">Selecione...</option>
-                  {STATUS_PAGAMENTO.map((s) => (
-                    <option key={s.value} value={s.value}>
-                      {s.label}
-                    </option>
-                  ))}
-                </select>
-              </Campo>
-              <Campo label="Data pagamento" compact>
-                <input type="date" value={form.data_pagamento} onChange={(e) => setField("data_pagamento", e.target.value)} className={inputClass} />
-              </Campo>
-              <Campo label={form.categoria === "repasse" ? "Quem contribuiu" : "Quem pagou"} compact>
-                <select value={form.pagador_id} onChange={(e) => setPagador(e.target.value)} className={inputClass}>
-                  <option value="">Selecione...</option>
-                  {collaborators.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.nome}
-                    </option>
-                  ))}
-                </select>
-              </Campo>
-              <Campo label="Meio de pagamento" compact>
-                <select value={form.meio_pagamento_id} onChange={(e) => setField("meio_pagamento_id", e.target.value)} className={inputClass}>
-                  <option value="">Selecione...</option>
-                  {meiosPagamento.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.nome}
-                    </option>
-                  ))}
-                </select>
-              </Campo>
-              </div>
-              {conversaoValor && (
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  {conversaoValor.fonte === "cambio" && (
-                    <>≈ {formatBRL(conversaoValor.valorBRL)} pelo custo médio do câmbio ({formatBRL(conversaoValor.taxa)}/{form.moeda}).</>
-                  )}
-                  {conversaoValor.fonte === "cotacao" && (
-                    <>≈ {formatBRL(conversaoValor.valorBRL)} pela cotação do dia ({formatBRL(conversaoValor.taxa)}/{form.moeda}) - ainda não há câmbio de {form.moeda} registrado nesta viagem.</>
-                  )}
-                  {conversaoValor.fonte === "sem_taxa" && (
-                    <>Sem câmbio nem cotação de {form.moeda} - registre um câmbio dessa moeda no Financeiro pra converter no Relatório.</>
-                  )}
-                </p>
               )}
             </div>
-          )}
 
-          {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+            {/* Acordeão Roteiro */}
+            <div className="rounded-xl border border-slate-200 dark:border-slate-800">
+              <label className="flex cursor-pointer items-center gap-2 px-3 py-2.5">
+                <input
+                  type="checkbox"
+                  checked={form.roteiroAtivo}
+                  onChange={(e) => setField("roteiroAtivo", e.target.checked)}
+                  className="h-4 w-4"
+                />
+                <span className="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">
+                  🗺️ Roteiro
+                </span>
+              </label>
+              {form.roteiroAtivo && (
+                <div className="grid grid-cols-2 gap-3 border-t border-slate-100 dark:border-slate-800 p-3 sm:grid-cols-4">
+                  <Campo label="Localizador" compact>
+                    <input value={form.localizador} onChange={(e) => setField("localizador", e.target.value)} className={inputClass} />
+                  </Campo>
+                  <Campo label="Companhia" compact>
+                    <input value={form.nome_companhia} onChange={(e) => setField("nome_companhia", e.target.value)} className={inputClass} />
+                  </Campo>
+                  <Campo label="Número" compact>
+                    <input value={form.numero} onChange={(e) => setField("numero", e.target.value)} className={inputClass} />
+                  </Campo>
+                  <Campo label="Origem" compact>
+                    <input value={form.origem} onChange={(e) => setField("origem", e.target.value)} className={inputClass} />
+                  </Campo>
+                  <Campo label="Destino" compact>
+                    <input value={form.destino} onChange={(e) => setField("destino", e.target.value)} className={inputClass} />
+                  </Campo>
+                  <Campo label="Local" compact>
+                    <input value={form.nome_local} onChange={(e) => setField("nome_local", e.target.value)} className={inputClass} />
+                  </Campo>
+                  <Campo label="Endereço" compact>
+                    <input value={form.endereco} onChange={(e) => setField("endereco", e.target.value)} className={inputClass} />
+                  </Campo>
+                  <Campo label="URL" compact>
+                    <input type="url" value={form.url} onChange={(e) => setField("url", e.target.value)} placeholder="https://..." className={inputClass} />
+                  </Campo>
+                  <Campo label="Início" compact>
+                    <div className="flex flex-col gap-1">
+                      <input type="date" value={form.data_inicio} onChange={(e) => setField("data_inicio", e.target.value)} className={inputClass} />
+                      <TimeField value={form.hora_inicio} onChange={(v) => setField("hora_inicio", v)} />
+                    </div>
+                  </Campo>
+                  <Campo label="Término" compact>
+                    <div className="flex flex-col gap-1">
+                      <input type="date" value={form.data_fim} onChange={(e) => setField("data_fim", e.target.value)} className={inputClass} />
+                      <TimeField value={form.hora_fim} onChange={(v) => setField("hora_fim", v)} />
+                    </div>
+                  </Campo>
+                </div>
+              )}
+            </div>
 
-          <div className="flex gap-2">
-            <button
-              type="submit"
-              disabled={saving}
-              className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
-            >
-              {saving ? "Salvando..." : "Salvar"}
-            </button>
-            <button
-              type="button"
-              onClick={closeForm}
-              className="rounded-lg border border-slate-300 dark:border-slate-700 px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"
-            >
-              Cancelar
-            </button>
-          </div>
+            {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+
+            <div className="flex gap-2">
+              <button
+                type="submit"
+                disabled={saving}
+                className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+              >
+                {saving ? "Salvando..." : "Salvar"}
+              </button>
+              <button
+                type="button"
+                onClick={closeForm}
+                className="rounded-lg border border-slate-300 dark:border-slate-700 px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"
+              >
+                Cancelar
+              </button>
+            </div>
           </form>
         </div>
       )}
 
-      {/* Lista sem `<table>` de propósito - uma tabela de verdade não reflui, então em telas
-          estreitas ela força rolagem lateral pra caber Data/Tipo/Descrição/Ações lado a lado.
-          Aqui cada item é uma linha flex que QUEBRA em 2 sub-linhas (data+tipo em cima, descrição
-          embaixo, truncada) em vez de estourar a largura - nunca precisa de scroll horizontal,
-          em nenhum tamanho de tela. */}
+      {/* Lista sem `<table>` de propósito - ver armadilha de rolagem lateral no mobile. */}
       <div className="divide-y divide-slate-100 dark:divide-slate-800 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
         {loading && (
           <p className="px-3 py-3 text-xs text-slate-500 dark:text-slate-400">Carregando...</p>
@@ -1011,7 +1014,7 @@ export default function ItensPage() {
                   {formatDataBR(item.data)} {item.horario}
                 </span>
                 <span className="text-slate-400 dark:text-slate-500">
-                  {CATEGORIA_LABEL[item.categoria] ?? item.categoria}
+                  {nomePorClassificacao[item.classificacao_id] ?? "Sem classificação"}
                 </span>
                 {item.anexo_file_id && (
                   <span
@@ -1057,6 +1060,8 @@ export default function ItensPage() {
         tripId={tripId}
         nomePorPessoa={nomePorPessoa}
         nomePorMeio={nomePorMeio}
+        nomePorClassificacao={nomePorClassificacao}
+        nomePorSubclassificacao={nomePorSubclassificacao}
         extraAnexos={
           viewingItem ? todosExtras.filter((a) => a.item_id === viewingItem.id) : undefined
         }
@@ -1084,34 +1089,6 @@ export default function ItensPage() {
 
 const inputClass = "w-full rounded-lg border border-slate-300 dark:border-slate-700 px-2 py-2 text-sm";
 
-/** Par de campos início/fim (data+hora cada) - mesmas colunas `data_inicio`/`data_fim` em toda
- * categoria que os usa, só o RÓTULO muda (ver `LABELS_INICIO_FIM`). */
-function CampoInicioFim({
-  form,
-  setField,
-}: {
-  form: FormState;
-  setField: <K extends keyof FormState>(key: K, value: FormState[K]) => void;
-}) {
-  const [labelInicio, labelFim] = LABELS_INICIO_FIM[form.categoria] ?? ["Início", "Término"];
-  return (
-    <>
-      <Campo label={labelInicio} compact>
-        <div className="flex flex-col gap-1">
-          <input type="date" required value={form.data_inicio} onChange={(e) => setField("data_inicio", e.target.value)} className={inputClass} />
-          <TimeField value={form.hora_inicio} onChange={(v) => setField("hora_inicio", v)} />
-        </div>
-      </Campo>
-      <Campo label={labelFim} compact>
-        <div className="flex flex-col gap-1">
-          <input type="date" value={form.data_fim} onChange={(e) => setField("data_fim", e.target.value)} className={inputClass} />
-          <TimeField value={form.hora_fim} onChange={(v) => setField("hora_fim", v)} />
-        </div>
-      </Campo>
-    </>
-  );
-}
-
 function Campo({
   label,
   grow,
@@ -1120,8 +1097,6 @@ function Campo({
 }: {
   label: string;
   grow?: boolean;
-  /** Pra usar dentro de um grid de colunas fixas (ex.: a linha de Dados financeiros) - sem
-   * min-width próprio, senão força a coluna a estourar a largura que o grid já reservou. */
   compact?: boolean;
   children: React.ReactNode;
 }) {

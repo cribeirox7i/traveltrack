@@ -1,37 +1,50 @@
 import { NextRequest, NextResponse } from "next/server";
 import { detectarTipoVoucher } from "@/lib/fileValidation";
 import { errorResponse, requireSession, sessionCanAccessTrip, tripLockError } from "@/lib/api-helpers";
-import { listItensByTrip } from "@/lib/sheets/itens";
 import { uploadAnexo } from "@/lib/sheets/anexos";
-import { createItemAnexo } from "@/lib/sheets/itemAnexos";
+import { createAnexoSolto, listAnexosSoltosByTrip } from "@/lib/sheets/anexosSoltos";
 import { getTrip } from "@/lib/sheets/trips";
 
 // Mesmo teto das outras rotas de upload (margem abaixo do limite de corpo das funções
 // serverless da Vercel, ~4.5MB).
 const MAX_FILE_BYTES = 4 * 1024 * 1024;
 
-/** Anexo ADICIONAL de um item que já tem o principal (`anexo_file_id`) - sem opção de análise
- * por voucher, só arquivo + nome. O item precisa já existir com o anexo principal preenchido:
- * sem isso a tela nem oferece o botão, e a rota confere de novo aqui (mesmo padrão de
- * "não confiar só na UI" do resto do app). */
-export async function POST(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string; itemId: string }> }
+export async function GET(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const auth = await requireSession();
   if ("error" in auth) return auth.error;
 
-  const { id, itemId } = await params;
-  const { user } = auth.session;
+  const { id } = await params;
   if (!(await sessionCanAccessTrip(auth.session, id))) {
     return errorResponse("Sem acesso a esta viagem", 403);
   }
 
-  const itens = await listItensByTrip(id);
-  const item = itens.find((i) => i.id === itemId);
-  if (!item) return errorResponse("Item não encontrado", 404);
-  if (!item.anexo_file_id) {
-    return errorResponse("Este item ainda não tem o anexo principal - cadastre-o primeiro");
+  try {
+    return NextResponse.json(await listAnexosSoltosByTrip(id));
+  } catch (err) {
+    console.error("GET anexos-soltos falhou:", err);
+    return errorResponse(
+      err instanceof Error ? `Falha ao carregar os anexos: ${err.message}` : "Falha ao carregar os anexos",
+      502
+    );
+  }
+}
+
+/** Sempre multipart (arquivo obrigatório) - diferente de Itens, aqui não existe "salvar sem
+ * arquivo": o anexo solto É o arquivo, data/descrição são só metadado dele. */
+export async function POST(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const auth = await requireSession();
+  if ("error" in auth) return auth.error;
+
+  const { id } = await params;
+  const { user } = auth.session;
+  if (!(await sessionCanAccessTrip(auth.session, id))) {
+    return errorResponse("Sem acesso a esta viagem", 403);
   }
 
   const trip = await getTrip(id);
@@ -44,9 +57,11 @@ export async function POST(
 
   const form = await req.formData();
   const file = form.get("file");
-  if (!(file instanceof File) || file.size === 0) {
-    return errorResponse("Escolha um arquivo");
-  }
+  const data = String(form.get("data") ?? "").trim();
+  const descricao = String(form.get("descricao") ?? "").trim();
+
+  if (!(file instanceof File) || file.size === 0) return errorResponse("Escolha um arquivo");
+  if (!data) return errorResponse("Escolha a data");
   if (file.size > MAX_FILE_BYTES) {
     return errorResponse(`Arquivo muito grande (máx. ${(MAX_FILE_BYTES / (1024 * 1024)).toFixed(0)}MB)`);
   }
@@ -60,16 +75,16 @@ export async function POST(
     const anexo = await uploadAnexo({
       tripId: trip.id,
       tripName: trip.nome,
-      // Classificação é dado livre do admin agora - não dá pra mapear pra pasta fixa do Drive.
       categoria: "outros",
       filename: file.name,
       mimeType: tipoDetectado,
       base64Data: buffer.toString("base64"),
     });
 
-    const criado = await createItemAnexo({
-      itemId,
+    const criado = await createAnexoSolto({
       tripId: id,
+      data,
+      descricao,
       fileId: anexo.fileId,
       nome: anexo.name,
       url: anexo.url,
@@ -78,7 +93,7 @@ export async function POST(
 
     return NextResponse.json(criado, { status: 201 });
   } catch (err) {
-    console.error("upload de anexo extra falhou:", err);
+    console.error("upload de anexo solto falhou:", err);
     return errorResponse(
       err instanceof Error ? `Falha ao enviar o anexo: ${err.message}` : "Falha ao enviar o anexo",
       502

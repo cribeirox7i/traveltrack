@@ -3,15 +3,19 @@
 import { useCallback, useEffect, useState } from "react";
 import { getAnexoFile, getMeta, getOne, listAll, listByTrip, listOutbox } from "./db";
 import {
+  ClassificacaoInfo,
   CountryInfo,
   MAX_OUTBOX_ATTEMPTS,
   MeioPagamentoInfo,
   PersonOption,
+  SubclassificacaoInfo,
   isOnline,
   pullAnexosList,
+  pullClassificacoes,
   pullCollaborators,
   pullCountries,
   pullMeiosPagamento,
+  pullSubclassificacoes,
   pullTripDetail,
   pullTrips,
   syncEvents,
@@ -68,7 +72,15 @@ export function useOfflineTrip<T extends { id: string }>(tripId: string | undefi
 
 /** Dias / despesas / receitas de uma viagem. Puxa do servidor em segundo plano quando online. */
 export function useOfflineCollection<T extends { id: string }>(
-  tab: "tripDays" | "despesas" | "receitas" | "agenda" | "itens" | "itemAnexos" | "cambio",
+  tab:
+    | "tripDays"
+    | "despesas"
+    | "receitas"
+    | "agenda"
+    | "itens"
+    | "itemAnexos"
+    | "cambio"
+    | "anexosSoltos",
   tripId: string | undefined
 ) {
   const [items, setItems] = useState<T[]>([]);
@@ -182,6 +194,48 @@ export function useCountries(): CountryInfo[] {
   useEffect(() => {
     refresh();
     if (isOnline()) pullCountries().catch(() => {});
+  }, [refresh]);
+
+  useSyncChangeListener(refresh);
+
+  return lista;
+}
+
+/** Classificações do cadastro de Itens (curadas pelo admin) - mesma lógica de cache local de
+ * `useCountries`/`useMeiosPagamento`. Inclui inativas de propósito (quem filtra por `ativo` é o
+ * formulário, que também precisa mostrar a classificação já escolhida num item antigo mesmo que
+ * tenha sido desativada depois). */
+export function useClassificacoes(): ClassificacaoInfo[] {
+  const [lista, setLista] = useState<ClassificacaoInfo[]>([]);
+
+  const refresh = useCallback(async () => {
+    const local = await getMeta("classificacoes");
+    setLista(Array.isArray(local) ? (local as ClassificacaoInfo[]) : []);
+  }, []);
+
+  useEffect(() => {
+    refresh();
+    if (isOnline()) pullClassificacoes().catch(() => {});
+  }, [refresh]);
+
+  useSyncChangeListener(refresh);
+
+  return lista;
+}
+
+/** Subclassificações (todas, de qualquer classificação) - quem usa filtra por
+ * `classificacao_id` no cliente. */
+export function useSubclassificacoes(): SubclassificacaoInfo[] {
+  const [lista, setLista] = useState<SubclassificacaoInfo[]>([]);
+
+  const refresh = useCallback(async () => {
+    const local = await getMeta("subclassificacoes");
+    setLista(Array.isArray(local) ? (local as SubclassificacaoInfo[]) : []);
+  }, []);
+
+  useEffect(() => {
+    refresh();
+    if (isOnline()) pullSubclassificacoes().catch(() => {});
   }, [refresh]);
 
   useSyncChangeListener(refresh);

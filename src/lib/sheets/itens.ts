@@ -1,28 +1,21 @@
 import { v4 as uuid } from "uuid";
 import { appendRows, deleteRow, readSheet, updateRow } from "./repository";
-import { CategoriaAnexo } from "./anexos";
-import { CategoriaItem, ItemRow, categoriaNatureza } from "./types";
-
-/** Categoria de Item -> categoria de pasta no Drive (`CATEGORIAS_ANEXO` em lib/sheets/anexos.ts) -
- * reaproveita a mesma árvore de pastas que Anexos/Agenda já usam, em vez de tudo cair em
- * "outros". Usado tanto pro anexo principal do item quanto pelos extras de `ItemAnexos`. */
-export const CATEGORIA_ITEM_DRIVE: Record<CategoriaItem, CategoriaAnexo> = {
-  traslado: "traslado",
-  passagem: "passagem",
-  hospedagem: "hospedagem",
-  alimentacao: "alimentacao",
-  atrativo: "passeio",
-  repasse: "outros",
-  documento: "documentos",
-  outro: "outros",
-};
+import { ItemRow } from "./types";
 
 /** Campos que o cliente pode enviar na criação/edição de um Item - tudo que NÃO está aqui (id,
- * trip_id, natureza, criado_por, criado_em) é calculado pelo servidor, nunca aceito do payload
- * (mesmo padrão de whitelist que `DAY_PATCHABLE_FIELDS` usa em trips.ts). */
+ * trip_id, criado_por, criado_em) é calculado pelo servidor ou simplesmente não é mais aceito
+ * (whitelist, mesmo padrão de `DAY_PATCHABLE_FIELDS` em trips.ts).
+ *
+ * Reforma de 2026-09-21: `classificacao_id`/`subclassificacao_id` (FK pras abas Classificacoes/
+ * Subclassificacoes) substituem o antigo `categoria`/`tipo`; `financeiro_ativo`/`roteiro_ativo`
+ * são os dois interruptores do formulário novo; `natureza` (débito/crédito) virou campo explícito
+ * do acordeão Financeiro em vez de calculado a partir da categoria (que era fixa, e classificação
+ * agora é dado livre do admin). */
 export const ITEM_EDITABLE_FIELDS = [
-  "categoria",
-  "tipo",
+  "classificacao_id",
+  "subclassificacao_id",
+  "financeiro_ativo",
+  "roteiro_ativo",
   "localizador",
   "nome_companhia",
   "numero",
@@ -36,23 +29,22 @@ export const ITEM_EDITABLE_FIELDS = [
   "hora_inicio",
   "data_fim",
   "hora_fim",
-  "tipo_documento",
-  "passageiro_id",
   "url",
   "anexo_file_id",
   "anexo_nome",
   "anexo_url",
   "descricao",
   "valor",
+  "moeda",
   "status",
+  "natureza",
   "data_pagamento",
   "pagador_id",
   "meio_pagamento_id",
-  "moeda",
 ] as const;
 
 export type ItemEditableInput = Partial<Record<(typeof ITEM_EDITABLE_FIELDS)[number], string>> & {
-  categoria: CategoriaItem;
+  classificacao_id: string;
 };
 
 export async function listItensByTrip(tripId: string): Promise<ItemRow[]> {
@@ -67,14 +59,11 @@ export async function getItem(id: string): Promise<ItemRow | null> {
   return all.find((i) => i.id === id) ?? null;
 }
 
-/** Monta a linha completa a partir do input editável, calculando `natureza` a partir da
- * categoria (nunca um valor livre do cliente - ver `categoriaNatureza`). */
 function buildPatch(input: ItemEditableInput): Record<string, string> {
   const patch: Record<string, string> = {};
   for (const campo of ITEM_EDITABLE_FIELDS) {
     if (input[campo] !== undefined) patch[campo] = input[campo] as string;
   }
-  patch.natureza = categoriaNatureza(input.categoria) ?? "";
   return patch;
 }
 

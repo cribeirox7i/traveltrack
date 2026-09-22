@@ -18,6 +18,7 @@ export const TRIP_TAB_SLUGS = [
   "orcamento",
   "relatorio",
   "cambio",
+  "anexos",
 ] as const;
 
 export type TripTabSlug = (typeof TRIP_TAB_SLUGS)[number];
@@ -50,7 +51,12 @@ export const TRIP_TAB_GROUPS: TripTabGroup[] = [
   {
     key: "itens",
     label: "Itens",
-    tabs: [{ slug: "itens", label: "Itens" }],
+    // "Anexos" voltou como aba solta (reforma do cadastro de Itens, 2026-09-21): arquivo com
+    // data+descrição, sem passar por um Item - convive com Itens em vez de ser substituída por ele.
+    tabs: [
+      { slug: "itens", label: "Itens" },
+      { slug: "anexos", label: "Anexos" },
+    ],
   },
 ];
 

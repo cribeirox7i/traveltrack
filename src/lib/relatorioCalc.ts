@@ -6,13 +6,31 @@ import { converterValorParaBRL, custoMedioPorMoeda } from "./cambioCalc";
 // por causa do rótulo, no plano "Itens de Viagem + OCR de vouchers".
 export type Categoria = "traslado" | "passagem" | "alimentacao" | "atrativo" | "hospedagem";
 
-const CATEGORIAS: { key: Categoria; dayField: string }[] = [
-  { key: "traslado", dayField: "traslado_pp" },
-  { key: "passagem", dayField: "passagem_pp" },
-  { key: "alimentacao", dayField: "alimentacao_pp" },
-  { key: "atrativo", dayField: "passeio_pp" },
-  { key: "hospedagem", dayField: "hospedagem_pp" },
+const CATEGORIAS: { key: Categoria; dayField: string; nomes: string[] }[] = [
+  { key: "traslado", dayField: "traslado_pp", nomes: ["traslado"] },
+  { key: "passagem", dayField: "passagem_pp", nomes: ["passagem"] },
+  { key: "alimentacao", dayField: "alimentacao_pp", nomes: ["alimentacao", "alimentação"] },
+  { key: "atrativo", dayField: "passeio_pp", nomes: ["atrativo"] },
+  { key: "hospedagem", dayField: "hospedagem_pp", nomes: ["hospedagem"] },
 ];
+
+/** Casa o NOME da classificação (dado livre do admin) com uma das 5 categorias fixas do
+ * Orçamento (que vêm de `TripDays`, schema fixo) - só pra alimentar a comparação Orçado x
+ * Realizado por categoria. Comparação por nome exato (sem acento/maiúscula) de propósito: é
+ * assim que a migração semeia as classificações iniciais (Traslado, Passagem, Hospedagem,
+ * Alimentação, Atrativo, Repasse) - o admin pode renomear e aí perde o match aqui, mas o item
+ * continua contando no total (ver `totalDespesas`), só sai da grade por categoria. */
+function categoriaDoNome(nome: string): Categoria | null {
+  const normalizado = nome
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .trim()
+    .toLowerCase();
+  const achado = CATEGORIAS.find((c) =>
+    c.nomes.some((n) => n.normalize("NFD").replace(/[̀-ͯ]/g, "") === normalizado)
+  );
+  return achado?.key ?? null;
+}
 
 export interface RelatorioCategoria {
   categoria: Categoria;
@@ -46,7 +64,9 @@ export interface Relatorio {
 }
 
 interface ItemRelatorio {
-  categoria: string;
+  /** Nome da classificação já resolvido pelo chamador (o item só guarda `classificacao_id`) -
+   * ver `categoriaDoNome`. Vazio/sem match = entra no total mas fora da grade por categoria. */
+  classificacaoNome?: string;
   valor: string | number;
   natureza?: string;
   moeda?: string;
@@ -56,9 +76,10 @@ interface ItemRelatorio {
  * Puro (sem I/O) pra poder ser calculado tanto no servidor (a partir da planilha) quanto no
  * cliente, offline, a partir do cache local em IndexedDB - mesma lógica dos dois lados.
  *
- * `itens` vem da aba Itens (categorias 1-6, as únicas com campo financeiro - ver
- * `categoriaNatureza` em lib/sheets/types.ts). Documento/Outro nunca têm `valor`, então não
- * afetam o cálculo mesmo participando da lista inteira sem filtro prévio.
+ * `itens` vem da aba Itens, só os com `financeiro_ativo === "true"` (quem chama já filtra) e
+ * `natureza` preenchida. `classificacaoNome` (resolvido via `classificacao_id`) só serve pra
+ * bater com uma das 5 categorias fixas do Orçamento - todo débito soma em `totalDespesas`
+ * independente de ter match (ver `categoriaDoNome`).
  *
  * `cambios` são os eventos da aba Câmbio da viagem: item com `moeda` diferente de BRL/vazio é
  * convertido pra R$ pelo custo médio ponderado daquela moeda. `cotacoes` (`{ USD: 5.4, ... }`,
@@ -83,6 +104,7 @@ export function computeRelatorio(
   // Converte cada item pra R$ uma vez, guardando a conversão pra montar os avisos/taxas depois.
   const convertidos = itens.map((i) => ({
     ...i,
+    categoriaKey: categoriaDoNome(i.classificacaoNome ?? ""),
     conv: converterValorParaBRL(i.valor, i.moeda ?? "", medioPorMoeda, cotacoes),
   }));
 
@@ -93,13 +115,16 @@ export function computeRelatorio(
     const somaCampos = days.reduce((sum, day) => sum + (Number(day[dayField]) || 0), 0);
     const orcado = custoModo === "total" ? somaCampos : somaCampos * qtdPessoas;
     const realizado = debitos
-      .filter((d) => d.categoria === key)
+      .filter((d) => d.categoriaKey === key)
       .reduce((sum, d) => sum + d.conv.valorBRL, 0);
     return { categoria: key, orcado, realizado };
   });
 
   const totalOrcado = categorias.reduce((sum, c) => sum + c.orcado, 0);
-  const totalDespesas = categorias.reduce((sum, c) => sum + c.realizado, 0);
+  // Soma TODO débito, não só os que bateram com uma das 5 categorias fixas - uma classificação
+  // renomeada ou nova (o admin cadastra o que quiser) não pode sumir do total só por não ter
+  // como entrar na grade Orçado x Realizado.
+  const totalDespesas = debitos.reduce((sum, d) => sum + d.conv.valorBRL, 0);
   const totalReceitas = creditos.reduce((sum, i) => sum + i.conv.valorBRL, 0);
   const saldo = totalOrcado - totalDespesas + totalReceitas;
 

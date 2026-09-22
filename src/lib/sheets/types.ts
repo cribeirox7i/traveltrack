@@ -14,7 +14,10 @@ export type SheetTab =
   | "Countries"
   | "Itens"
   | "ItemAnexos"
-  | "Cambio";
+  | "Cambio"
+  | "Classificacoes"
+  | "Subclassificacoes"
+  | "Anexos";
 
 export const SHEET_HEADERS: Record<SheetTab, string[]> = {
   // Tenant do sistema: cada ambiente tem seus próprios usuários e viagens, e quem está num
@@ -164,6 +167,13 @@ export const SHEET_HEADERS: Record<SheetTab, string[]> = {
     // viagem (ver `computeRelatorio`), com queda pra cotação do dia (Countries.rate_brl) quando
     // não há câmbio daquela moeda.
     "moeda",
+    // Reforma do cadastro (2026-09-21): substituem categoria/tipo (mantidos na aba por
+    // compatibilidade com as 32 linhas antigas, ver comentário em CategoriaItem/ItemRow) e os
+    // dois interruptores Financeiro/Roteiro do formulário novo.
+    "classificacao_id",
+    "subclassificacao_id",
+    "financeiro_ativo",
+    "roteiro_ativo",
   ],
   // Anexos ADICIONAIS de um Item (além do `anexo_file_id` que já mora na própria linha de Itens -
   // esse continua sendo o único "principal", o único que passa pela análise do Gemini). Uma linha
@@ -187,6 +197,17 @@ export const SHEET_HEADERS: Record<SheetTab, string[]> = {
     "criado_por",
     "criado_em",
   ],
+  // Taxonomia do cadastro de Itens (reforma do formulário, ver ClassificacaoRow/
+  // SubclassificacaoRow) - substitui o enum fixo `CategoriaItem`, curada pelo admin em
+  // /admin/classificacoes. Nascem vazias, o admin preenche depois.
+  Classificacoes: ["id", "nome", "ativo", "criado_em"],
+  // `classificacao_id` é a FK pra `Classificacoes.id` - uma subclassificação pertence a exatamente
+  // uma classificação (ex. "Ônibus" só faz sentido dentro de "Traslado").
+  Subclassificacoes: ["id", "classificacao_id", "nome", "ativo", "criado_em"],
+  // Aba solta de anexos (reforma do cadastro de Itens, 2026-09-21) - volta a existir um lugar pra
+  // guardar arquivo sem passar por um Item: só data, descrição e o arquivo. Sem categoria, sem
+  // vínculo com Item (diferente de `ItemAnexos`, que é sempre extra DE um item).
+  Anexos: ["id", "trip_id", "data", "descricao", "file_id", "nome", "url", "criado_por", "criado_em"],
 };
 
 /**
@@ -405,9 +426,13 @@ export interface CountryRow {
 }
 
 /**
- * Categoria de um Item de viagem. Natureza financeira é FIXA por categoria (não é um campo que o
- * usuário escolhe, ao contrário do antigo `Natureza` de Despesas): 1-5 são sempre débito, Repasse
- * é sempre crédito, Documento/Outro não têm campo financeiro nenhum - ver `categoriaNatureza`.
+ * LEGADO (reforma do cadastro de Itens, 2026-09-21) - `categoria`/`tipo` foram substituídos por
+ * `classificacao_id`/`subclassificacao_id` (FK pras abas `Classificacoes`/`Subclassificacoes`,
+ * curadas pelo admin). Este enum e as funções abaixo (`categoriaNatureza`,
+ * `CATEGORIAS_ITEM_FINANCEIRAS`) continuam só pra LER o `categoria` das 32 linhas antigas na
+ * migração (`scripts/migrate-itens-classificacao.js`) - nenhum código novo deve escrevê-los.
+ * `documento`/`outro` saíram do cadastro (viraram a aba solta `Anexos`); o que já existia
+ * migrou pra `atrativo`.
  */
 export type CategoriaItem =
   | "traslado"
@@ -452,10 +477,22 @@ export interface ItemRow {
   [key: string]: string;
   id: string;
   trip_id: string;
-  categoria: CategoriaItem;
-  /** Subtipo, varia por categoria: traslado/passagem = meio de transporte (ônibus, van, carro,
-   * avião, embarcação, trem); atrativo = excursão/ingresso. Vazio nas demais categorias. */
+  /** LEGADO - ver comentário em `CategoriaItem`. Linha nova não escreve aqui, só
+   * `classificacao_id`/`subclassificacao_id` abaixo. */
+  categoria: string;
   tipo: string;
+  /** FK pra `Classificacoes.id` - substitui `categoria`. Vazio numa linha antiga que ainda não
+   * passou pela migração. */
+  classificacao_id: string;
+  /** FK pra `Subclassificacoes.id` - substitui `tipo`. Opcional (nem toda classificação precisa
+   * de subclassificação). */
+  subclassificacao_id: string;
+  /** Os dois interruptores do formulário reformulado: um item pode ser só financeiro, só roteiro,
+   * ou os dois - pelo menos um precisa ser `"true"` pra salvar (ver zod da rota). Roteiro > Agenda
+   * só lista item com `roteiro_ativo === "true"`. Linha antiga (migrada) tem os dois calculados a
+   * partir do que já tinha preenchido - ver script de migração. */
+  financeiro_ativo: "true" | "false";
+  roteiro_ativo: "true" | "false";
   localizador: string;
   nome_companhia: string;
   numero: string;
@@ -477,10 +514,10 @@ export interface ItemRow {
   hora_inicio: string;
   data_fim: string;
   hora_fim: string;
-  /** Categoria "documento": Taxa, Pedágio, RG, CPF, Passaporte, Visto, CNH, PID, Seguro, Cartão
-   * de Vacina - lista livre, não um enum fechado no schema (nomes podem crescer sem migração). */
+  /** LEGADO - era da categoria "documento", removida do cadastro (ver comentário em
+   * `CategoriaItem`). Não escrito por linha nova. */
   tipo_documento: string;
-  /** Usuário (colaborador da viagem) a quem o documento pertence - só na categoria "documento". */
+  /** LEGADO - idem `tipo_documento`. */
   passageiro_id: string;
   url: string;
   anexo_file_id: string;
@@ -490,11 +527,12 @@ export interface ItemRow {
   /** Vazio se o item não tem valor lançado (comum em Documento/Outro, e possível em qualquer
    * categoria financeira sem custo, ex. atrativo gratuito). */
   valor: string;
-  /** Situação de pagamento - só relevante nas categorias com `valor` (ver
-   * `CATEGORIAS_ITEM_FINANCEIRAS`). Vazio nas demais e em linhas antigas sem essa coluna. */
+  /** Situação de pagamento - só relevante com `financeiro_ativo === "true"`. Vazio nas demais e
+   * em linhas antigas sem essa coluna. */
   status: "pago" | "a_pagar" | "";
-  /** Calculado a partir da categoria no momento da criação (ver `categoriaNatureza`), não um
-   * campo livre - guardado na linha só pra não recalcular toda leitura do relatório. */
+  /** Débito ou crédito - campo explícito do acordeão Financeiro (default "debito"), não mais
+   * calculado a partir da categoria (essa era fixa por categoria; classificação agora é dado
+   * livre do admin, não dá mais pra inferir). Vazio numa linha sem `financeiro_ativo`. */
   natureza: Natureza | "";
   data_pagamento: string;
   pagador_id: string;
@@ -521,6 +559,23 @@ export interface ItemAnexoRow {
   criado_em: string;
 }
 
+/** Um anexo solto da viagem (aba `Anexos`) - arquivo sem categoria nem vínculo com Item, só data +
+ * descrição. Reintroduzido na reforma do cadastro de Itens (2026-09-21) pra guardar um documento
+ * qualquer sem precisar criar um Item pra ele. Sobe pro Drive pela mesma `uploadAnexo` dos outros
+ * anexos (categoria fixa "outros" no Drive - a organização por pasta não importa aqui). */
+export interface AnexoSoltoRow {
+  [key: string]: string;
+  id: string;
+  trip_id: string;
+  data: string;
+  descricao: string;
+  file_id: string;
+  nome: string;
+  url: string;
+  criado_por: string;
+  criado_em: string;
+}
+
 /**
  * Uma operação de câmbio da viagem: você comprou `qtd_moeda` de `moeda` pagando `qtd_reais`, a uma
  * `taxa_efetiva` (R$ por unidade, já com IOF/tarifas - é o "custo efetivo" e o "custo unitário" ao
@@ -540,6 +595,34 @@ export interface CambioRow {
   taxa_efetiva: string;
   descricao: string;
   criado_por: string;
+  criado_em: string;
+}
+
+/**
+ * Uma classificação do cadastro de Itens (ex.: "Passagem", "Hospedagem") - substitui o enum fixo
+ * `CategoriaItem` por uma lista curada pelo admin (tela /admin/classificacoes), igual em espírito
+ * a `Ambientes`. Sem exclusão de propósito (mesmo motivo de Ambientes: um Item já apontando pra
+ * uma classificação apagada ficaria órfão) - só `ativo: false` tira das opções de cadastro sem
+ * apagar o que já existe.
+ */
+export interface ClassificacaoRow {
+  [key: string]: string;
+  id: string;
+  nome: string;
+  ativo: "true" | "false";
+  criado_em: string;
+}
+
+/**
+ * Uma subclassificação (ex.: "Ônibus" dentro de "Traslado") - sempre presa a UMA classificação via
+ * `classificacao_id` (FK pra `ClassificacaoRow.id`). Mesma regra de `ativo` sem exclusão.
+ */
+export interface SubclassificacaoRow {
+  [key: string]: string;
+  id: string;
+  classificacao_id: string;
+  nome: string;
+  ativo: "true" | "false";
   criado_em: string;
 }
 

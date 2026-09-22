@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import {
+  useClassificacoes,
   useCollaborators,
   useCountries,
   useMeiosPagamento,
@@ -14,7 +15,7 @@ import { FILTER_SELECT_CLASS } from "@/lib/uiClasses";
 
 interface ItemFinanceiro {
   id: string;
-  categoria: string;
+  classificacao_id: string;
   valor: string;
   natureza?: string;
   status?: string;
@@ -53,6 +54,11 @@ export default function RelatorioPage() {
   const { items: itens, loading: loadingItens } = useOfflineCollection<ItemFinanceiro>("itens", tripId);
   const { items: cambios } = useOfflineCollection<CambioEvento>("cambio", tripId);
   const countries = useCountries();
+  const classificacoes = useClassificacoes();
+  const nomePorClassificacao = useMemo(
+    () => Object.fromEntries(classificacoes.map((c) => [c.id, c.nome])),
+    [classificacoes]
+  );
   const collaborators = useCollaborators(tripId);
   const meiosPagamento = useMeiosPagamento().filter((m) => m.ativo === "true");
 
@@ -71,7 +77,8 @@ export default function RelatorioPage() {
   const itensFiltrados = itens
     .filter((i) => !filtroStatus || i.status === filtroStatus)
     .filter((i) => !filtroMeioPagamento || i.meio_pagamento_id === filtroMeioPagamento)
-    .filter((i) => !filtroPagador || i.pagador_id === filtroPagador);
+    .filter((i) => !filtroPagador || i.pagador_id === filtroPagador)
+    .map((i) => ({ ...i, classificacaoNome: nomePorClassificacao[i.classificacao_id] ?? "" }));
   const temFiltroAtivo = Boolean(filtroStatus || filtroMeioPagamento || filtroPagador);
 
   const cotacoes: Record<string, number> = {};

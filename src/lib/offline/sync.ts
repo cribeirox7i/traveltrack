@@ -112,7 +112,7 @@ export async function pullTrips(): Promise<void> {
 /** Atualiza dias/despesas/receitas/agenda de UMA viagem no cache local - chamado ao abrir a viagem. */
 export async function pullTripDetail(tripId: string): Promise<void> {
   if (!isOnline()) return;
-  const [days, despesas, receitas, agenda, itens, itemAnexos, cambio] = await Promise.all([
+  const [days, despesas, receitas, agenda, itens, itemAnexos, cambio, anexosSoltos] = await Promise.all([
     getJson<Record<string, unknown>[]>(`/api/trips/${tripId}/days`),
     getJson<Record<string, unknown>[]>(`/api/trips/${tripId}/despesas`),
     getJson<Record<string, unknown>[]>(`/api/trips/${tripId}/receitas`),
@@ -120,6 +120,7 @@ export async function pullTripDetail(tripId: string): Promise<void> {
     getJson<Record<string, unknown>[]>(`/api/trips/${tripId}/itens`),
     getJson<Record<string, unknown>[]>(`/api/trips/${tripId}/itens-anexos`),
     getJson<Record<string, unknown>[]>(`/api/trips/${tripId}/cambio`),
+    getJson<Record<string, unknown>[]>(`/api/trips/${tripId}/anexos-soltos`),
   ]);
   if (days) await putAllReplacing("tripDays", days as never, tripId);
   if (despesas) {
@@ -146,6 +147,9 @@ export async function pullTripDetail(tripId: string): Promise<void> {
     const protectedIds = await pendingCreateIds("createCambio", tripId);
     await putAllReplacing("cambio", cambio as never, tripId, protectedIds);
   }
+  // Anexos soltos não têm mutação otimista local (upload/edição/remoção exigem internet, ver
+  // `createAnexoSoltoOnline`), então sem `protectedIds` - mesma lógica de `itemAnexos`.
+  if (anexosSoltos) await putAllReplacing("anexosSoltos", anexosSoltos as never, tripId);
   notifyChange();
 }
 
@@ -217,6 +221,41 @@ export async function pullCountries(): Promise<void> {
   const list = await getJson<CountryInfo[]>("/api/countries");
   if (list) {
     await setMeta("countries", list);
+    notifyChange();
+  }
+}
+
+export interface ClassificacaoInfo {
+  id: string;
+  nome: string;
+  ativo: string;
+}
+
+export interface SubclassificacaoInfo {
+  id: string;
+  classificacao_id: string;
+  nome: string;
+  ativo: string;
+}
+
+/** Taxonomia do cadastro de Itens (Classificação/Subclassificação, curada pelo admin em
+ * /admin/classificacoes) - cacheada em `meta` como Countries/MeiosPagamento, pro formulário de
+ * Item funcionar offline. Muda pouco (o admin edita de vez em quando), então uma pull por sessão
+ * é suficiente - mesma lógica das outras listas de referência. */
+export async function pullClassificacoes(): Promise<void> {
+  if (!isOnline()) return;
+  const list = await getJson<ClassificacaoInfo[]>("/api/classificacoes");
+  if (list) {
+    await setMeta("classificacoes", list);
+    notifyChange();
+  }
+}
+
+export async function pullSubclassificacoes(): Promise<void> {
+  if (!isOnline()) return;
+  const list = await getJson<SubclassificacaoInfo[]>("/api/subclassificacoes");
+  if (list) {
+    await setMeta("subclassificacoes", list);
     notifyChange();
   }
 }
@@ -931,6 +970,7 @@ export async function deleteTripOffline(
   await deleteByTrip("itens", tripId);
   await deleteByTrip("itemAnexos", tripId);
   await deleteByTrip("cambio", tripId);
+  await deleteByTrip("anexosSoltos", tripId);
   await deleteTripImage(tripId);
   await removeOutboxByTrip(tripId);
 
@@ -1159,14 +1199,13 @@ export async function deleteAgendaOffline(tripId: string, agendaId: string): Pro
   void pushOutbox();
 }
 
-/** Cria um Item de viagem otimista - `input` é o mesmo conjunto de campos aceito pela API (ver
- * `ITEM_EDITABLE_FIELDS` em lib/sheets/itens.ts), fora `file`. `natureza` não entra aqui: é
- * calculado no servidor a partir da categoria; a linha local fica sem ela até `pullTripDetail`
- * trazer a linha completa de volta - a tela lê `natureza` só para exibição/relatório, não pra
- * decidir o que enviar. */
+/** Cria um Item de viagem otimista - `fields` é o mesmo conjunto de campos aceito pela API (ver
+ * `ITEM_EDITABLE_FIELDS` em lib/sheets/itens.ts), fora `file`, incluindo `natureza` (campo
+ * explícito do acordeão Financeiro desde a reforma de 2026-09-21 - não é mais calculado no
+ * servidor a partir de categoria). */
 export async function createItemOffline(
   tripId: string,
-  fields: Record<string, string> & { categoria: string },
+  fields: Record<string, string>,
   file?: File | null
 ): Promise<void> {
   const id = uuid();
@@ -1191,7 +1230,7 @@ export async function createItemOffline(
 export async function updateItemOffline(
   tripId: string,
   itemId: string,
-  fields: Record<string, string> & { categoria: string },
+  fields: Record<string, string>,
   file?: File | null
 ): Promise<void> {
   const existing = await getOne("itens", itemId);
@@ -1334,6 +1373,94 @@ export async function removeItemAnexoOnline(
   if (!res.ok) return { ok: false, error: body.error ?? "Erro ao remover anexo" };
 
   await deleteOne("itemAnexos", anexoId);
+  notifyChange();
+  return { ok: true, avisoAnexo: body.avisoAnexo };
+}
+
+// ---------- Anexos soltos (aba Anexos, fora de Itens) ----------
+// Mesma decisão de "Anexos extras de um Item": upload/edição/remoção exigem internet na hora, sem
+// outbox (o arquivo em si não é enfileirável de forma prática) - a leitura funciona offline via
+// `pullTripDetail`/`useOfflineCollection("anexosSoltos", tripId)`.
+
+export interface AnexoSoltoInfo {
+  id: string;
+  trip_id: string;
+  data: string;
+  descricao: string;
+  file_id: string;
+  nome: string;
+  url: string;
+  criado_por: string;
+  criado_em: string;
+}
+
+export async function createAnexoSoltoOnline(
+  tripId: string,
+  input: { data: string; descricao: string; file: File }
+): Promise<{ ok: true; anexo: AnexoSoltoInfo } | { ok: false; error: string }> {
+  if (!isOnline()) return { ok: false, error: "Sem conexão - adicionar anexo precisa de internet" };
+
+  const form = new FormData();
+  form.set("data", input.data);
+  form.set("descricao", input.descricao);
+  form.set("file", input.file);
+  let res: Response;
+  try {
+    res = await fetch(`/api/trips/${tripId}/anexos-soltos`, { method: "POST", body: form });
+  } catch {
+    return { ok: false, error: "Sem conexão - adicionar anexo precisa de internet" };
+  }
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) return { ok: false, error: body.error ?? "Erro ao adicionar anexo" };
+
+  const anexo = body as AnexoSoltoInfo;
+  await putOne("anexosSoltos", anexo as never);
+  notifyChange();
+  return { ok: true, anexo };
+}
+
+export async function updateAnexoSoltoOnline(
+  tripId: string,
+  anexoId: string,
+  patch: { data?: string; descricao?: string }
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!isOnline()) return { ok: false, error: "Sem conexão - editar anexo precisa de internet" };
+
+  let res: Response;
+  try {
+    res = await fetch(`/api/trips/${tripId}/anexos-soltos/${anexoId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    });
+  } catch {
+    return { ok: false, error: "Sem conexão - editar anexo precisa de internet" };
+  }
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) return { ok: false, error: body.error ?? "Erro ao editar anexo" };
+
+  const existing = await getOne("anexosSoltos", anexoId);
+  if (existing) await putOne("anexosSoltos", { ...existing, ...patch });
+  notifyChange();
+  return { ok: true };
+}
+
+export async function deleteAnexoSoltoOnline(
+  tripId: string,
+  anexoId: string
+): Promise<{ ok: true; avisoAnexo?: string } | { ok: false; error: string }> {
+  if (!isOnline()) return { ok: false, error: "Sem conexão - remover anexo precisa de internet" };
+
+  let res: Response;
+  try {
+    res = await fetch(`/api/trips/${tripId}/anexos-soltos/${anexoId}`, { method: "DELETE" });
+  } catch {
+    return { ok: false, error: "Sem conexão - remover anexo precisa de internet" };
+  }
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) return { ok: false, error: body.error ?? "Erro ao remover anexo" };
+
+  await deleteOne("anexosSoltos", anexoId);
   notifyChange();
   return { ok: true, avisoAnexo: body.avisoAnexo };
 }

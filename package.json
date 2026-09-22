@@ -9,7 +9,8 @@
     "lint": "eslint",
     "create-admin": "node --env-file=.env.local scripts/create-admin.js",
     "migrate-itens": "node --env-file=.env.local scripts/migrate-itens.js",
-    "migrate-ambientes": "node --env-file=.env.local scripts/migrate-ambientes.js"
+    "migrate-ambientes": "node --env-file=.env.local scripts/migrate-ambientes.js",
+    "migrate-itens-classificacao": "node --env-file=.env.local scripts/migrate-itens-classificacao.js"
   },
   "dependencies": {
     "@serwist/cli": "^9.5.12",

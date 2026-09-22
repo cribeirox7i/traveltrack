@@ -3,8 +3,7 @@ import { z } from "zod";
 import { urlHttpSchema } from "@/lib/urlSegura";
 import { detectarTipoVoucher } from "@/lib/fileValidation";
 import { errorResponse, requireSession, sessionCanAccessTrip, tripLockError } from "@/lib/api-helpers";
-import { CATEGORIAS_ITEM_FINANCEIRAS } from "@/lib/sheets/types";
-import { CATEGORIA_ITEM_DRIVE, ItemEditableInput, deleteItem, listItensByTrip, updateItem } from "@/lib/sheets/itens";
+import { ItemEditableInput, deleteItem, listItensByTrip, updateItem } from "@/lib/sheets/itens";
 import { deleteAnexo, uploadAnexo } from "@/lib/sheets/anexos";
 import { deleteRowsByField } from "@/lib/sheets/repository";
 import { listItemAnexosByTrip } from "@/lib/sheets/itemAnexos";
@@ -13,24 +12,18 @@ import { getTrip } from "@/lib/sheets/trips";
 const MAX_FILE_BYTES = 4 * 1024 * 1024;
 
 const optionalStr = z.string().optional().default("");
+const boolStr = z.enum(["true", "false"]).optional().default("false");
 
 const patchSchema = z
   .object({
-    categoria: z.enum([
-      "traslado",
-      "passagem",
-      "hospedagem",
-      "alimentacao",
-      "atrativo",
-      "repasse",
-      "documento",
-      "outro",
-    ]),
-    tipo: optionalStr,
+    classificacao_id: z.string().min(1, "Escolha a classificação"),
+    subclassificacao_id: optionalStr,
+    financeiro_ativo: boolStr,
+    roteiro_ativo: boolStr,
     localizador: optionalStr,
     nome_companhia: optionalStr,
     numero: optionalStr,
-    data: z.string().date("Data do item é obrigatória"),
+    data: z.string().date("Data é obrigatória"),
     horario: z
       .string()
       .regex(/^\d{2}:\d{2}$/, "Horário deve estar no formato HH:MM")
@@ -45,15 +38,9 @@ const patchSchema = z
     hora_inicio: optionalStr,
     data_fim: optionalStr,
     hora_fim: optionalStr,
-    tipo_documento: optionalStr,
-    passageiro_id: optionalStr,
     url: urlHttpSchema.or(z.literal("")).optional().default(""),
     descricao: z.string().min(1, "Descrição é obrigatória"),
     valor: optionalStr,
-    status: z.enum(["pago", "a_pagar"]).or(z.literal("")).optional().default(""),
-    data_pagamento: optionalStr,
-    pagador_id: optionalStr,
-    meio_pagamento_id: optionalStr,
     moeda: z
       .string()
       .trim()
@@ -64,9 +51,22 @@ const patchSchema = z
       )
       .optional()
       .default(""),
+    status: z.enum(["pago", "a_pagar"]).or(z.literal("")).optional().default(""),
+    natureza: z.enum(["debito", "credito"]).or(z.literal("")).optional().default(""),
+    data_pagamento: optionalStr,
+    pagador_id: optionalStr,
+    meio_pagamento_id: optionalStr,
   })
   .superRefine((data, ctx) => {
-    if (!data.valor) return;
+    if (data.financeiro_ativo === "false" && data.roteiro_ativo === "false") {
+      ctx.addIssue({
+        code: "custom",
+        path: ["financeiro_ativo"],
+        message: "Marque Financeiro, Roteiro, ou os dois",
+      });
+      return;
+    }
+    if (data.financeiro_ativo === "false" || !data.valor) return;
     if (Number.isNaN(Number(data.valor)) || Number(data.valor) <= 0) {
       ctx.addIssue({ code: "custom", path: ["valor"], message: "Valor precisa ser um número positivo" });
       return;
@@ -79,9 +79,36 @@ const patchSchema = z
     }
   });
 
-function limparCamposNaoFinanceiros(data: ItemEditableInput): ItemEditableInput {
-  if (CATEGORIAS_ITEM_FINANCEIRAS.has(data.categoria)) return data;
-  return { ...data, valor: "", status: "", pagador_id: "", meio_pagamento_id: "", data_pagamento: "", moeda: "" };
+function limparAcordeoesInativos(data: ItemEditableInput): ItemEditableInput {
+  const limpo = { ...data };
+  if (data.financeiro_ativo === "false") {
+    Object.assign(limpo, {
+      valor: "",
+      moeda: "",
+      status: "",
+      natureza: "",
+      data_pagamento: "",
+      pagador_id: "",
+      meio_pagamento_id: "",
+    });
+  }
+  if (data.roteiro_ativo === "false") {
+    Object.assign(limpo, {
+      localizador: "",
+      nome_companhia: "",
+      numero: "",
+      origem: "",
+      destino: "",
+      nome_local: "",
+      endereco: "",
+      data_inicio: "",
+      hora_inicio: "",
+      data_fim: "",
+      hora_fim: "",
+      url: "",
+    });
+  }
+  return limpo;
 }
 
 export async function PATCH(
@@ -141,7 +168,7 @@ export async function PATCH(
       anexo = await uploadAnexo({
         tripId: trip.id,
         tripName: trip.nome,
-        categoria: CATEGORIA_ITEM_DRIVE[parsed.data.categoria],
+        categoria: "outros",
         filename: file.name,
         mimeType: tipoDetectado,
         base64Data: buffer.toString("base64"),
@@ -160,7 +187,7 @@ export async function PATCH(
   }
 
   await updateItem(itemId, {
-    ...limparCamposNaoFinanceiros(parsed.data),
+    ...limparAcordeoesInativos(parsed.data),
     ...(anexo
       ? { anexo_file_id: anexo.fileId, anexo_nome: anexo.name, anexo_url: anexo.url }
       : {}),

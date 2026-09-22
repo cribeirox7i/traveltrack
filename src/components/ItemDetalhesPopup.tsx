@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { CATEGORIAS_ITEM, CategoriaItem } from "@/lib/sheets/types";
 import type { CambioEventoLike } from "@/lib/cambioCalc";
 import { converterValorParaBRL, custoMedioPorMoeda } from "@/lib/cambioCalc";
 import { AnexoViewer } from "@/components/AnexoViewer";
@@ -14,12 +13,16 @@ export interface ItemAnexoExtra {
   nome: string;
 }
 
-/** Mesmos campos da aba Itens - usado tanto pela tela Itens (cadastro/edição) quanto por
- * Roteiro > Agenda (só leitura), que mostra o mesmo pop-up de detalhe ao clicar num item. */
+/** Mesmos campos da aba Itens (reforma de 2026-09-21) - usado tanto pela tela Itens (cadastro/
+ * edição) quanto por Roteiro > Agenda (só leitura), que mostra o mesmo pop-up de detalhe ao
+ * clicar num item. `classificacao_id`/`subclassificacao_id` são FK - os nomes vêm resolvidos por
+ * quem chama (`nomePorClassificacao`/`nomePorSubclassificacao`), o componente não busca sozinho. */
 export interface Item {
   id: string;
-  categoria: CategoriaItem;
-  tipo: string;
+  classificacao_id: string;
+  subclassificacao_id: string;
+  financeiro_ativo: string;
+  roteiro_ativo: string;
   localizador: string;
   nome_companhia: string;
   numero: string;
@@ -33,8 +36,6 @@ export interface Item {
   hora_inicio: string;
   data_fim: string;
   hora_fim: string;
-  tipo_documento: string;
-  passageiro_id: string;
   url: string;
   anexo_file_id: string;
   anexo_nome: string;
@@ -46,46 +47,7 @@ export interface Item {
   data_pagamento: string;
   pagador_id: string;
   meio_pagamento_id: string;
-  /** Código ISO da moeda de `valor` - vazio/"BRL" = reais. */
   moeda: string;
-}
-
-export const CATEGORIA_LABEL: Record<CategoriaItem, string> = Object.fromEntries(
-  CATEGORIAS_ITEM.map((c) => [c.value, c.label])
-) as Record<CategoriaItem, string>;
-
-export const CATEGORIA_ICONE: Record<CategoriaItem, string> = {
-  traslado: "🚐",
-  passagem: "✈️",
-  hospedagem: "🏨",
-  alimentacao: "🍽️",
-  atrativo: "🗼",
-  repasse: "💸",
-  documento: "📄",
-  outro: "📦",
-};
-
-/** Emoji por tipo de transporte - só se aplica a Traslado/Passagem, que são as únicas categorias
- * com esse campo `tipo` preenchido com um meio de transporte. Tipo sem mapeamento (ex. "Outros"
- * do Traslado, ou campo ainda vazio) cai no emoji de categoria. */
-const TIPO_TRANSPORTE_ICONE: Partial<Record<string, string>> = {
-  "Ônibus": "🚌",
-  Van: "🚐",
-  Carro: "🚗",
-  "Avião": "✈️",
-  "Embarcação": "🚢",
-  Trem: "🚆",
-};
-
-export function IconeItem({ item, className }: { item: Pick<Item, "categoria" | "tipo">; className?: string }) {
-  const emoji =
-    ((item.categoria === "traslado" || item.categoria === "passagem") && TIPO_TRANSPORTE_ICONE[item.tipo]) ||
-    CATEGORIA_ICONE[item.categoria];
-  return (
-    <span className={`shrink-0 text-[1.3rem] leading-none ${className ?? ""}`} aria-hidden="true">
-      {emoji}
-    </span>
-  );
 }
 
 export function formatDataBR(iso: string): string {
@@ -101,24 +63,35 @@ function formatMoedaEstrangeira(valor: string, moeda: string): string {
   return `${Number(valor).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${moeda}`;
 }
 
-
-/** Rótulos de `data_inicio`/`data_fim` por categoria - mesmo par de colunas, nome diferente na
- * tela conforme o que a categoria representa. `undefined` = categoria não tem início/fim (usa
- * `data`/`horario` direto). */
-export const LABELS_INICIO_FIM: Partial<Record<CategoriaItem, [string, string]>> = {
-  traslado: ["Partida", "Chegada"],
-  passagem: ["Partida", "Chegada"],
-  hospedagem: ["Check-in", "Check-out"],
-  alimentacao: ["Check-in", "Check-out"],
-  atrativo: ["Início", "Término"],
-};
+/** Ícone genérico por combinação de acordeões ativos - a classificação é dado livre do admin
+ * agora, não dá mais pra ter um emoji fixo por categoria (era `CATEGORIA_ICONE`). */
+export function IconeItem({
+  item,
+  className,
+}: {
+  item: Pick<Item, "financeiro_ativo" | "roteiro_ativo">;
+  className?: string;
+}) {
+  const emoji =
+    item.financeiro_ativo === "true" && item.roteiro_ativo === "true"
+      ? "🧳"
+      : item.financeiro_ativo === "true"
+        ? "💰"
+        : "🗺️";
+  return (
+    <span className={`shrink-0 text-[1.3rem] leading-none ${className ?? ""}`} aria-hidden="true">
+      {emoji}
+    </span>
+  );
+}
 
 const STATUS_LABEL: Record<string, string> = { pago: "Pago", a_pagar: "A pagar" };
+const NATUREZA_LABEL: Record<string, string> = { debito: "Débito", credito: "Crédito" };
 
-/** Rótulo de cada campo do Item, na ordem em que aparece no pop-up de detalhe - campos vazios
- * não aparecem (ver `ItemDetalhes`). */
-const CAMPOS_DETALHE: { campo: keyof Item; label: string }[] = [
-  { campo: "tipo", label: "Tipo" },
+/** Rótulo de cada campo do Roteiro, na ordem em que aparece no pop-up de detalhe - campos vazios
+ * não aparecem. Início/Término são genéricos agora (a reforma tirou o rótulo por categoria, já
+ * que classificação é dado livre - ver LABELS_INICIO_FIM removido). */
+const CAMPOS_ROTEIRO: { campo: keyof Item; label: string }[] = [
   { campo: "localizador", label: "Localizador" },
   { campo: "nome_companhia", label: "Companhia" },
   { campo: "numero", label: "Número" },
@@ -126,9 +99,7 @@ const CAMPOS_DETALHE: { campo: keyof Item; label: string }[] = [
   { campo: "destino", label: "Destino" },
   { campo: "nome_local", label: "Local" },
   { campo: "endereco", label: "Endereço" },
-  { campo: "tipo_documento", label: "Tipo de documento" },
   { campo: "url", label: "URL" },
-  { campo: "data_pagamento", label: "Data pagamento" },
 ];
 
 /** Bloco de detalhe do item - lista só os campos preenchidos, num grid compacto de
@@ -152,50 +123,59 @@ function ItemDetalhes({
   cotacoes: Record<string, number>;
   onAbrirAnexo: (fileId: string, nome: string) => void;
 }) {
-  const [labelInicio, labelFim] = LABELS_INICIO_FIM[item.categoria] ?? ["Início", "Término"];
   const pares: { label: string; valor: string }[] = [];
 
-  if (item.data_inicio || item.hora_inicio) {
-    pares.push({ label: labelInicio, valor: [item.data_inicio && formatDataBR(item.data_inicio), item.hora_inicio].filter(Boolean).join(" ") });
-  }
-  if (item.data_fim || item.hora_fim) {
-    pares.push({ label: labelFim, valor: [item.data_fim && formatDataBR(item.data_fim), item.hora_fim].filter(Boolean).join(" ") });
-  }
-  for (const { campo, label } of CAMPOS_DETALHE) {
-    const valor = item[campo];
-    if (valor) pares.push({ label, valor: campo === "data_pagamento" ? formatDataBR(valor) : valor });
-  }
-  if (item.passageiro_id) {
-    pares.push({ label: "Passageiro", valor: nomePorPessoa[item.passageiro_id] ?? item.passageiro_id });
-  }
-  if (item.valor) {
-    const moedaEstrangeira = item.moeda && item.moeda !== "BRL" ? item.moeda : "";
-    if (moedaEstrangeira) {
-      pares.push({ label: "Valor", valor: formatMoedaEstrangeira(item.valor, moedaEstrangeira) });
-      const conv = converterValorParaBRL(
-        item.valor,
-        moedaEstrangeira,
-        custoMedioPorMoeda(cambios),
-        cotacoes
-      );
-      if (conv.fonte === "cambio" || conv.fonte === "cotacao") {
-        pares.push({
-          label: conv.fonte === "cambio" ? "Valor em R$ (câmbio)" : "Valor em R$ (cotação)",
-          valor: formatMoney(conv.valorBRL),
-        });
-      }
-    } else {
-      pares.push({ label: "Valor", valor: formatMoney(item.valor) });
-    }
-    if (item.status) pares.push({ label: "Status", valor: STATUS_LABEL[item.status] ?? item.status });
-    if (item.pagador_id) {
+  if (item.roteiro_ativo === "true") {
+    if (item.data_inicio || item.hora_inicio) {
       pares.push({
-        label: item.categoria === "repasse" ? "Quem contribuiu" : "Quem pagou",
-        valor: nomePorPessoa[item.pagador_id] ?? item.pagador_id,
+        label: "Início",
+        valor: [item.data_inicio && formatDataBR(item.data_inicio), item.hora_inicio].filter(Boolean).join(" "),
       });
     }
-    if (item.meio_pagamento_id) {
-      pares.push({ label: "Meio de pagamento", valor: nomePorMeio[item.meio_pagamento_id] ?? item.meio_pagamento_id });
+    if (item.data_fim || item.hora_fim) {
+      pares.push({
+        label: "Término",
+        valor: [item.data_fim && formatDataBR(item.data_fim), item.hora_fim].filter(Boolean).join(" "),
+      });
+    }
+    for (const { campo, label } of CAMPOS_ROTEIRO) {
+      const valor = item[campo];
+      if (valor) pares.push({ label, valor });
+    }
+  }
+
+  if (item.financeiro_ativo === "true") {
+    if (item.data_pagamento) pares.push({ label: "Data pagamento", valor: formatDataBR(item.data_pagamento) });
+    if (item.valor) {
+      const moedaEstrangeira = item.moeda && item.moeda !== "BRL" ? item.moeda : "";
+      if (moedaEstrangeira) {
+        pares.push({ label: "Valor", valor: formatMoedaEstrangeira(item.valor, moedaEstrangeira) });
+        const conv = converterValorParaBRL(
+          item.valor,
+          moedaEstrangeira,
+          custoMedioPorMoeda(cambios),
+          cotacoes
+        );
+        if (conv.fonte === "cambio" || conv.fonte === "cotacao") {
+          pares.push({
+            label: conv.fonte === "cambio" ? "Valor em R$ (câmbio)" : "Valor em R$ (cotação)",
+            valor: formatMoney(conv.valorBRL),
+          });
+        }
+      } else {
+        pares.push({ label: "Valor", valor: formatMoney(item.valor) });
+      }
+      if (item.natureza) pares.push({ label: "Natureza", valor: NATUREZA_LABEL[item.natureza] ?? item.natureza });
+      if (item.status) pares.push({ label: "Status", valor: STATUS_LABEL[item.status] ?? item.status });
+      if (item.pagador_id) {
+        pares.push({
+          label: item.natureza === "credito" ? "Quem contribuiu" : "Quem pagou",
+          valor: nomePorPessoa[item.pagador_id] ?? item.pagador_id,
+        });
+      }
+      if (item.meio_pagamento_id) {
+        pares.push({ label: "Meio de pagamento", valor: nomePorMeio[item.meio_pagamento_id] ?? item.meio_pagamento_id });
+      }
     }
   }
 
@@ -262,6 +242,8 @@ export function ItemDetalhesPopup({
   tripId,
   nomePorPessoa,
   nomePorMeio,
+  nomePorClassificacao,
+  nomePorSubclassificacao,
   extraAnexos = [],
   cambios = [],
   cotacoes = {},
@@ -273,6 +255,8 @@ export function ItemDetalhesPopup({
   tripId: string;
   nomePorPessoa: Record<string, string>;
   nomePorMeio: Record<string, string>;
+  nomePorClassificacao: Record<string, string>;
+  nomePorSubclassificacao: Record<string, string>;
   /** Anexos extras deste item (já filtrados pelo chamador - lista inteira da viagem vem de
    * `useOfflineCollection<ItemAnexoInfo>("itemAnexos", tripId)`). */
   extraAnexos?: ItemAnexoExtra[];
@@ -288,6 +272,8 @@ export function ItemDetalhesPopup({
 }) {
   const [anexoAberto, setAnexoAberto] = useState<{ fileId: string; nome: string } | null>(null);
   if (!item) return null;
+  const nomeClassificacao = nomePorClassificacao[item.classificacao_id] ?? "Sem classificação";
+  const nomeSubclassificacao = nomePorSubclassificacao[item.subclassificacao_id];
   return (
     <div
       className="fixed inset-0 z-30 flex items-start justify-center overflow-y-auto bg-black/40 p-4 sm:items-center"
@@ -299,7 +285,10 @@ export function ItemDetalhesPopup({
         <div className="flex items-center justify-between">
           <h2 className="flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
             <IconeItem item={item} />
-            {CATEGORIA_LABEL[item.categoria] ?? item.categoria}
+            {nomeClassificacao}
+            {nomeSubclassificacao && (
+              <span className="font-normal normal-case text-slate-400">· {nomeSubclassificacao}</span>
+            )}
           </h2>
           <button
             type="button"
@@ -310,6 +299,7 @@ export function ItemDetalhesPopup({
             ✕
           </button>
         </div>
+        <p className="text-xs text-slate-400 dark:text-slate-500">{formatDataBR(item.data)}</p>
         <ItemDetalhes
           item={item}
           nomePorPessoa={nomePorPessoa}

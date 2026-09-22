@@ -4,16 +4,18 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import {
+  useClassificacoes,
   useCollaborators,
   useCountries,
   useMeiosPagamento,
   useOfflineCollection,
   useOfflineTrip,
+  useSubclassificacoes,
 } from "@/lib/offline/useOfflineData";
 import { viagemBloqueada } from "@/lib/tripStatus";
 import { deleteItemOffline, type ItemAnexoInfo } from "@/lib/offline/sync";
 import { hrefSeguro } from "@/lib/urlSegura";
-import { CATEGORIA_LABEL, IconeItem, ItemDetalhesPopup, type Item } from "@/components/ItemDetalhesPopup";
+import { IconeItem, ItemDetalhesPopup, type Item } from "@/components/ItemDetalhesPopup";
 import { AnexoViewer } from "@/components/AnexoViewer";
 import { InfoDisclaimer } from "@/components/InfoDisclaimer";
 
@@ -55,30 +57,38 @@ function isForecastReal(dataISO: string): boolean {
   return dias >= 0 && dias <= FORECAST_MAX_DIAS;
 }
 
-/** Linha de resumo do item na lista - mesma lógica de `resumoItem` em itens/page.tsx, sem
- * depender do nome do meio de pagamento (não é relevante aqui). */
+/** Linha de resumo do item na lista - mesma lógica de `resumoItem` em itens/page.tsx (a reforma
+ * tirou o formato por categoria, que era fixo; agora mostra o que tiver preenchido do Roteiro). */
 function resumoItem(item: Item): string {
-  switch (item.categoria) {
-    case "traslado":
-    case "passagem":
-      return [item.nome_companhia, item.origem && item.destino ? `${item.origem} → ${item.destino}` : ""]
-        .filter(Boolean)
-        .join(" · ");
-    case "hospedagem":
-    case "alimentacao":
-      return item.nome_local;
-    case "atrativo":
-      return [item.tipo, item.nome_companhia].filter(Boolean).join(" · ");
-    default:
-      return "";
-  }
+  return [
+    item.nome_companhia,
+    item.numero,
+    item.origem && item.destino ? `${item.origem} → ${item.destino}` : "",
+    item.nome_local,
+    item.endereco,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 }
 
 export default function AgendaPage() {
   const { id: tripId } = useParams<{ id: string }>();
   const router = useRouter();
   const { items: days, loading: loadingDays } = useOfflineCollection<TripDay>("tripDays", tripId);
-  const { items: itens, loading: loadingItens } = useOfflineCollection<Item>("itens", tripId);
+  // Só item com Roteiro marcado aparece aqui (reforma do cadastro, 2026-09-21) - um item só
+  // Financeiro fica de fora da Agenda, mesmo tendo data.
+  const { items: todosItens, loading: loadingItens } = useOfflineCollection<Item>("itens", tripId);
+  const itens = useMemo(() => todosItens.filter((i) => i.roteiro_ativo === "true"), [todosItens]);
+  const classificacoes = useClassificacoes();
+  const subclassificacoes = useSubclassificacoes();
+  const nomePorClassificacao = useMemo(
+    () => Object.fromEntries(classificacoes.map((c) => [c.id, c.nome])),
+    [classificacoes]
+  );
+  const nomePorSubclassificacao = useMemo(
+    () => Object.fromEntries(subclassificacoes.map((s) => [s.id, s.nome])),
+    [subclassificacoes]
+  );
   const { items: todosExtras } = useOfflineCollection<ItemAnexoInfo>("itemAnexos", tripId);
   const { items: cambios } = useOfflineCollection<{
     id: string;
@@ -247,7 +257,7 @@ export default function AgendaPage() {
                       >
                         <div className="min-w-0">
                           <p className="flex items-center gap-1.5 font-semibold uppercase tracking-wide text-slate-800 dark:text-slate-200">
-                            {item.horario} · <IconeItem item={item} className="text-base" /> {CATEGORIA_LABEL[item.categoria] ?? item.categoria}
+                            {item.horario} · <IconeItem item={item} className="text-base" /> {nomePorClassificacao[item.classificacao_id] ?? "Sem classificação"}
                           </p>
                           {(resumoItem(item) || item.descricao) && (
                             <p className="mt-0.5 whitespace-pre-wrap text-xs text-slate-500 dark:text-slate-400">
@@ -325,6 +335,8 @@ export default function AgendaPage() {
         tripId={tripId}
         nomePorPessoa={nomePorPessoa}
         nomePorMeio={nomePorMeio}
+        nomePorClassificacao={nomePorClassificacao}
+        nomePorSubclassificacao={nomePorSubclassificacao}
         extraAnexos={
           viewingItem ? todosExtras.filter((a) => a.item_id === viewingItem.id) : undefined
         }

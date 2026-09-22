@@ -34,7 +34,10 @@ const ESTRUTURA = {
   Countries: ['id', 'country', 'plug_type', 'volts', 'hertz', 'currency_code', 'currency_name', 'currency_symbol', 'capital', 'ddi', 'driving_side', 'timezone', 'flag_emoji', 'language', 'rate_brl', 'rate_date'],
   // Tabela genérica que substitui Despesas/Receitas/Agenda/Anexos (ver plano "Itens de Viagem +
   // OCR de vouchers") - precisa bater exatamente com Itens em src/lib/sheets/types.ts.
-  Itens: ['id', 'trip_id', 'categoria', 'tipo', 'localizador', 'nome_companhia', 'numero', 'data', 'horario', 'origem', 'destino', 'nome_local', 'endereco', 'data_inicio', 'hora_inicio', 'data_fim', 'hora_fim', 'tipo_documento', 'passageiro_id', 'url', 'anexo_file_id', 'anexo_nome', 'anexo_url', 'descricao', 'valor', 'status', 'natureza', 'data_pagamento', 'pagador_id', 'meio_pagamento_id', 'criado_por', 'criado_em', 'moeda'],
+  Itens: ['id', 'trip_id', 'categoria', 'tipo', 'localizador', 'nome_companhia', 'numero', 'data', 'horario', 'origem', 'destino', 'nome_local', 'endereco', 'data_inicio', 'hora_inicio', 'data_fim', 'hora_fim', 'tipo_documento', 'passageiro_id', 'url', 'anexo_file_id', 'anexo_nome', 'anexo_url', 'descricao', 'valor', 'status', 'natureza', 'data_pagamento', 'pagador_id', 'meio_pagamento_id', 'criado_por', 'criado_em', 'moeda', 'classificacao_id', 'subclassificacao_id', 'financeiro_ativo', 'roteiro_ativo'],
+  // Aba solta de anexos (fora de Itens) - reforma do cadastro, 2026-09-21. Data+descricao+arquivo,
+  // sem categoria nem vinculo com Item nenhum.
+  Anexos: ['id', 'trip_id', 'data', 'descricao', 'file_id', 'nome', 'url', 'criado_por', 'criado_em'],
   // Anexos ADICIONAIS de um Item (além do único anexo_file_id que já mora na própria linha de
   // Itens, esse é o "principal" e continua sendo o único que passa pela análise do Gemini). Uma
   // linha por arquivo extra - `trip_id` vem duplicado (não só `item_id`) pelo mesmo motivo de
@@ -43,7 +46,13 @@ const ESTRUTURA = {
   ItemAnexos: ['id', 'item_id', 'trip_id', 'file_id', 'nome', 'url', 'criado_por', 'criado_em'],
   // Operações de câmbio de uma viagem (menu Financeiro > Câmbio) - precisa bater com CambioRow em
   // src/lib/sheets/types.ts. `taxa_efetiva` = R$ por unidade da moeda, já com IOF/tarifas.
-  Cambio: ['id', 'trip_id', 'data', 'moeda', 'qtd_moeda', 'qtd_reais', 'taxa_efetiva', 'descricao', 'criado_por', 'criado_em']
+  Cambio: ['id', 'trip_id', 'data', 'moeda', 'qtd_moeda', 'qtd_reais', 'taxa_efetiva', 'descricao', 'criado_por', 'criado_em'],
+  // Taxonomia do cadastro de Itens (reforma do formulário) - Classificacoes é o que hoje é
+  // `categoria`, Subclassificacoes o que hoje é `tipo`, agora curados pelo admin em vez de fixos
+  // no código. `classificacao_id` em Subclassificacoes é a FK. Nascem vazias - o admin preenche
+  // pela tela /admin/classificacoes.
+  Classificacoes: ['id', 'nome', 'ativo', 'criado_em'],
+  Subclassificacoes: ['id', 'classificacao_id', 'nome', 'ativo', 'criado_em']
 };
 
 // ---------- PONTO DE ENTRADA DO WEB APP ----------
