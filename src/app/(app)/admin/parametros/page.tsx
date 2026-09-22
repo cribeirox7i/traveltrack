@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { apiFetch, mensagemErro } from "@/lib/apiFetch";
 import { useOnlineStatus } from "@/lib/offline/useOfflineData";
+import { ClassificacoesManager } from "@/components/ClassificacoesManager";
 
 interface ParametroItem {
   id: string;
@@ -193,6 +194,13 @@ export default function ParametrosAdminPage() {
           </tbody>
         </table>
       </div>
+
+      <hr className="border-slate-200 dark:border-slate-800" />
+
+      {/* Classificação/Subclassificação do cadastro de Itens - vive aqui em vez de menu próprio
+       * (pedido explícito do usuário, 2026-09-22): é config admin-only, mesma audiência desta
+       * tela, não vale um item de navegação separado só pra isso. */}
+      <ClassificacoesManager />
     </div>
   );
 }

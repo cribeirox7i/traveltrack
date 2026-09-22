@@ -28,8 +28,11 @@ interface Subclassificacao {
  * Uma subclassificação sempre nasce dentro de uma classificação (FK `classificacao_id`) - a lista
  * inteira de subclassificações é carregada uma vez e agrupada no cliente, em vez de uma chamada
  * por classificação.
+ *
+ * Vive dentro de `/admin/parametros` (Config) como uma seção, não como tela/menu próprio - pedido
+ * explícito do usuário (2026-09-22): não vale um item de navegação só pra isso.
  */
-export default function ClassificacoesAdminPage() {
+export function ClassificacoesManager() {
   const [classificacoes, setClassificacoes] = useState<Classificacao[]>([]);
   const [subclassificacoes, setSubclassificacoes] = useState<Subclassificacao[]>([]);
   const [loading, setLoading] = useState(true);
@@ -200,7 +203,7 @@ export default function ClassificacoesAdminPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">Classificações</h1>
+      <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Classificações</h2>
 
       <InfoDisclaimer>
         Classificação e subclassificação alimentam o cadastro de Itens (ex.: classificação
