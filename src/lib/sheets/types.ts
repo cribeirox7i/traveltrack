@@ -200,10 +200,14 @@ export const SHEET_HEADERS: Record<SheetTab, string[]> = {
   // Taxonomia do cadastro de Itens (reforma do formulário, ver ClassificacaoRow/
   // SubclassificacaoRow) - substitui o enum fixo `CategoriaItem`, curada pelo admin em
   // /admin/classificacoes. Nascem vazias, o admin preenche depois.
-  Classificacoes: ["id", "nome", "ativo", "criado_em"],
+  // `icone` é um emoji livre (ex. "🍽️") pro ícone do item na lista/Agenda voltar a ser
+  // contextual mesmo com a classificação sendo dado livre do admin - vazio cai no ícone genérico
+  // por acordeão (💰/🗺️/🧳, ver `IconeItem`).
+  Classificacoes: ["id", "nome", "ativo", "criado_em", "icone"],
   // `classificacao_id` é a FK pra `Classificacoes.id` - uma subclassificação pertence a exatamente
-  // uma classificação (ex. "Ônibus" só faz sentido dentro de "Traslado").
-  Subclassificacoes: ["id", "classificacao_id", "nome", "ativo", "criado_em"],
+  // uma classificação (ex. "Ônibus" só faz sentido dentro de "Traslado"). `icone` aqui SOBRESCREVE
+  // o da classificação-mãe quando preenchido (ex. "Ônibus" = 🚌 em vez do 🚐 genérico de Traslado).
+  Subclassificacoes: ["id", "classificacao_id", "nome", "ativo", "criado_em", "icone"],
   // Aba solta de anexos (reforma do cadastro de Itens, 2026-09-21) - volta a existir um lugar pra
   // guardar arquivo sem passar por um Item: só data, descrição e o arquivo. Sem categoria, sem
   // vínculo com Item (diferente de `ItemAnexos`, que é sempre extra DE um item).
@@ -611,6 +615,9 @@ export interface ClassificacaoRow {
   nome: string;
   ativo: "true" | "false";
   criado_em: string;
+  /** Emoji livre pro ícone do item na lista/Agenda (ex. "🍽️") - vazio cai no ícone genérico por
+   * acordeão (💰/🗺️/🧳). */
+  icone: string;
 }
 
 /**
@@ -624,6 +631,8 @@ export interface SubclassificacaoRow {
   nome: string;
   ativo: "true" | "false";
   criado_em: string;
+  /** Sobrescreve o ícone da classificação-mãe quando preenchido (ex. "Ônibus" = 🚌). */
+  icone: string;
 }
 
 /** Um compromisso do roteiro, ancorado numa das datas da grade de diárias da viagem. */

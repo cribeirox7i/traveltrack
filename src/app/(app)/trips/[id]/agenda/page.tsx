@@ -89,6 +89,14 @@ export default function AgendaPage() {
     () => Object.fromEntries(subclassificacoes.map((s) => [s.id, s.nome])),
     [subclassificacoes]
   );
+  const iconePorClassificacao = useMemo(
+    () => Object.fromEntries(classificacoes.map((c) => [c.id, c.icone])),
+    [classificacoes]
+  );
+  const iconePorSubclassificacao = useMemo(
+    () => Object.fromEntries(subclassificacoes.map((s) => [s.id, s.icone])),
+    [subclassificacoes]
+  );
   const { items: todosExtras } = useOfflineCollection<ItemAnexoInfo>("itemAnexos", tripId);
   const { items: cambios } = useOfflineCollection<{
     id: string;
@@ -257,7 +265,14 @@ export default function AgendaPage() {
                       >
                         <div className="min-w-0">
                           <p className="flex items-center gap-1.5 font-semibold uppercase tracking-wide text-slate-800 dark:text-slate-200">
-                            {item.horario} · <IconeItem item={item} className="text-base" /> {nomePorClassificacao[item.classificacao_id] ?? "Sem classificação"}
+                            {item.horario} ·{" "}
+                            <IconeItem
+                              item={item}
+                              iconePorClassificacao={iconePorClassificacao}
+                              iconePorSubclassificacao={iconePorSubclassificacao}
+                              className="text-base"
+                            />{" "}
+                            {nomePorClassificacao[item.classificacao_id] ?? "Sem classificação"}
                           </p>
                           {(resumoItem(item) || item.descricao) && (
                             <p className="mt-0.5 whitespace-pre-wrap text-xs text-slate-500 dark:text-slate-400">
@@ -337,6 +352,8 @@ export default function AgendaPage() {
         nomePorMeio={nomePorMeio}
         nomePorClassificacao={nomePorClassificacao}
         nomePorSubclassificacao={nomePorSubclassificacao}
+        iconePorClassificacao={iconePorClassificacao}
+        iconePorSubclassificacao={iconePorSubclassificacao}
         extraAnexos={
           viewingItem ? todosExtras.filter((a) => a.item_id === viewingItem.id) : undefined
         }

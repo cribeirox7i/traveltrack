@@ -10,6 +10,7 @@ import {
 const createSchema = z.object({
   classificacao_id: z.string().min(1, "Escolha a classificação"),
   nome: z.string().min(1),
+  icone: z.string().trim().max(8).optional(),
 });
 
 /** `?classificacao_id=` filtra pra uma classificação só (uso normal - alimentar o select de
@@ -34,7 +35,7 @@ export async function POST(req: NextRequest) {
   if (!classificacao) return errorResponse("Classificação não encontrada", 404);
 
   try {
-    const sub = await createSubclassificacao(parsed.data.classificacao_id, parsed.data.nome);
+    const sub = await createSubclassificacao(parsed.data.classificacao_id, parsed.data.nome, parsed.data.icone);
     return NextResponse.json(sub, { status: 201 });
   } catch (err) {
     return errorResponse(err instanceof Error ? err.message : "Erro ao criar subclassificação");

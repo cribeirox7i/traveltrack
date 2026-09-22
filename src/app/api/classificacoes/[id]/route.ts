@@ -6,6 +6,7 @@ import { getClassificacao, updateClassificacao } from "@/lib/sheets/classificaco
 const patchSchema = z.object({
   nome: z.string().min(1).optional(),
   ativo: z.boolean().optional(),
+  icone: z.string().trim().max(8).optional(),
 });
 
 /** Só PATCH: sem DELETE de propósito, mesmo motivo de Ambientes - um Item já classificado com

@@ -6,6 +6,7 @@ import { getSubclassificacao, updateSubclassificacao } from "@/lib/sheets/classi
 const patchSchema = z.object({
   nome: z.string().min(1).optional(),
   ativo: z.boolean().optional(),
+  icone: z.string().trim().max(8).optional(),
 });
 
 /** Só PATCH, mesma razão de Classificações/Ambientes - sem DELETE, só `ativo`. Trocar de

@@ -38,13 +38,17 @@ async function callAppsScript(action, payload) {
 
 // Mesmo enum/rótulos de src/lib/sheets/types.ts (CATEGORIAS_ITEM) - documento/outro ficam de fora
 // de propósito (saíram do cadastro, viraram a aba solta Anexos).
+// `icone`/`iconeSubs` restauram os emojis que a tela usava antes da classificação virar dado
+// livre (CATEGORIA_ICONE/TIPO_TRANSPORTE_ICONE, removidos do código - ver scripts/
+// seed-icones-classificacao.js, que faz o mesmo preenchimento pra quem já rodou esta migração
+// antes da coluna `icone` existir).
 const CLASSIFICACOES_SEED = [
-  { categoria: "traslado", nome: "Traslado", subs: ["Ônibus", "Van", "Carro", "Outros"] },
-  { categoria: "passagem", nome: "Passagem", subs: ["Ônibus", "Van", "Carro", "Avião", "Embarcação", "Trem"] },
-  { categoria: "hospedagem", nome: "Hospedagem", subs: [] },
-  { categoria: "alimentacao", nome: "Alimentação", subs: [] },
-  { categoria: "atrativo", nome: "Atrativo", subs: ["Excursão", "Ingresso", "Bar", "Ponto Turístico"] },
-  { categoria: "repasse", nome: "Repasse", subs: [] },
+  { categoria: "traslado", nome: "Traslado", icone: "🚐", subs: ["Ônibus", "Van", "Carro", "Outros"], iconeSubs: { "Ônibus": "🚌", Van: "🚐", Carro: "🚗" } },
+  { categoria: "passagem", nome: "Passagem", icone: "✈️", subs: ["Ônibus", "Van", "Carro", "Avião", "Embarcação", "Trem"], iconeSubs: { "Ônibus": "🚌", Van: "🚐", Carro: "🚗", "Avião": "✈️", "Embarcação": "🚢", Trem: "🚆" } },
+  { categoria: "hospedagem", nome: "Hospedagem", icone: "🏨", subs: [] },
+  { categoria: "alimentacao", nome: "Alimentação", icone: "🍽️", subs: [] },
+  { categoria: "atrativo", nome: "Atrativo", icone: "🗼", subs: ["Excursão", "Ingresso", "Bar", "Ponto Turístico"] },
+  { categoria: "repasse", nome: "Repasse", icone: "💸", subs: [] },
 ];
 
 async function main() {
@@ -66,7 +70,13 @@ async function main() {
       (c) => (c.nome || "").trim().toLowerCase() === seed.nome.toLowerCase()
     );
     if (!row) {
-      row = { id: crypto.randomUUID(), nome: seed.nome, ativo: "true", criado_em: new Date().toISOString() };
+      row = {
+        id: crypto.randomUUID(),
+        nome: seed.nome,
+        ativo: "true",
+        criado_em: new Date().toISOString(),
+        icone: seed.icone || "",
+      };
       await callAppsScript("append", { tab: "Classificacoes", rows: [row] });
       classificacoes.push(row);
       criadasClass++;
@@ -93,6 +103,7 @@ async function main() {
           nome: nomeSub,
           ativo: "true",
           criado_em: new Date().toISOString(),
+          icone: (seed.iconeSubs && seed.iconeSubs[nomeSub]) || "",
         };
         await callAppsScript("append", { tab: "Subclassificacoes", rows: [row] });
         subclassificacoes.push(row);

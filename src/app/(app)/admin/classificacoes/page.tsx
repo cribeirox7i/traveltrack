@@ -10,6 +10,7 @@ interface Classificacao {
   nome: string;
   ativo: "true" | "false";
   criado_em: string;
+  icone: string;
 }
 
 interface Subclassificacao {
@@ -18,6 +19,7 @@ interface Subclassificacao {
   nome: string;
   ativo: "true" | "false";
   criado_em: string;
+  icone: string;
 }
 
 /**
@@ -35,21 +37,25 @@ export default function ClassificacoesAdminPage() {
   const online = useOnlineStatus();
 
   const [nomeNova, setNomeNova] = useState("");
+  const [iconeNova, setIconeNova] = useState("");
   const [criando, setCriando] = useState(false);
   const [erroNova, setErroNova] = useState<string | null>(null);
 
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [nomeEdicao, setNomeEdicao] = useState("");
+  const [iconeEdicao, setIconeEdicao] = useState("");
   const [salvandoEdicao, setSalvandoEdicao] = useState(false);
   const [erroEdicao, setErroEdicao] = useState<string | null>(null);
 
   // Subclassificação em edição/criação - `subEditandoId` compartilha o mesmo estado de nome pra
   // qualquer classificação (só uma edição de sub por vez, na tela toda).
   const [subNovaPorClassificacao, setSubNovaPorClassificacao] = useState<Record<string, string>>({});
+  const [subIconeNovaPorClassificacao, setSubIconeNovaPorClassificacao] = useState<Record<string, string>>({});
   const [subCriandoEm, setSubCriandoEm] = useState<string | null>(null);
   const [subErroPorClassificacao, setSubErroPorClassificacao] = useState<Record<string, string>>({});
   const [subEditandoId, setSubEditandoId] = useState<string | null>(null);
   const [subNomeEdicao, setSubNomeEdicao] = useState("");
+  const [subIconeEdicao, setSubIconeEdicao] = useState("");
   const [subSalvandoEdicao, setSubSalvandoEdicao] = useState(false);
   const [subErroEdicao, setSubErroEdicao] = useState<string | null>(null);
 
@@ -85,7 +91,7 @@ export default function ClassificacoesAdminPage() {
     const res = await apiFetch("/api/classificacoes", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nome: nomeNova }),
+      body: JSON.stringify({ nome: nomeNova, icone: iconeNova }),
     });
     setCriando(false);
     if (!res.ok) {
@@ -93,12 +99,14 @@ export default function ClassificacoesAdminPage() {
       return;
     }
     setNomeNova("");
+    setIconeNova("");
     load();
   }
 
   function iniciarEdicao(c: Classificacao) {
     setEditandoId(c.id);
     setNomeEdicao(c.nome);
+    setIconeEdicao(c.icone);
     setErroEdicao(null);
   }
 
@@ -110,7 +118,7 @@ export default function ClassificacoesAdminPage() {
     const res = await apiFetch(`/api/classificacoes/${editandoId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nome: nomeEdicao }),
+      body: JSON.stringify({ nome: nomeEdicao, icone: iconeEdicao }),
     });
     setSalvandoEdicao(false);
     if (!res.ok) {
@@ -139,7 +147,11 @@ export default function ClassificacoesAdminPage() {
     const res = await apiFetch("/api/subclassificacoes", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ classificacao_id: classificacaoId, nome }),
+      body: JSON.stringify({
+        classificacao_id: classificacaoId,
+        nome,
+        icone: subIconeNovaPorClassificacao[classificacaoId] ?? "",
+      }),
     });
     setSubCriandoEm(null);
     if (!res.ok) {
@@ -147,12 +159,14 @@ export default function ClassificacoesAdminPage() {
       return;
     }
     setSubNovaPorClassificacao((prev) => ({ ...prev, [classificacaoId]: "" }));
+    setSubIconeNovaPorClassificacao((prev) => ({ ...prev, [classificacaoId]: "" }));
     load();
   }
 
   function iniciarEdicaoSub(s: Subclassificacao) {
     setSubEditandoId(s.id);
     setSubNomeEdicao(s.nome);
+    setSubIconeEdicao(s.icone);
     setSubErroEdicao(null);
   }
 
@@ -164,7 +178,7 @@ export default function ClassificacoesAdminPage() {
     const res = await apiFetch(`/api/subclassificacoes/${subEditandoId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nome: subNomeEdicao }),
+      body: JSON.stringify({ nome: subNomeEdicao, icone: subIconeEdicao }),
     });
     setSubSalvandoEdicao(false);
     if (!res.ok) {
@@ -199,6 +213,17 @@ export default function ClassificacoesAdminPage() {
         onSubmit={criarClassificacao}
         className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 sm:flex-row sm:items-end dark:border-slate-800 dark:bg-slate-900"
       >
+        <div className="w-20">
+          <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">
+            Ícone
+          </label>
+          <input
+            value={iconeNova}
+            onChange={(e) => setIconeNova(e.target.value)}
+            placeholder="🍽️"
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-center text-sm dark:border-slate-700"
+          />
+        </div>
         <div className="flex-1">
           <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">
             Nova classificação
@@ -245,6 +270,12 @@ export default function ClassificacoesAdminPage() {
                 {editando ? (
                   <form onSubmit={salvarEdicao} className="flex flex-col gap-2 sm:flex-row sm:items-center">
                     <input
+                      value={iconeEdicao}
+                      onChange={(e) => setIconeEdicao(e.target.value)}
+                      placeholder="🍽️"
+                      className="w-16 shrink-0 rounded-lg border border-slate-300 px-2 py-2 text-center text-sm dark:border-slate-700"
+                    />
+                    <input
                       required
                       autoFocus
                       value={nomeEdicao}
@@ -277,7 +308,7 @@ export default function ClassificacoesAdminPage() {
                           : "text-slate-800 dark:text-slate-200"
                       }`}
                     >
-                      🏷️ {c.nome}
+                      {c.icone || "🏷️"} {c.nome}
                     </span>
                     <div className="flex shrink-0 gap-3">
                       <button
@@ -321,6 +352,12 @@ export default function ClassificacoesAdminPage() {
                           className="flex items-center gap-2 pl-4"
                         >
                           <input
+                            value={subIconeEdicao}
+                            onChange={(e) => setSubIconeEdicao(e.target.value)}
+                            placeholder="🚌"
+                            className="w-12 shrink-0 rounded-lg border border-slate-300 px-1 py-1 text-center text-xs dark:border-slate-700"
+                          />
+                          <input
                             required
                             autoFocus
                             value={subNomeEdicao}
@@ -351,7 +388,7 @@ export default function ClassificacoesAdminPage() {
                                 : "text-slate-700 dark:text-slate-300"
                             }`}
                           >
-                            ↳ {s.nome}
+                            ↳ {s.icone ? `${s.icone} ` : ""}{s.nome}
                           </span>
                           <div className="flex shrink-0 gap-2">
                             <button
@@ -384,6 +421,14 @@ export default function ClassificacoesAdminPage() {
                   onSubmit={(e) => criarSubclassificacao(e, c.id)}
                   className="flex items-center gap-2 pl-4 pt-1"
                 >
+                  <input
+                    value={subIconeNovaPorClassificacao[c.id] ?? ""}
+                    onChange={(e) =>
+                      setSubIconeNovaPorClassificacao((prev) => ({ ...prev, [c.id]: e.target.value }))
+                    }
+                    placeholder="🚌"
+                    className="w-12 shrink-0 rounded-lg border border-slate-300 px-1 py-1 text-center text-xs dark:border-slate-700"
+                  />
                   <input
                     value={subNovaPorClassificacao[c.id] ?? ""}
                     onChange={(e) =>

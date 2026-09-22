@@ -51,8 +51,10 @@ const ESTRUTURA = {
   // `categoria`, Subclassificacoes o que hoje é `tipo`, agora curados pelo admin em vez de fixos
   // no código. `classificacao_id` em Subclassificacoes é a FK. Nascem vazias - o admin preenche
   // pela tela /admin/classificacoes.
-  Classificacoes: ['id', 'nome', 'ativo', 'criado_em'],
-  Subclassificacoes: ['id', 'classificacao_id', 'nome', 'ativo', 'criado_em']
+  // `icone` (emoji livre, ex. 🍽️) faz o item na lista/Agenda voltar a ter ícone contextual mesmo
+  // com classificação sendo dado livre do admin.
+  Classificacoes: ['id', 'nome', 'ativo', 'criado_em', 'icone'],
+  Subclassificacoes: ['id', 'classificacao_id', 'nome', 'ativo', 'criado_em', 'icone']
 };
 
 // ---------- PONTO DE ENTRADA DO WEB APP ----------

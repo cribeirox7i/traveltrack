@@ -19,7 +19,7 @@ export async function getClassificacao(id: string): Promise<ClassificacaoRow | n
   return todas.find((c) => c.id === id) ?? null;
 }
 
-export async function createClassificacao(nome: string): Promise<ClassificacaoRow> {
+export async function createClassificacao(nome: string, icone?: string): Promise<ClassificacaoRow> {
   const todas = await listClassificacoes();
   const jaExiste = todas.some((c) => c.nome.trim().toLowerCase() === nome.trim().toLowerCase());
   if (jaExiste) throw new Error("Já existe uma classificação com este nome");
@@ -29,6 +29,7 @@ export async function createClassificacao(nome: string): Promise<ClassificacaoRo
     nome: nome.trim(),
     ativo: "true",
     criado_em: new Date().toISOString(),
+    icone: (icone ?? "").trim(),
   };
   await appendRows("Classificacoes", [row]);
   return row;
@@ -36,7 +37,7 @@ export async function createClassificacao(nome: string): Promise<ClassificacaoRo
 
 export async function updateClassificacao(
   id: string,
-  patch: { nome?: string; ativo?: boolean }
+  patch: { nome?: string; ativo?: boolean; icone?: string }
 ): Promise<void> {
   const stringPatch: Record<string, string> = {};
 
@@ -50,6 +51,7 @@ export async function updateClassificacao(
   }
 
   if (patch.ativo !== undefined) stringPatch.ativo = patch.ativo ? "true" : "false";
+  if (patch.icone !== undefined) stringPatch.icone = patch.icone.trim();
 
   await updateRow("Classificacoes", id, stringPatch);
 }
@@ -71,7 +73,8 @@ export async function getSubclassificacao(id: string): Promise<SubclassificacaoR
 
 export async function createSubclassificacao(
   classificacaoId: string,
-  nome: string
+  nome: string,
+  icone?: string
 ): Promise<SubclassificacaoRow> {
   const irmas = await listSubclassificacoes(classificacaoId);
   const jaExiste = irmas.some((s) => s.nome.trim().toLowerCase() === nome.trim().toLowerCase());
@@ -83,6 +86,7 @@ export async function createSubclassificacao(
     nome: nome.trim(),
     ativo: "true",
     criado_em: new Date().toISOString(),
+    icone: (icone ?? "").trim(),
   };
   await appendRows("Subclassificacoes", [row]);
   return row;
@@ -90,7 +94,7 @@ export async function createSubclassificacao(
 
 export async function updateSubclassificacao(
   id: string,
-  patch: { nome?: string; ativo?: boolean }
+  patch: { nome?: string; ativo?: boolean; icone?: string }
 ): Promise<void> {
   const stringPatch: Record<string, string> = {};
 
@@ -107,6 +111,7 @@ export async function updateSubclassificacao(
   }
 
   if (patch.ativo !== undefined) stringPatch.ativo = patch.ativo ? "true" : "false";
+  if (patch.icone !== undefined) stringPatch.icone = patch.icone.trim();
 
   await updateRow("Subclassificacoes", id, stringPatch);
 }

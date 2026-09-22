@@ -229,6 +229,7 @@ export interface ClassificacaoInfo {
   id: string;
   nome: string;
   ativo: string;
+  icone: string;
 }
 
 export interface SubclassificacaoInfo {
@@ -236,6 +237,7 @@ export interface SubclassificacaoInfo {
   classificacao_id: string;
   nome: string;
   ativo: string;
+  icone: string;
 }
 
 /** Taxonomia do cadastro de Itens (Classificação/Subclassificação, curada pelo admin em

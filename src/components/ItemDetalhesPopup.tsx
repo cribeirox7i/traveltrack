@@ -63,21 +63,32 @@ function formatMoedaEstrangeira(valor: string, moeda: string): string {
   return `${Number(valor).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${moeda}`;
 }
 
-/** Ícone genérico por combinação de acordeões ativos - a classificação é dado livre do admin
- * agora, não dá mais pra ter um emoji fixo por categoria (era `CATEGORIA_ICONE`). */
+/** Ícone contextual: prioriza o emoji curado pelo admin em Subclassificação (sobrescreve),
+ * depois o de Classificação (ex. 🍽️ em Alimentação), e só cai no genérico por acordeão
+ * (💰/🗺️/🧳) quando nenhum dos dois foi preenchido - ver `icone` em ClassificacaoRow/
+ * SubclassificacaoRow e a tela /admin/classificacoes. Os mapas são opcionais pra quem chama sem
+ * ter carregado a taxonomia ainda não quebrar (cai direto no genérico). */
 export function IconeItem({
   item,
+  iconePorClassificacao,
+  iconePorSubclassificacao,
   className,
 }: {
-  item: Pick<Item, "financeiro_ativo" | "roteiro_ativo">;
+  item: Pick<Item, "classificacao_id" | "subclassificacao_id" | "financeiro_ativo" | "roteiro_ativo">;
+  iconePorClassificacao?: Record<string, string>;
+  iconePorSubclassificacao?: Record<string, string>;
   className?: string;
 }) {
-  const emoji =
+  const generico =
     item.financeiro_ativo === "true" && item.roteiro_ativo === "true"
       ? "🧳"
       : item.financeiro_ativo === "true"
         ? "💰"
         : "🗺️";
+  const emoji =
+    (item.subclassificacao_id && iconePorSubclassificacao?.[item.subclassificacao_id]) ||
+    (item.classificacao_id && iconePorClassificacao?.[item.classificacao_id]) ||
+    generico;
   return (
     <span className={`shrink-0 text-[1.3rem] leading-none ${className ?? ""}`} aria-hidden="true">
       {emoji}
@@ -247,6 +258,8 @@ export function ItemDetalhesPopup({
   nomePorMeio,
   nomePorClassificacao,
   nomePorSubclassificacao,
+  iconePorClassificacao,
+  iconePorSubclassificacao,
   extraAnexos = [],
   cambios = [],
   cotacoes = {},
@@ -260,6 +273,10 @@ export function ItemDetalhesPopup({
   nomePorMeio: Record<string, string>;
   nomePorClassificacao: Record<string, string>;
   nomePorSubclassificacao: Record<string, string>;
+  /** Ícone curado por classificação/subclassificação (ver comentário em `IconeItem`) - ausentes
+   * caem no ícone genérico por acordeão. */
+  iconePorClassificacao?: Record<string, string>;
+  iconePorSubclassificacao?: Record<string, string>;
   /** Anexos extras deste item (já filtrados pelo chamador - lista inteira da viagem vem de
    * `useOfflineCollection<ItemAnexoInfo>("itemAnexos", tripId)`). */
   extraAnexos?: ItemAnexoExtra[];
@@ -287,7 +304,11 @@ export function ItemDetalhesPopup({
       <div className="flex w-full max-w-lg flex-col gap-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-xl">
         <div className="flex items-center justify-between">
           <h2 className="flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-            <IconeItem item={item} />
+            <IconeItem
+              item={item}
+              iconePorClassificacao={iconePorClassificacao}
+              iconePorSubclassificacao={iconePorSubclassificacao}
+            />
             {nomeClassificacao}
             {nomeSubclassificacao && (
               <span className="font-normal normal-case text-slate-400">· {nomeSubclassificacao}</span>
