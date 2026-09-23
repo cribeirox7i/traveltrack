@@ -10,6 +10,7 @@ import {
   useMeiosPagamento,
   useOfflineCollection,
   useOfflineTrip,
+  useOnlineStatus,
   useSubclassificacoes,
 } from "@/lib/offline/useOfflineData";
 import { viagemBloqueada } from "@/lib/tripStatus";
@@ -117,6 +118,7 @@ export default function AgendaPage() {
   }, [countries]);
   const { trip } = useOfflineTrip<{ id: string; status?: string; data_inicio: string; data_fim: string }>(tripId);
   const bloqueada = !!trip && viagemBloqueada(trip);
+  const online = useOnlineStatus();
   const collaborators = useCollaborators(tripId);
   const meiosPagamento = useMeiosPagamento().filter((m) => m.ativo === "true");
   const nomePorPessoa = useMemo(
@@ -285,6 +287,15 @@ export default function AgendaPage() {
                                 href={hrefSeguro(item.url)}
                                 target="_blank"
                                 rel="noopener noreferrer"
+                                onClick={(e) => {
+                                  // Sem rede, deixar o navegador tentar abrir o link só quebra a
+                                  // navegação do app (some da tela até apertar "voltar") - avisa
+                                  // em vez de tentar.
+                                  if (!online) {
+                                    e.preventDefault();
+                                    alert("Sem conexão - não dá para abrir este link agora.");
+                                  }
+                                }}
                                 className="text-blue-600 dark:text-blue-400 hover:underline"
                               >
                                 Link
