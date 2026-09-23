@@ -115,7 +115,7 @@ export default function AgendaPage() {
     }
     return out;
   }, [countries]);
-  const { trip } = useOfflineTrip<{ id: string; status?: string; data_fim: string }>(tripId);
+  const { trip } = useOfflineTrip<{ id: string; status?: string; data_inicio: string; data_fim: string }>(tripId);
   const bloqueada = !!trip && viagemBloqueada(trip);
   const collaborators = useCollaborators(tripId);
   const meiosPagamento = useMeiosPagamento().filter((m) => m.ativo === "true");

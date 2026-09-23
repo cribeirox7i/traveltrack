@@ -11,16 +11,18 @@
  * status continua editável) - ver `viagemBloqueada` e `tripLockError` em `lib/api-helpers.ts`.
  */
 
-export type TripStatus = "planejada" | "concluida" | "cancelada";
+export type TripStatus = "planejada" | "em_andamento" | "concluida" | "cancelada";
 
 export const TRIP_STATUS_OPTIONS: { value: TripStatus; label: string }[] = [
   { value: "planejada", label: "Planejada" },
+  { value: "em_andamento", label: "Em Andamento" },
   { value: "concluida", label: "Concluída" },
   { value: "cancelada", label: "Cancelada" },
 ];
 
 export const TRIP_STATUS_LABEL: Record<TripStatus, string> = {
   planejada: "Planejada",
+  em_andamento: "Em Andamento",
   concluida: "Concluída",
   cancelada: "Cancelada",
 };
@@ -30,6 +32,8 @@ export const TRIP_STATUS_LABEL: Record<TripStatus, string> = {
 export const TRIP_STATUS_BADGE: Record<TripStatus, string> = {
   planejada:
     "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300",
+  em_andamento:
+    "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
   concluida:
     "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
   cancelada:
@@ -38,11 +42,12 @@ export const TRIP_STATUS_BADGE: Record<TripStatus, string> = {
 
 interface TripStatusInput {
   status?: string | null;
+  data_inicio: string;
   data_fim: string;
 }
 
 function ehStatusExplicito(v: unknown): v is TripStatus {
-  return v === "planejada" || v === "concluida" || v === "cancelada";
+  return v === "planejada" || v === "em_andamento" || v === "concluida" || v === "cancelada";
 }
 
 /** Data de hoje no formato yyyy-MM-dd, no fuso local do aparelho/servidor - mesma granularidade
@@ -57,10 +62,14 @@ function hojeISO(): string {
 /** Status efetivo da viagem (nunca vazio). */
 export function statusViagem(trip: TripStatusInput): TripStatus {
   if (ehStatusExplicito(trip.status)) return trip.status;
+  const inicio = (trip.data_inicio ?? "").slice(0, 10);
   const fim = (trip.data_fim ?? "").slice(0, 10);
-  // Último dia já passou (data_fim < hoje) => concluída. O próprio dia do término ainda conta
-  // como viagem em andamento.
-  return fim && fim < hojeISO() ? "concluida" : "planejada";
+  const hoje = hojeISO();
+  // Último dia já passou (data_fim < hoje) => concluída.
+  if (fim && fim < hoje) return "concluida";
+  // Hoje está dentro do período (do primeiro ao último dia, ambos inclusive) => em andamento.
+  if (inicio && inicio <= hoje) return "em_andamento";
+  return "planejada";
 }
 
 /** Viagem concluída ou cancelada - edição bloqueada em todo o app, exceto o campo status. */

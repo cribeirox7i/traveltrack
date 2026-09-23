@@ -76,7 +76,9 @@ export default function EditarViagemPage() {
       custo_modo: trip.custo_modo === "total" ? "total" : "por_pessoa",
     });
     const s = trip.status;
-    setStatusForm(s === "planejada" || s === "concluida" || s === "cancelada" ? s : "");
+    setStatusForm(
+      s === "planejada" || s === "em_andamento" || s === "concluida" || s === "cancelada" ? s : "",
+    );
   }, [trip]);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -142,7 +144,9 @@ export default function EditarViagemPage() {
           >
             <option value="">
               Automático (pela data){" "}
-              {trip.data_fim ? `- hoje: ${TRIP_STATUS_LABEL[statusViagem({ status: "", data_fim: trip.data_fim })]}` : ""}
+              {trip.data_fim
+                ? `- hoje: ${TRIP_STATUS_LABEL[statusViagem({ status: "", data_inicio: trip.data_inicio, data_fim: trip.data_fim })]}`
+                : ""}
             </option>
             {TRIP_STATUS_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>

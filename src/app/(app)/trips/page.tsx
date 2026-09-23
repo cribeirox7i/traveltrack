@@ -10,10 +10,23 @@ import { FILTER_SELECT_COMPACT_CLASS } from "@/lib/uiClasses";
 import {
   TRIP_STATUS_BADGE,
   TRIP_STATUS_LABEL,
-  TRIP_STATUS_OPTIONS,
   statusViagem,
   type TripStatus,
 } from "@/lib/tripStatus";
+
+type FiltroStatus = "ativas" | TripStatus;
+
+/** "Ativas" agrupa planejada + em_andamento - é o padrão da tela, pra viagem em curso não
+ * sumir da lista sem o usuário trocar o filtro. Ordem pedida: Ativas, Em Andamento, Planejadas,
+ * Concluídas, Canceladas (diferente da ordem de TRIP_STATUS_OPTIONS, que é pro select de status
+ * manual da tela Editar). */
+const FILTRO_STATUS_OPTIONS: { value: FiltroStatus; label: string }[] = [
+  { value: "ativas", label: "Ativas" },
+  { value: "em_andamento", label: "Em Andamento" },
+  { value: "planejada", label: "Planejadas" },
+  { value: "concluida", label: "Concluídas" },
+  { value: "cancelada", label: "Canceladas" },
+];
 
 interface TripItem {
   id: string;
@@ -147,9 +160,13 @@ export default function TripsPage() {
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleteWarning, setDeleteWarning] = useState<string | null>(null);
-  const [filtroStatus, setFiltroStatus] = useState<TripStatus | "">("planejada");
+  const [filtroStatus, setFiltroStatus] = useState<FiltroStatus>("ativas");
 
-  const visiveis = trips.filter((t) => !filtroStatus || statusViagem(t) === filtroStatus);
+  const visiveis = trips.filter((t) => {
+    const s = statusViagem(t);
+    if (filtroStatus === "ativas") return s === "planejada" || s === "em_andamento";
+    return s === filtroStatus;
+  });
 
   const refresh = useCallback(async () => {
     setOfflineIds(new Set(await listOfflineTripIds()));
@@ -212,12 +229,11 @@ export default function TripsPage() {
         <div className="flex shrink-0 items-center gap-2">
           <select
             value={filtroStatus}
-            onChange={(e) => setFiltroStatus(e.target.value as TripStatus | "")}
+            onChange={(e) => setFiltroStatus(e.target.value as FiltroStatus)}
             aria-label="Filtrar por status"
             className={FILTER_SELECT_COMPACT_CLASS}
           >
-            <option value="">Todos</option>
-            {TRIP_STATUS_OPTIONS.map((o) => (
+            {FILTRO_STATUS_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
               </option>

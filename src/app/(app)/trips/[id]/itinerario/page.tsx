@@ -14,6 +14,7 @@ interface TripMeta {
   id: string;
   criado_por: string;
   status?: string;
+  data_inicio: string;
   data_fim: string;
 }
 

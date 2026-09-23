@@ -90,7 +90,7 @@ export default function CambioPage() {
     "tripDays",
     tripId
   );
-  const { trip } = useOfflineTrip<{ id: string; status?: string; data_fim: string }>(tripId);
+  const { trip } = useOfflineTrip<{ id: string; status?: string; data_inicio: string; data_fim: string }>(tripId);
   const countries = useCountries();
   const online = useOnlineStatus();
 

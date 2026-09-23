@@ -120,7 +120,7 @@ export default function ItensPage() {
   const searchParams = useSearchParams();
   const { data: session } = useSession();
   const { items, loading } = useOfflineCollection<Item>("itens", tripId);
-  const { trip } = useOfflineTrip<{ id: string; status?: string; data_fim: string }>(tripId);
+  const { trip } = useOfflineTrip<{ id: string; status?: string; data_inicio: string; data_fim: string }>(tripId);
   // Viagem concluída/cancelada: tela vira somente-leitura (o backend também recusa - ver
   // `tripLockError`). Enquanto o trip ainda não carregou do IndexedDB, não bloqueia.
   const bloqueada = !!trip && viagemBloqueada(trip);

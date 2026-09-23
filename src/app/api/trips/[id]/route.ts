@@ -37,7 +37,7 @@ const patchSchema = z.object({
   custo_modo: z.enum(["por_pessoa", "total"]).optional(),
   // Único campo que continua editável numa viagem concluída/cancelada (ver checagem abaixo).
   // `""` volta ao automático (data_fim decide).
-  status: z.enum(["planejada", "concluida", "cancelada"]).or(z.literal("")).optional(),
+  status: z.enum(["planejada", "em_andamento", "concluida", "cancelada"]).or(z.literal("")).optional(),
   // Não é um campo qualquer da linha - mudar isso desloca a grade inteira de dias (e a Agenda
   // junto), ver `changeTripStartDate`. Tratado à parte abaixo, não entra no `updateTrip` genérico.
   data_inicio: z.string().date().optional(),

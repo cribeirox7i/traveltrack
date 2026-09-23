@@ -15,6 +15,7 @@ interface TripMeta {
   custo_modo?: "por_pessoa" | "total" | "";
   criado_por: string;
   status?: string;
+  data_inicio: string;
   data_fim: string;
 }
 

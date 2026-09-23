@@ -32,7 +32,7 @@ function formatDataBR(iso: string): string {
 export default function AnexosPage() {
   const { id: tripId } = useParams<{ id: string }>();
   const { items: anexos, loading } = useOfflineCollection<AnexoSoltoInfo>("anexosSoltos", tripId);
-  const { trip } = useOfflineTrip<{ id: string; status?: string; data_fim: string }>(tripId);
+  const { trip } = useOfflineTrip<{ id: string; status?: string; data_inicio: string; data_fim: string }>(tripId);
   const bloqueada = !!trip && viagemBloqueada(trip);
   const online = useOnlineStatus();
 
