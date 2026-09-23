@@ -30,8 +30,11 @@ export default function TripLayout({ children }: { children: React.ReactNode }) 
   const { status } = useSession();
   const { trip, loading } = useOfflineTrip<TripMeta>(id);
 
+  // O NextAuth revalida a sessão sozinho ao voltar o foco da tela, e engole qualquer erro de
+  // rede devolvendo sessão nula - offline isso vira "unauthenticated" por falso alarme, não
+  // por sessão expirada de verdade. Só confiar nisso pra redirecionar quando há conexão.
   useEffect(() => {
-    if (status === "unauthenticated") router.replace("/login");
+    if (status === "unauthenticated" && isOnline()) router.replace("/login");
   }, [status, router]);
 
   // Garante que o código de TODAS as abas da viagem (não só a que foi clicada) já
