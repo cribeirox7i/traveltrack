@@ -131,8 +131,6 @@ export const SHEET_HEADERS: Record<SheetTab, string[]> = {
   Itens: [
     "id",
     "trip_id",
-    "categoria",
-    "tipo",
     "localizador",
     "nome_companhia",
     "numero",
@@ -146,8 +144,6 @@ export const SHEET_HEADERS: Record<SheetTab, string[]> = {
     "hora_inicio",
     "data_fim",
     "hora_fim",
-    "tipo_documento",
-    "passageiro_id",
     "url",
     "anexo_file_id",
     "anexo_nome",
@@ -167,9 +163,8 @@ export const SHEET_HEADERS: Record<SheetTab, string[]> = {
     // viagem (ver `computeRelatorio`), com queda pra cotação do dia (Countries.rate_brl) quando
     // não há câmbio daquela moeda.
     "moeda",
-    // Reforma do cadastro (2026-09-21): substituem categoria/tipo (mantidos na aba por
-    // compatibilidade com as 32 linhas antigas, ver comentário em CategoriaItem/ItemRow) e os
-    // dois interruptores Financeiro/Roteiro do formulário novo.
+    // Reforma do cadastro (2026-09-21): classificação livre curada pelo admin (Classificacoes/
+    // Subclassificacoes) e os dois interruptores Financeiro/Roteiro do formulário novo.
     "classificacao_id",
     "subclassificacao_id",
     "financeiro_ativo",
@@ -198,8 +193,8 @@ export const SHEET_HEADERS: Record<SheetTab, string[]> = {
     "criado_em",
   ],
   // Taxonomia do cadastro de Itens (reforma do formulário, ver ClassificacaoRow/
-  // SubclassificacaoRow) - substitui o enum fixo `CategoriaItem`, curada pelo admin em
-  // /admin/classificacoes. Nascem vazias, o admin preenche depois.
+  // SubclassificacaoRow) - curada pelo admin em /admin/classificacoes. Nascem vazias, o admin
+  // preenche depois.
   // `icone` é um emoji livre (ex. "🍽️") pro ícone do item na lista/Agenda voltar a ser
   // contextual mesmo com a classificação sendo dado livre do admin - vazio cai no ícone genérico
   // por acordeão (💰/🗺️/🧳, ver `IconeItem`).
@@ -429,67 +424,14 @@ export interface CountryRow {
   rate_date: string;
 }
 
-/**
- * LEGADO (reforma do cadastro de Itens, 2026-09-21) - `categoria`/`tipo` foram substituídos por
- * `classificacao_id`/`subclassificacao_id` (FK pras abas `Classificacoes`/`Subclassificacoes`,
- * curadas pelo admin). Este enum e as funções abaixo (`categoriaNatureza`,
- * `CATEGORIAS_ITEM_FINANCEIRAS`) continuam só pra LER o `categoria` das 32 linhas antigas na
- * migração (`scripts/migrate-itens-classificacao.js`) - nenhum código novo deve escrevê-los.
- * `documento`/`outro` saíram do cadastro (viraram a aba solta `Anexos`); o que já existia
- * migrou pra `atrativo`.
- */
-export type CategoriaItem =
-  | "traslado"
-  | "passagem"
-  | "hospedagem"
-  | "alimentacao"
-  | "atrativo"
-  | "repasse"
-  | "documento"
-  | "outro";
-
-export const CATEGORIAS_ITEM: { value: CategoriaItem; label: string }[] = [
-  { value: "traslado", label: "Traslado" },
-  { value: "passagem", label: "Passagem" },
-  { value: "hospedagem", label: "Hospedagem" },
-  { value: "alimentacao", label: "Alimentação" },
-  { value: "atrativo", label: "Atrativo" },
-  { value: "repasse", label: "Repasse" },
-  { value: "documento", label: "Documentos" },
-  { value: "outro", label: "Outros" },
-];
-
-/** Débito, crédito, ou `null` se a categoria não tem campo financeiro (Documento/Outro). */
-export function categoriaNatureza(categoria: CategoriaItem): Natureza | null {
-  if (categoria === "repasse") return "credito";
-  if (categoria === "documento" || categoria === "outro") return null;
-  return "debito";
-}
-
-/** Categorias com campo financeiro (valor/pagador/meio de pagamento) - as outras duas (Documento
- * e Outro) são só anexo+URL+descrição. */
-export const CATEGORIAS_ITEM_FINANCEIRAS = new Set<CategoriaItem>([
-  "traslado",
-  "passagem",
-  "hospedagem",
-  "alimentacao",
-  "atrativo",
-  "repasse",
-]);
-
 export interface ItemRow {
   [key: string]: string;
   id: string;
   trip_id: string;
-  /** LEGADO - ver comentário em `CategoriaItem`. Linha nova não escreve aqui, só
-   * `classificacao_id`/`subclassificacao_id` abaixo. */
-  categoria: string;
-  tipo: string;
-  /** FK pra `Classificacoes.id` - substitui `categoria`. Vazio numa linha antiga que ainda não
-   * passou pela migração. */
+  /** FK pra `Classificacoes.id`, curada pelo admin em /admin/classificacoes. */
   classificacao_id: string;
-  /** FK pra `Subclassificacoes.id` - substitui `tipo`. Opcional (nem toda classificação precisa
-   * de subclassificação). */
+  /** FK pra `Subclassificacoes.id`. Opcional (nem toda classificação precisa de
+   * subclassificação). */
   subclassificacao_id: string;
   /** Os dois interruptores do formulário reformulado: um item pode ser só financeiro, só roteiro,
    * ou os dois - pelo menos um precisa ser `"true"` pra salvar (ver zod da rota). Roteiro > Agenda
@@ -518,11 +460,6 @@ export interface ItemRow {
   hora_inicio: string;
   data_fim: string;
   hora_fim: string;
-  /** LEGADO - era da categoria "documento", removida do cadastro (ver comentário em
-   * `CategoriaItem`). Não escrito por linha nova. */
-  tipo_documento: string;
-  /** LEGADO - idem `tipo_documento`. */
-  passageiro_id: string;
   url: string;
   anexo_file_id: string;
   anexo_nome: string;
@@ -603,11 +540,10 @@ export interface CambioRow {
 }
 
 /**
- * Uma classificação do cadastro de Itens (ex.: "Passagem", "Hospedagem") - substitui o enum fixo
- * `CategoriaItem` por uma lista curada pelo admin (tela /admin/classificacoes), igual em espírito
- * a `Ambientes`. Sem exclusão de propósito (mesmo motivo de Ambientes: um Item já apontando pra
- * uma classificação apagada ficaria órfão) - só `ativo: false` tira das opções de cadastro sem
- * apagar o que já existe.
+ * Uma classificação do cadastro de Itens (ex.: "Passagem", "Hospedagem") - lista curada pelo
+ * admin (tela /admin/classificacoes), igual em espírito a `Ambientes`. Sem exclusão de propósito
+ * (mesmo motivo de Ambientes: um Item já apontando pra uma classificação apagada ficaria órfão) -
+ * só `ativo: false` tira das opções de cadastro sem apagar o que já existe.
  */
 export interface ClassificacaoRow {
   [key: string]: string;
