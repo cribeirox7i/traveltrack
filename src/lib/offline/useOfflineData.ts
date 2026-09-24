@@ -70,12 +70,10 @@ export function useOfflineTrip<T extends { id: string }>(tripId: string | undefi
   return { trip, loading };
 }
 
-/** Dias / despesas / receitas de uma viagem. Puxa do servidor em segundo plano quando online. */
+/** Dias / agenda / itens de uma viagem. Puxa do servidor em segundo plano quando online. */
 export function useOfflineCollection<T extends { id: string }>(
   tab:
     | "tripDays"
-    | "despesas"
-    | "receitas"
     | "agenda"
     | "itens"
     | "itemAnexos"
@@ -134,7 +132,7 @@ export async function getLocalAnexoUrl(fileId: string): Promise<string | null> {
   return URL.createObjectURL(file.blob);
 }
 
-/** Usuários com acesso à viagem (pro select de "Pagador" em Despesas) - cacheado localmente,
+/** Usuários com acesso à viagem (pro select de "Pagador" em Itens) - cacheado localmente,
  * atualizado em segundo plano quando online. */
 export function useCollaborators(tripId: string | undefined) {
   const [people, setPeople] = useState<PersonOption[]>([]);

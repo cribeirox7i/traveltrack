@@ -3,8 +3,8 @@ import { errorResponse, requireSession, sessionCanAccessTrip } from "@/lib/api-h
 import { listItemAnexosByTrip } from "@/lib/sheets/itemAnexos";
 
 /** Anexos EXTRAS de todos os Itens da viagem, numa lista só (não por item) - usado pelo cache
- * offline (`pullTripDetail`, mesmo padrão de `/itens`/`/despesas`) e pelo formulário de edição,
- * que filtra por `item_id` no cliente em vez de uma chamada por item. */
+ * offline (`pullTripDetail`, mesmo padrão de `/itens`) e pelo formulário de edição, que filtra
+ * por `item_id` no cliente em vez de uma chamada por item. */
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }

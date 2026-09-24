@@ -145,7 +145,7 @@ const serwist = new Serwist({
       }),
     },
     // defaultCache cobre o resto: assets estáticos, payloads RSC e demais navegações. Dados de
-    // viagem (dias/despesas/receitas) offline são responsabilidade da camada IndexedDB em
+    // viagem (dias/agenda/itens) offline são responsabilidade da camada IndexedDB em
     // src/lib/offline, não deste cache.
     //
     // A regra "cross-origin" nativa do defaultCache é trocada por uma versão com allowlist: a

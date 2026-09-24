@@ -7,8 +7,6 @@ export type SheetTab =
   | "Trips"
   | "TripDays"
   | "UserTrip"
-  | "Despesas"
-  | "Receitas"
   | "MeiosPagamento"
   | "Agenda"
   | "Countries"
@@ -68,20 +66,6 @@ export const SHEET_HEADERS: Record<SheetTab, string[]> = {
     "pernoite_pais",
   ],
   UserTrip: ["id", "user_id", "trip_id"],
-  Despesas: [
-    "id",
-    "trip_id",
-    "categoria",
-    "valor",
-    "data",
-    "lancado_por",
-    "descricao",
-    "pagador_id",
-    "meio_pagamento_id",
-    "status",
-    "natureza",
-  ],
-  Receitas: ["id", "trip_id", "user_id", "valor", "data", "descricao", "credor_id", "status"],
   // `user_id` = dono do meio de pagamento (cada usuário tem a própria lista; o gestor cadastra
   // pros usuários comuns do ambiente dele). Linha antiga sem `user_id` é órfã - ainda resolve o
   // nome por id nos Itens que a referenciam, mas não aparece na lista de ninguém.
@@ -334,40 +318,10 @@ export type Categoria =
   | "aporte";
 
 /**
- * Situação de pagamento de uma despesa/receita. Linhas antigas (criadas antes da coluna
- * existir) vêm com a célula vazia - por isso todo lugar que lê o status trata "" como o estado
- * pendente (`a_pagar`/`a_receber`) em vez de assumir que a coluna sempre está preenchida.
- */
-export type StatusDespesa = "pago" | "a_pagar";
-export type StatusReceita = "recebido" | "a_receber";
-/** O campo `status` de um lançamento na aba Despesas guarda um dos dois vocabulários acima,
- * dependendo de `natureza`: débito usa pago/a_pagar, crédito usa recebido/a_receber (mesmo
- * vocabulário já usado há tempos na aba Receitas - sem conflito com dado existente, já que toda
- * linha de Despesas anterior a esta coluna é implicitamente débito). */
-export type StatusLancamento = StatusDespesa | StatusReceita;
-
-/**
  * Débito (dinheiro saindo, ex.: uma diária de hotel) ou crédito (dinheiro entrando, ex.: um
- * aporte de alguém do grupo) - o que hoje distinguia as abas Despesas/Receitas vira um campo na
- * mesma linha, unificado em "Lançamentos". Linhas antigas (de antes desta coluna existir) vêm
- * com a célula vazia e são tratadas como "debito", já que só a aba Despesas existia até então.
+ * aporte de alguém do grupo) - campo de um Item na aba `Itens` (categoria "financeiro").
  */
 export type Natureza = "debito" | "credito";
-
-export interface DespesaRow {
-  [key: string]: string;
-  id: string;
-  trip_id: string;
-  categoria: Categoria;
-  valor: string;
-  data: string;
-  lancado_por: string;
-  descricao: string;
-  pagador_id: string;
-  meio_pagamento_id: string;
-  status: StatusLancamento | "";
-  natureza: Natureza | "";
-}
 
 export interface MeioPagamentoRow {
   [key: string]: string;
@@ -377,18 +331,6 @@ export interface MeioPagamentoRow {
   /** Dono. Vazio = linha legada de quando a lista era global do sistema - continua resolvendo o
    * nome nos Itens antigos que apontam pra ela, mas não entra na lista de nenhum usuário. */
   user_id: string;
-}
-
-export interface ReceitaRow {
-  [key: string]: string;
-  id: string;
-  trip_id: string;
-  user_id: string;
-  valor: string;
-  data: string;
-  descricao: string;
-  credor_id: string;
-  status: StatusReceita | "";
 }
 
 /**

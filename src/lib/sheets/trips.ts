@@ -172,16 +172,16 @@ export interface DeleteTripResult {
 }
 
 /**
- * Exclui a viagem e faz cascade em tudo que depende dela: diárias, despesas, receitas, agenda,
- * vínculos de acesso (UserTrip) e a pasta de anexos no Drive (que já cobre os anexos avulsos e
- * os da agenda, todos na mesma pasta da viagem).
+ * Exclui a viagem e faz cascade em tudo que depende dela: diárias, agenda, vínculos de acesso
+ * (UserTrip) e a pasta de anexos no Drive (que já cobre os anexos avulsos e os da agenda, todos
+ * na mesma pasta da viagem).
  *
  * A ordem aqui importa e não é acidental. A planilha vem primeiro (linhas dependentes, depois a
  * própria viagem) e só no fim, isolada num try/catch, a pasta do Drive. Antes as duas coisas
  * saíam juntas num `Promise.all` com a exclusão da viagem depois: quando a chamada do Drive
  * falhava - o que acontece se o Apps Script não tiver o escopo de autorização do Drive -, a
- * rejeição pulava o `deleteRow("Trips")` **depois** de as diárias/despesas/receitas já terem
- * sido apagadas, deixando a viagem meio-excluída (ainda na lista, porém vazia).
+ * rejeição pulava o `deleteRow("Trips")` **depois** de as diárias já terem sido apagadas,
+ * deixando a viagem meio-excluída (ainda na lista, porém vazia).
  *
  * Remover os anexos é desejável, mas não é motivo para bloquear a exclusão: quem pediu para
  * excluir a viagem quer a viagem fora, e uma pasta órfã no Drive é reportada para quem chamou
@@ -192,8 +192,6 @@ export async function deleteTrip(tripId: string): Promise<DeleteTripResult> {
 
   await Promise.all([
     deleteRowsByField("TripDays", "trip_id", tripId),
-    deleteRowsByField("Despesas", "trip_id", tripId),
-    deleteRowsByField("Receitas", "trip_id", tripId),
     deleteRowsByField("UserTrip", "trip_id", tripId),
     deleteRowsByField("Agenda", "trip_id", tripId),
   ]);
@@ -304,8 +302,7 @@ export async function saveTripDays(
  * Muda a data de início da viagem, deslocando TODOS os dias da grade (e os compromissos da
  * Agenda que caem em alguma dessas datas) pela mesma diferença de dias - a duração da viagem
  * (quantidade de dias) não muda, só desliza no calendário inteira. `data_fim` da viagem é
- * recalculado junto (mesmo delta). Não mexe em Despesas/Receitas - são um livro-caixa
- * independente da grade de dias, não "pertencem" a um dia específico como a Agenda.
+ * recalculado junto (mesmo delta).
  */
 export async function changeTripStartDate(tripId: string, novaDataInicio: string): Promise<void> {
   const trip = await findRowById<TripRow>("Trips", tripId);
@@ -494,7 +491,7 @@ export async function listTripCollaborators(tripId: string): Promise<UserTripRow
 }
 
 /**
- * Usuários com acesso à viagem, com nome (pro dropdown de "Pagador" em Despesas) - sempre inclui
+ * Usuários com acesso à viagem, com nome (pro dropdown de "Pagador" em Itens) - sempre inclui
  * `currentUserId` e quem criou a viagem (`criado_por`), mesmo sem vínculo explícito em UserTrip:
  * o admin/gestor que criou a viagem raramente se auto-vincula, e sem isso ele não aparecia como
  * opção de "Quem pagou" mesmo tendo bancado o item.

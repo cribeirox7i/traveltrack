@@ -3,8 +3,6 @@ import { DBSchema, IDBPDatabase, openDB } from "idb";
 export type DataTab =
   | "trips"
   | "tripDays"
-  | "despesas"
-  | "receitas"
   | "anexos"
   | "agenda"
   | "itens"
@@ -16,14 +14,10 @@ export interface OutboxEntry {
   localId: string;
   kind:
     | "createTrip"
-    | "createDespesa"
-    | "createReceita"
     | "saveDays"
     | "createAgenda"
     | "updateAgenda"
     | "deleteAgenda"
-    | "updateDespesaStatus"
-    | "updateReceitaStatus"
     | "createItem"
     | "updateItem"
     | "deleteItem"
@@ -65,8 +59,6 @@ export interface TripImageRow {
 interface TravelTrackDB extends DBSchema {
   trips: { key: string; value: RowBase };
   tripDays: { key: string; value: RowBase; indexes: { trip_id: string } };
-  despesas: { key: string; value: RowBase; indexes: { trip_id: string } };
-  receitas: { key: string; value: RowBase; indexes: { trip_id: string } };
   anexos: { key: string; value: RowBase; indexes: { trip_id: string } };
   anexoFiles: { key: string; value: AnexoFileRow; indexes: { trip_id: string } };
   agenda: { key: string; value: RowBase; indexes: { trip_id: string } };
@@ -101,12 +93,6 @@ export function getDB(): Promise<IDBPDatabase<TravelTrackDB>> {
         }
         if (!db.objectStoreNames.contains("tripDays")) {
           db.createObjectStore("tripDays", { keyPath: "id" }).createIndex("trip_id", "trip_id");
-        }
-        if (!db.objectStoreNames.contains("despesas")) {
-          db.createObjectStore("despesas", { keyPath: "id" }).createIndex("trip_id", "trip_id");
-        }
-        if (!db.objectStoreNames.contains("receitas")) {
-          db.createObjectStore("receitas", { keyPath: "id" }).createIndex("trip_id", "trip_id");
         }
         if (!db.objectStoreNames.contains("anexos")) {
           db.createObjectStore("anexos", { keyPath: "fileId" }).createIndex("trip_id", "trip_id");
@@ -156,18 +142,16 @@ export async function putAll(tab: DataTab, rows: RowBase[]): Promise<void> {
 
 /**
  * Como `putAll`, mas também apaga do IndexedDB qualquer linha local que não veio na resposta do
- * servidor. `putAll` sozinho só sabe adicionar/atualizar - uma viagem (ou despesa, dia, item de
- * agenda...) excluída no servidor por outro aparelho, ou numa sessão anterior, nunca sumia do
- * cache local, só era possível limpando o IndexedDB manualmente. Passe `tripId` para reconciliar
- * só a fatia de uma viagem numa store compartilhada (tripDays/despesas/receitas/agenda); omita
- * para reconciliar a store inteira (trips).
+ * servidor. `putAll` sozinho só sabe adicionar/atualizar - uma viagem (ou dia, item de agenda...)
+ * excluída no servidor por outro aparelho, ou numa sessão anterior, nunca sumia do cache local,
+ * só era possível limpando o IndexedDB manualmente. Passe `tripId` para reconciliar só a fatia de
+ * uma viagem numa store compartilhada (tripDays/agenda/itens); omita para reconciliar a store
+ * inteira (trips).
  */
 export async function putAllReplacing(
   tab:
     | "trips"
     | "tripDays"
-    | "despesas"
-    | "receitas"
     | "agenda"
     | "itens"
     | "itemAnexos"
@@ -193,8 +177,6 @@ export async function putAllReplacing(
     const tx = db.transaction(
       tab as
         | "tripDays"
-        | "despesas"
-        | "receitas"
         | "agenda"
         | "itens"
         | "itemAnexos"
@@ -239,8 +221,6 @@ export async function putAnexoFile(row: AnexoFileRow): Promise<void> {
 export async function listByTrip(
   tab:
     | "tripDays"
-    | "despesas"
-    | "receitas"
     | "anexos"
     | "agenda"
     | "itens"
@@ -281,8 +261,6 @@ export async function deleteOne(tab: DataTab, id: string): Promise<void> {
 export async function deleteByTrip(
   tab:
     | "tripDays"
-    | "despesas"
-    | "receitas"
     | "anexos"
     | "anexoFiles"
     | "agenda"

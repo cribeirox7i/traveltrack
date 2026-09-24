@@ -38,7 +38,7 @@ export default function TripLayout({ children }: { children: React.ReactNode }) 
   }, [status, router]);
 
   // Garante que o código de TODAS as abas da viagem (não só a que foi clicada) já
-  // esteja em cache assim que a viagem é aberta online - é o que faz Despesas/Anexos/
+  // esteja em cache assim que a viagem é aberta online - é o que faz Itens/Anexos/
   // etc. abrirem offline depois, mesmo sem ter passado por elas antes manualmente.
   useEffect(() => {
     if (!isOnline()) return;

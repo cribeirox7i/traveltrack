@@ -199,7 +199,7 @@ export default function TripsPage() {
 
   async function handleDelete(tripId: string, nome: string) {
     const ok = confirm(
-      `Excluir a viagem "${nome}"? Isso apaga também todas as diárias, despesas, receitas e anexos dela. Não pode ser desfeito.`
+      `Excluir a viagem "${nome}"? Isso apaga também todas as diárias e anexos dela. Não pode ser desfeito.`
     );
     if (!ok) return;
     setDeleteError(null);

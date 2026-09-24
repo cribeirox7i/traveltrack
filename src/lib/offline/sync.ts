@@ -109,13 +109,11 @@ export async function pullTrips(): Promise<void> {
   }
 }
 
-/** Atualiza dias/despesas/receitas/agenda de UMA viagem no cache local - chamado ao abrir a viagem. */
+/** Atualiza dias/agenda/itens de UMA viagem no cache local - chamado ao abrir a viagem. */
 export async function pullTripDetail(tripId: string): Promise<void> {
   if (!isOnline()) return;
-  const [days, despesas, receitas, agenda, itens, itemAnexos, cambio, anexosSoltos] = await Promise.all([
+  const [days, agenda, itens, itemAnexos, cambio, anexosSoltos] = await Promise.all([
     getJson<Record<string, unknown>[]>(`/api/trips/${tripId}/days`),
-    getJson<Record<string, unknown>[]>(`/api/trips/${tripId}/despesas`),
-    getJson<Record<string, unknown>[]>(`/api/trips/${tripId}/receitas`),
     getJson<Record<string, unknown>[]>(`/api/trips/${tripId}/agenda`),
     getJson<Record<string, unknown>[]>(`/api/trips/${tripId}/itens`),
     getJson<Record<string, unknown>[]>(`/api/trips/${tripId}/itens-anexos`),
@@ -123,14 +121,6 @@ export async function pullTripDetail(tripId: string): Promise<void> {
     getJson<Record<string, unknown>[]>(`/api/trips/${tripId}/anexos-soltos`),
   ]);
   if (days) await putAllReplacing("tripDays", days as never, tripId);
-  if (despesas) {
-    const protectedIds = await pendingCreateIds("createDespesa", tripId);
-    await putAllReplacing("despesas", despesas as never, tripId, protectedIds);
-  }
-  if (receitas) {
-    const protectedIds = await pendingCreateIds("createReceita", tripId);
-    await putAllReplacing("receitas", receitas as never, tripId, protectedIds);
-  }
   if (agenda) {
     const protectedIds = await pendingCreateIds("createAgenda", tripId);
     await putAllReplacing("agenda", agenda as never, tripId, protectedIds);
@@ -154,8 +144,8 @@ export async function pullTripDetail(tripId: string): Promise<void> {
 }
 
 // ---------- Listas de referência (colaboradores da viagem, meios de pagamento) ----------
-// Cacheadas em `meta` pra alimentar os selects de Pagador/Meio de pagamento em Despesas mesmo
-// offline - atualizadas sempre que a tela de Despesas abre com sinal.
+// Cacheadas em `meta` pra alimentar os selects de Pagador/Meio de pagamento em Itens mesmo
+// offline - atualizadas sempre que a tela de Itens abre com sinal.
 
 export interface PersonOption {
   id: string;
@@ -325,16 +315,16 @@ export async function pullAnexosList(tripId: string): Promise<void> {
   notifyChange();
 }
 
-/** Baixa por completo uma viagem - dias/despesas/receitas + os ARQUIVOS dos anexos (não só o
+/** Baixa por completo uma viagem - dias/agenda/itens + os ARQUIVOS dos anexos (não só o
  * link do Drive) - pro cache local. Chamado ao marcar "Dados offline" e, depois, sempre que algo
  * daquela viagem muda (edição local, sincronização, ou no ciclo periódico/ao voltar o sinal). */
 export async function downloadTripFull(tripId: string): Promise<void> {
   if (!isOnline() || downloading.has(tripId)) return;
   downloading.add(tripId);
   try {
-    // Sem isso, Despesas/Receitas ficam com as listas de "Pagador"/"Credor"/"Meio de
-    // pagamento" vazias offline pra qualquer viagem que só foi marcada aqui, sem o usuário ter
-    // aberto manualmente a aba Despesas com sinal antes (só essa aba puxava esses dois caches).
+    // Sem isso, Itens fica com as listas de "Pagador"/"Meio de pagamento" vazias offline pra
+    // qualquer viagem que só foi marcada aqui, sem o usuário ter aberto manualmente a aba Itens
+    // com sinal antes (só essa aba puxava esses dois caches).
     await Promise.all([pullCollaborators(tripId), pullMeiosPagamento()]);
     await pullTripDetail(tripId);
 
@@ -711,20 +701,6 @@ async function sendOutboxEntry(entry: OutboxEntry): Promise<"ok" | "network-erro
           body: JSON.stringify(entry.payload),
         });
         break;
-      case "createDespesa":
-        res = await fetch(`/api/trips/${entry.tripId}/despesas`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(entry.payload),
-        });
-        break;
-      case "createReceita":
-        res = await fetch(`/api/trips/${entry.tripId}/receitas`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(entry.payload),
-        });
-        break;
       case "saveDays":
         res = await fetch(`/api/trips/${entry.tripId}/days`, {
           method: "PUT",
@@ -776,24 +752,6 @@ async function sendOutboxEntry(entry: OutboxEntry): Promise<"ok" | "network-erro
       case "deleteAgenda": {
         const { agendaId } = entry.payload as { agendaId: string };
         res = await fetch(`/api/trips/${entry.tripId}/agenda/${agendaId}`, { method: "DELETE" });
-        break;
-      }
-      case "updateDespesaStatus": {
-        const { despesaId, status } = entry.payload as { despesaId: string; status: string };
-        res = await fetch(`/api/trips/${entry.tripId}/despesas/${despesaId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status }),
-        });
-        break;
-      }
-      case "updateReceitaStatus": {
-        const { receitaId, status } = entry.payload as { receitaId: string; status: string };
-        res = await fetch(`/api/trips/${entry.tripId}/receitas/${receitaId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status }),
-        });
         break;
       }
       case "createItem": {
@@ -947,10 +905,10 @@ export async function createTripOffline(input: {
   return id;
 }
 
-/** Exclui a viagem no servidor (cascade de diárias/despesas/receitas/acessos/anexos, ver
- * `deleteTrip` em trips.ts) e limpa todo o cache local dela. Diferente das outras mutações,
- * exige conexão - é destrutivo e admin-only, não faz sentido enfileirar pra tentar mais tarde
- * enquanto o usuário já vê a viagem sumir da lista. */
+/** Exclui a viagem no servidor (cascade de diárias/acessos/anexos, ver `deleteTrip` em trips.ts)
+ * e limpa todo o cache local dela. Diferente das outras mutações, exige conexão - é destrutivo e
+ * admin-only, não faz sentido enfileirar pra tentar mais tarde enquanto o usuário já vê a viagem
+ * sumir da lista. */
 export async function deleteTripOffline(
   tripId: string
 ): Promise<{ ok: true; avisoAnexos?: string } | { ok: false; error: string }> {
@@ -964,8 +922,6 @@ export async function deleteTripOffline(
 
   await deleteOne("trips", tripId);
   await deleteByTrip("tripDays", tripId);
-  await deleteByTrip("despesas", tripId);
-  await deleteByTrip("receitas", tripId);
   await deleteByTrip("anexos", tripId);
   await deleteByTrip("anexoFiles", tripId);
   await deleteByTrip("agenda", tripId);
@@ -985,104 +941,6 @@ export async function deleteTripOffline(
   return body.anexosRemovidos === false && body.avisoAnexos
     ? { ok: true, avisoAnexos: body.avisoAnexos }
     : { ok: true };
-}
-
-export async function createDespesaOffline(
-  tripId: string,
-  input: {
-    categoria: string;
-    valor: number;
-    data: string;
-    descricao: string;
-    pagador_id: string;
-    meio_pagamento_id: string;
-    /** Débito (padrão, dinheiro saindo) ou crédito (dinheiro entrando, ex.: um aporte) - ver
-     * Natureza em lib/sheets/types.ts. */
-    natureza?: "debito" | "credito";
-  }
-): Promise<void> {
-  const id = uuid();
-  await putOne("despesas", {
-    id,
-    trip_id: tripId,
-    lancado_por: "",
-    status: input.natureza === "credito" ? "a_receber" : "a_pagar",
-    natureza: "debito",
-    ...input,
-    valor: String(input.valor),
-  });
-  await enqueueOutbox({
-    localId: uuid(),
-    kind: "createDespesa",
-    tripId,
-    payload: { id, ...input },
-  });
-  notifyChange();
-  void pushOutbox();
-}
-
-/** Marca um lançamento (aba Despesas, débito ou crédito) como concluído/pendente. Diferente da
- * criação, é um PATCH direto (sem outbox dedicado além do próprio `updateDespesaStatus` na
- * fila) - o registro já existe no servidor, então não há necessidade de reconciliar ids como em
- * `createTripOffline`. Aceita os dois vocabulários (pago/a_pagar para débito, recebido/
- * a_receber para crédito) porque a mesma coluna `status` serve às duas naturezas - ver
- * StatusLancamento em lib/sheets/types.ts. */
-export async function updateDespesaStatusOffline(
-  tripId: string,
-  despesaId: string,
-  status: "pago" | "a_pagar" | "recebido" | "a_receber"
-): Promise<void> {
-  const existing = await getOne("despesas", despesaId);
-  if (existing) await putOne("despesas", { ...existing, status });
-  await enqueueOutbox({
-    localId: uuid(),
-    kind: "updateDespesaStatus",
-    tripId,
-    payload: { despesaId, status },
-  });
-  notifyChange();
-  void pushOutbox();
-}
-
-export async function createReceitaOffline(
-  tripId: string,
-  input: { valor: number; data: string; descricao: string; credor_id: string }
-): Promise<void> {
-  const id = uuid();
-  await putOne("receitas", {
-    id,
-    trip_id: tripId,
-    user_id: "",
-    status: "a_receber",
-    ...input,
-    valor: String(input.valor),
-  });
-  await enqueueOutbox({
-    localId: uuid(),
-    kind: "createReceita",
-    tripId,
-    payload: { id, ...input },
-  });
-  notifyChange();
-  void pushOutbox();
-}
-
-/** Ver `updateDespesaStatusOffline` - mesma lógica, para receitas. */
-export async function updateReceitaStatusOffline(
-  tripId: string,
-  receitaId: string,
-  status: "recebido" | "a_receber"
-): Promise<void> {
-  const existing = await getOne("receitas", receitaId);
-  if (existing) await putOne("receitas", { ...existing, status });
-  await enqueueOutbox({
-    localId: uuid(),
-    kind: "updateReceitaStatus",
-    tripId,
-    payload: { receitaId, status },
-  });
-  notifyChange();
-  void pushOutbox();
 }
 
 export interface DayPatch {
