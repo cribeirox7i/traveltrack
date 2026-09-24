@@ -1,68 +1,61 @@
-import { callAppsScript } from "./client";
+import { v4 as uuid } from "uuid";
+import { appendRows, deleteRow, readSheet, updateRow } from "./repository";
+import { AnexoRow } from "./types";
 
-export const CATEGORIAS_ANEXO = [
-  "traslado",
-  "passagem",
-  "alimentacao",
-  "passeio",
-  "hospedagem",
-  "documentos",
-  "outros",
-  // Anexos presos a um compromisso da Agenda. Ficam na mesma pasta da viagem no Drive, em
-  // subpasta própria, mas não são oferecidos como destino de upload na tela de Anexos: eles
-  // nascem pelo formulário de "Nova agenda" e só aparecem lá na listagem.
-  "agenda",
-] as const;
-
-export type CategoriaAnexo = (typeof CATEGORIAS_ANEXO)[number];
-
-export interface AnexoInfo {
-  fileId: string;
-  name: string;
-  url: string;
-  size: number;
-  mimeType: string;
-  categoria: string;
-  criadoEm: string;
+/** Todos os anexos de uma viagem, soltos e de Item juntos (aba `Anexos` unificada) - quem chama
+ * filtra por `item_id` no cliente quando precisa só de um dos dois grupos (mesmo padrão de
+ * `listItensByTrip`: uma leitura por viagem, sem filtro por linha específica no servidor). */
+export async function listAnexosByTrip(tripId: string): Promise<AnexoRow[]> {
+  const all = await readSheet<AnexoRow>("Anexos");
+  return all
+    .filter((a) => a.trip_id === tripId)
+    .sort((a, b) => (b.data + b.criado_em).localeCompare(a.data + a.criado_em));
 }
 
-export async function listAnexos(tripId: string, tripName: string): Promise<AnexoInfo[]> {
-  return callAppsScript<AnexoInfo[]>("driveListFiles", { tripId, tripName });
+export async function getAnexo(id: string): Promise<AnexoRow | null> {
+  const all = await readSheet<AnexoRow>("Anexos");
+  return all.find((a) => a.id === id) ?? null;
 }
 
-export async function uploadAnexo(input: {
+export async function createAnexo(input: {
   tripId: string;
-  tripName: string;
-  categoria: CategoriaAnexo;
-  filename: string;
-  mimeType: string;
-  base64Data: string;
-}): Promise<AnexoInfo> {
-  return callAppsScript<AnexoInfo>("driveUploadFile", input);
+  /** Vazio/ausente = anexo solto. Preenchido = pertence a este Item. */
+  itemId?: string;
+  data?: string;
+  descricao?: string;
+  fileId: string;
+  nome: string;
+  url: string;
+  criadoPor: string;
+}): Promise<AnexoRow> {
+  const row: AnexoRow = {
+    id: uuid(),
+    trip_id: input.tripId,
+    item_id: input.itemId ?? "",
+    data: input.data ?? "",
+    descricao: input.descricao ?? "",
+    file_id: input.fileId,
+    nome: input.nome,
+    url: input.url,
+    criado_por: input.criadoPor,
+    criado_em: new Date().toISOString(),
+  };
+  await appendRows("Anexos", [row]);
+  return row;
 }
 
-/**
- * Exclusão e download exigem a viagem: o Apps Script confirma que o `fileId` está mesmo dentro
- * da pasta dessa viagem antes de agir. Sem isso, ter acesso a uma viagem qualquer bastava para
- * mexer em anexo de outra (ou em qualquer arquivo do Drive da conta) só sabendo o id.
- */
-export async function deleteAnexo(
-  fileId: string,
-  tripId: string,
-  tripName: string
+/** Só `data`/`descricao` são editáveis - trocar o arquivo é excluir e subir outro. Só faz
+ * sentido pra anexo solto (a tela de Itens não oferece edição, só analisar/remover). */
+export async function updateAnexo(
+  id: string,
+  patch: { data?: string; descricao?: string }
 ): Promise<void> {
-  await callAppsScript<null>("driveDeleteFile", { fileId, tripId, tripName });
+  const stringPatch: Record<string, string> = {};
+  if (patch.data !== undefined) stringPatch.data = patch.data;
+  if (patch.descricao !== undefined) stringPatch.descricao = patch.descricao;
+  await updateRow("Anexos", id, stringPatch);
 }
 
-/** Move a pasta inteira de anexos da viagem pra lixeira do Drive - usado ao excluir a viagem. */
-export async function deleteTripFolder(tripId: string, tripName: string): Promise<void> {
-  await callAppsScript<null>("driveDeleteTripFolder", { tripId, tripName });
-}
-
-export async function downloadAnexo(
-  fileId: string,
-  tripId: string,
-  tripName: string
-): Promise<{ name: string; mimeType: string; base64Data: string }> {
-  return callAppsScript("driveDownloadFile", { fileId, tripId, tripName });
+export async function deleteAnexo(id: string): Promise<void> {
+  await deleteRow("Anexos", id);
 }

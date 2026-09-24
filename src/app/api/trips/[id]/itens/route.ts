@@ -4,7 +4,8 @@ import { urlHttpSchema } from "@/lib/urlSegura";
 import { detectarTipoVoucher } from "@/lib/fileValidation";
 import { errorResponse, requireSession, sessionCanAccessTrip, tripLockError } from "@/lib/api-helpers";
 import { ItemEditableInput, createItem, listItensByTrip } from "@/lib/sheets/itens";
-import { uploadAnexo } from "@/lib/sheets/anexos";
+import { uploadDriveFile } from "@/lib/sheets/driveFiles";
+import { createAnexo } from "@/lib/sheets/anexos";
 import { getTrip } from "@/lib/sheets/trips";
 
 // Mesmo teto das outras rotas de upload (margem abaixo do limite de corpo das funções
@@ -185,7 +186,7 @@ export async function POST(
     }
     const buffer = Buffer.from(await file.arrayBuffer());
     try {
-      anexo = await uploadAnexo({
+      anexo = await uploadDriveFile({
         tripId: trip.id,
         tripName: trip.nome,
         // Classificação é dado livre do admin agora - não dá mais pra mapear pra uma pasta fixa
@@ -196,7 +197,7 @@ export async function POST(
         base64Data: buffer.toString("base64"),
       });
     } catch (err) {
-      console.error("uploadAnexo (createItem) falhou:", err);
+      console.error("uploadDriveFile (createItem) falhou:", err);
       return errorResponse(
         err instanceof Error ? `Falha ao enviar o anexo: ${err.message}` : "Falha ao enviar o anexo",
         502
@@ -208,10 +209,20 @@ export async function POST(
     ...limparAcordeoesInativos(parsed.data),
     trip_id: id,
     criado_por: user.id,
-    ...(anexo
-      ? { anexo_file_id: anexo.fileId, anexo_nome: anexo.name, anexo_url: anexo.url }
-      : {}),
   });
+
+  // Anexo é uma linha à parte (aba `Anexos`, unificada) desde a reforma de 2026-09-24 - todo
+  // anexo de Item é igual aos demais, sem "principal" guardado na própria linha de Itens.
+  if (anexo) {
+    await createAnexo({
+      tripId: id,
+      itemId: criado.id,
+      fileId: anexo.fileId,
+      nome: anexo.name,
+      url: anexo.url,
+      criadoPor: user.id,
+    });
+  }
 
   return NextResponse.json(criado, { status: 201 });
 }

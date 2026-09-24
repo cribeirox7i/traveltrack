@@ -3,7 +3,7 @@ import { z } from "zod";
 import { urlHttpSchema } from "@/lib/urlSegura";
 import { errorResponse, requireSession, sessionCanAccessTrip, tripLockError } from "@/lib/api-helpers";
 import { createAgenda, listAgendaByTrip } from "@/lib/sheets/agenda";
-import { uploadAnexo } from "@/lib/sheets/anexos";
+import { uploadDriveFile } from "@/lib/sheets/driveFiles";
 import { getTrip, listTripDays } from "@/lib/sheets/trips";
 
 // Mesmo teto da rota de anexos: margem abaixo do limite de corpo (~4.5MB) das funções
@@ -101,7 +101,7 @@ export async function POST(
   let anexo: { fileId: string; name: string; url: string } | null = null;
   if (file) {
     const buffer = Buffer.from(await file.arrayBuffer());
-    anexo = await uploadAnexo({
+    anexo = await uploadDriveFile({
       tripId: trip.id,
       tripName: trip.nome,
       categoria: "agenda",

@@ -14,12 +14,12 @@ import {
   useSubclassificacoes,
 } from "@/lib/offline/useOfflineData";
 import {
-  addItemAnexoOnline,
+  createAnexoOnline,
   createItemOffline,
+  deleteAnexoOnline,
   deleteItemOffline,
-  removeItemAnexoOnline,
   updateItemOffline,
-  type ItemAnexoInfo,
+  type AnexoInfo,
 } from "@/lib/offline/sync";
 import { converterValorParaBRL, custoMedioPorMoeda } from "@/lib/cambioCalc";
 import { viagemBloqueada } from "@/lib/tripStatus";
@@ -124,9 +124,12 @@ export default function ItensPage() {
   // Viagem concluída/cancelada: tela vira somente-leitura (o backend também recusa - ver
   // `tripLockError`). Enquanto o trip ainda não carregou do IndexedDB, não bloqueia.
   const bloqueada = !!trip && viagemBloqueada(trip);
-  // Anexos extras de TODOS os itens da viagem, filtrados por item no uso (ver `extrasDoItem`
+  // Todos os anexos da viagem (soltos e de Item), filtrados por item no uso (ver `anexosDoItem`
   // abaixo) - mesmo padrão de `todosMeiosPagamento`, uma chamada só em vez de uma por item.
-  const { items: todosExtras } = useOfflineCollection<ItemAnexoInfo>("itemAnexos", tripId);
+  const { items: todosAnexos } = useOfflineCollection<AnexoInfo>("anexosSheet", tripId);
+  function anexosDoItem(itemId: string): AnexoInfo[] {
+    return todosAnexos.filter((a) => a.item_id === itemId);
+  }
   const collaborators = useCollaborators(tripId);
   const todosMeiosPagamento = useMeiosPagamento();
   const online = useOnlineStatus();
@@ -150,17 +153,19 @@ export default function ItensPage() {
   const [formOpen, setFormOpen] = useState(false);
   // null = criando um item novo; string = editando o item com este id.
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editingAnexoNome, setEditingAnexoNome] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [file, setFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [analisando, setAnalisando] = useState(false);
+  // Id do anexo já salvo sendo (re)analisado agora - só pra mostrar "…" no botão certo, o resto
+  // do fluxo (aplicar no form, avisos, 2º trecho) é o mesmo de `handleAnalisar`.
+  const [analisandoId, setAnalisandoId] = useState<string | null>(null);
   const [analisado, setAnalisado] = useState(false);
   const [segundoTrecho, setSegundoTrecho] = useState<SegundoTrecho | null>(null);
-  const [addingExtra, setAddingExtra] = useState(false);
-  const [removingExtraId, setRemovingExtraId] = useState<string | null>(null);
-  const [extraError, setExtraError] = useState<string | null>(null);
+  const [addingAnexo, setAddingAnexo] = useState(false);
+  const [removingAnexoId, setRemovingAnexoId] = useState<string | null>(null);
+  const [anexoError, setAnexoError] = useState<string | null>(null);
   const extraFileInputRef = useRef<HTMLInputElement>(null);
   const [avisosAnalise, setAvisosAnalise] = useState<string[]>([]);
   const [viewingItem, setViewingItem] = useState<Item | null>(null);
@@ -216,13 +221,16 @@ export default function ItensPage() {
         .sort((a, b) => a.nome.localeCompare(b.nome)),
     [subclassificacoes, form.classificacao_id]
   );
-  // Contagem de extras por item, pro badge "📎 +N" na lista - não inclui o principal (esse já
-  // aparece pelo 📎 simples, condicionado a `item.anexo_file_id`).
-  const extrasPorItem = useMemo(() => {
+  // Contagem de anexos por item, pro badge "📎 N" na lista - todos iguais entre si, sem
+  // distinção de "principal" (reforma 2026-09-24).
+  const anexosPorItem = useMemo(() => {
     const contagem: Record<string, number> = {};
-    for (const a of todosExtras) contagem[a.item_id] = (contagem[a.item_id] ?? 0) + 1;
+    for (const a of todosAnexos) {
+      if (!a.item_id) continue;
+      contagem[a.item_id] = (contagem[a.item_id] ?? 0) + 1;
+    }
     return contagem;
-  }, [todosExtras]);
+  }, [todosAnexos]);
   // O `<select>` do formulário oferece os meios do PAGANTE selecionado (`form.pagador_id`), não
   // sempre os do usuário logado - item pago por outra pessoa mostra os meios dela. `nomePorMeio`
   // acima usa a lista inteira, senão um item pago por outra pessoa apareceria com o uuid no lugar
@@ -277,24 +285,23 @@ export default function ItensPage() {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
-  async function handleAddExtra(fileExtra: File) {
+  async function handleAddAnexo(novoArquivo: File) {
     if (!editingId) return;
-    setExtraError(null);
-    setAddingExtra(true);
-    const res = await addItemAnexoOnline(tripId, editingId, fileExtra);
-    setAddingExtra(false);
+    setAnexoError(null);
+    setAddingAnexo(true);
+    const res = await createAnexoOnline(tripId, { itemId: editingId, file: novoArquivo });
+    setAddingAnexo(false);
     if (extraFileInputRef.current) extraFileInputRef.current.value = "";
-    if (!res.ok) setExtraError(res.error);
+    if (!res.ok) setAnexoError(res.error);
   }
 
-  async function handleRemoveExtra(anexo: ItemAnexoInfo) {
-    if (!editingId) return;
-    if (!confirm(`Remover o anexo extra "${anexo.nome}"?`)) return;
-    setExtraError(null);
-    setRemovingExtraId(anexo.id);
-    const res = await removeItemAnexoOnline(tripId, editingId, anexo.id);
-    setRemovingExtraId(null);
-    if (!res.ok) setExtraError(res.error);
+  async function handleRemoveAnexo(anexo: AnexoInfo) {
+    if (!confirm(`Remover o anexo "${anexo.nome}"?`)) return;
+    setAnexoError(null);
+    setRemovingAnexoId(anexo.id);
+    const res = await deleteAnexoOnline(tripId, anexo.id);
+    setRemovingAnexoId(null);
+    if (!res.ok) setAnexoError(res.error);
   }
 
   /** Trocar o pagante muda de quem são os meios de pagamento disponíveis - um meio já escolhido
@@ -310,9 +317,8 @@ export default function ItensPage() {
     setAnalisado(false);
     setSegundoTrecho(null);
     setAvisosAnalise([]);
-    setExtraError(null);
+    setAnexoError(null);
     setEditingId(null);
-    setEditingAnexoNome(null);
     setForm({
       ...emptyForm,
       data: todayISO(),
@@ -329,9 +335,8 @@ export default function ItensPage() {
     setAnalisado(false);
     setSegundoTrecho(null);
     setAvisosAnalise([]);
-    setExtraError(null);
+    setAnexoError(null);
     setEditingId(item.id);
-    setEditingAnexoNome(item.anexo_nome || null);
     setForm({
       data: item.data,
       classificacao_id: item.classificacao_id,
@@ -365,12 +370,11 @@ export default function ItensPage() {
   function closeForm() {
     setFormOpen(false);
     setEditingId(null);
-    setEditingAnexoNome(null);
     setFile(null);
     setAnalisado(false);
     setSegundoTrecho(null);
     setAvisosAnalise([]);
-    setExtraError(null);
+    setAnexoError(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
     if (extraFileInputRef.current) extraFileInputRef.current.value = "";
     // Chegou aqui via link "Editar" de Roteiro > Agenda (?editar=<id>) - volta pra lá em vez de
@@ -378,12 +382,42 @@ export default function ItensPage() {
     if (searchParams.get("editar")) router.push(`/trips/${tripId}/agenda`);
   }
 
-  /** Chamado pelo botão "Analisar anexo" - sobe o arquivo pro Gemini e pré-preenche o formulário.
-   * A `categoria`/`tipo` que a análise devolve (enum antigo) só ajudam a PRÉ-SELECIONAR a
+  /** Aplica o resultado da análise (Gemini) no formulário - comum aos dois botões "Analisar"
+   * (arquivo ainda não salvo, no topo do formulário; anexo já salvo, na lista abaixo). A
+   * `categoria`/`tipo` que a análise devolve (enum antigo) só ajudam a PRÉ-SELECIONAR a
    * Classificação/Subclassificação por nome (ver `NOME_CLASSIFICACAO_POR_CATEGORIA_ANTIGA`) - o
    * usuário confere antes de salvar. Liga automaticamente o acordeão que tiver dado preenchido
    * (valor -> Financeiro; início -> Roteiro), mas não salva sozinho: o checkbox continua sendo o
    * que decide o que é gravado. */
+  function aplicarAnalise(data: Record<string, unknown>) {
+    const { segundo_trecho, avisos, categoria, tipo, ...campos } = data;
+
+    const nomeAlvo = NOME_CLASSIFICACAO_POR_CATEGORIA_ANTIGA[String(categoria ?? "")] ?? "";
+    const classificacaoEncontrada = classificacoes.find(
+      (c) => c.nome.toLowerCase() === nomeAlvo.toLowerCase()
+    );
+    const subclassificacaoEncontrada = classificacaoEncontrada
+      ? subclassificacoes.find(
+          (s) =>
+            s.classificacao_id === classificacaoEncontrada.id &&
+            s.nome.toLowerCase() === String(tipo ?? "").toLowerCase()
+        )
+      : undefined;
+
+    setForm((prev) => ({
+      ...prev,
+      ...campos,
+      classificacao_id: classificacaoEncontrada?.id ?? prev.classificacao_id,
+      subclassificacao_id: subclassificacaoEncontrada?.id ?? prev.subclassificacao_id,
+      financeiroAtivo: prev.financeiroAtivo || Boolean((campos as { valor?: string }).valor),
+      roteiroAtivo: prev.roteiroAtivo || Boolean((campos as { data_inicio?: string }).data_inicio),
+    }));
+    setSegundoTrecho((segundo_trecho as SegundoTrecho) ?? null);
+    setAvisosAnalise(Array.isArray(avisos) ? avisos : []);
+    setAnalisado(true);
+  }
+
+  /** Chamado pelo botão "Analisar" do arquivo escolhido no topo do formulário (ainda não salvo). */
   async function handleAnalisar() {
     if (!file) return;
     setError(null);
@@ -397,35 +431,59 @@ export default function ItensPage() {
         setError(data.error ?? "Não foi possível analisar o voucher");
         return;
       }
-      const { segundo_trecho, avisos, categoria, tipo, ...campos } = data;
-
-      const nomeAlvo = NOME_CLASSIFICACAO_POR_CATEGORIA_ANTIGA[categoria] ?? "";
-      const classificacaoEncontrada = classificacoes.find(
-        (c) => c.nome.toLowerCase() === nomeAlvo.toLowerCase()
-      );
-      const subclassificacaoEncontrada = classificacaoEncontrada
-        ? subclassificacoes.find(
-            (s) =>
-              s.classificacao_id === classificacaoEncontrada.id &&
-              s.nome.toLowerCase() === String(tipo ?? "").toLowerCase()
-          )
-        : undefined;
-
-      setForm((prev) => ({
-        ...prev,
-        ...campos,
-        classificacao_id: classificacaoEncontrada?.id ?? prev.classificacao_id,
-        subclassificacao_id: subclassificacaoEncontrada?.id ?? prev.subclassificacao_id,
-        financeiroAtivo: prev.financeiroAtivo || Boolean(campos.valor),
-        roteiroAtivo: prev.roteiroAtivo || Boolean(campos.data_inicio),
-      }));
-      setSegundoTrecho(segundo_trecho ?? null);
-      setAvisosAnalise(Array.isArray(avisos) ? avisos : []);
-      setAnalisado(true);
+      aplicarAnalise(data);
     } catch {
       setError("Falha de conexão ao tentar analisar o voucher");
     } finally {
       setAnalisando(false);
+    }
+  }
+
+  /** Campos que a análise pode preencher - usado só pra decidir se avisa antes de sobrescrever ao
+   * (re)analisar um anexo já salvo. */
+  function formTemDadoPreenchido(): boolean {
+    return Boolean(
+      form.descricao ||
+        form.valor ||
+        form.data_inicio ||
+        form.localizador ||
+        form.nome_companhia ||
+        form.numero ||
+        form.origem ||
+        form.destino ||
+        form.nome_local ||
+        form.endereco
+    );
+  }
+
+  /** Chamado pelo botão "Analisar" de um anexo já salvo na lista abaixo - os bytes vêm do Drive
+   * server-side (sem o cliente baixar e reenviar). Se o formulário já tem dado preenchido,
+   * confirma antes: a análise pode sobrescrever o que já foi digitado/escolhido. */
+  async function handleAnalisarAnexo(anexo: AnexoInfo) {
+    if (
+      formTemDadoPreenchido() &&
+      !confirm("Isso vai sobrescrever os campos já preenchidos com o que for identificado neste anexo. Continuar?")
+    ) {
+      return;
+    }
+    setError(null);
+    setAnalisandoId(anexo.id);
+    try {
+      const res = await fetch(`/api/trips/${tripId}/itens/analisar`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileId: anexo.file_id }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? "Não foi possível analisar o anexo");
+        return;
+      }
+      aplicarAnalise(data);
+    } catch {
+      setError("Falha de conexão ao tentar analisar o anexo");
+    } finally {
+      setAnalisandoId(null);
     }
   }
 
@@ -528,9 +586,9 @@ export default function ItensPage() {
     await deleteItemOffline(tripId, item.id);
   }
 
-  /** Duplica um item: mesmos campos, SEM o anexo (principal nem extras) - o usuário anexa de
-   * novo se fizer sentido pra cópia. Já abre a edição da cópia na sequência, pra ajustar data/
-   * descrição/valor sem precisar caçar o item novo na lista. */
+  /** Duplica um item: mesmos campos, SEM os anexos - o usuário anexa de novo se fizer sentido
+   * pra cópia. Já abre a edição da cópia na sequência, pra ajustar data/descrição/valor sem
+   * precisar caçar o item novo na lista. */
   async function handleDuplicate(item: Item) {
     const fields: Record<string, string> = {
       data: item.data,
@@ -561,7 +619,7 @@ export default function ItensPage() {
       url: item.url,
     };
     const novoId = await createItemOffline(tripId, fields);
-    openEditForm({ ...item, id: novoId, anexo_file_id: "", anexo_nome: "", anexo_url: "" });
+    openEditForm({ ...item, id: novoId });
   }
 
   const ordenados = [...items]
@@ -780,12 +838,6 @@ export default function ItensPage() {
             {file && (
               <p className="text-xs text-slate-400 dark:text-slate-500">📎 {file.name}</p>
             )}
-            {editingAnexoNome && !file && (
-              <p className="text-xs text-slate-400 dark:text-slate-500">
-                Já tem um anexo (📎 {editingAnexoNome}) - escolha outro arquivo só se quiser
-                substituí-lo.
-              </p>
-            )}
             {analisado && (
               <p className="text-xs text-emerald-600 dark:text-emerald-400">
                 Preenchi o que consegui identificar no anexo - confira os campos abaixo antes de
@@ -821,51 +873,60 @@ export default function ItensPage() {
               <input required value={form.descricao} onChange={(e) => setField("descricao", e.target.value)} className={inputClass} />
             </Campo>
 
-            {editingId && editingAnexoNome && (
+            {editingId && (
               <div className="flex flex-col gap-2 rounded-xl border border-dashed border-slate-200 dark:border-slate-800 p-3">
                 <label className="text-xs font-medium text-slate-600 dark:text-slate-400">
-                  Anexos extras
+                  Anexos
                 </label>
-                {todosExtras.filter((a) => a.item_id === editingId).length > 0 && (
+                {anexosDoItem(editingId).length > 0 ? (
                   <ul className="flex flex-col gap-1">
-                    {todosExtras
-                      .filter((a) => a.item_id === editingId)
-                      .map((a) => (
-                        <li key={a.id} className="flex items-center justify-between gap-2 text-sm">
-                          <button
-                            type="button"
-                            onClick={() => setAnexoAberto({ fileId: a.file_id, nome: a.nome })}
-                            className="truncate text-left text-blue-600 dark:text-blue-400 hover:underline"
-                          >
-                            📎 {a.nome}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveExtra(a)}
-                            disabled={removingExtraId === a.id || !online}
-                            className="shrink-0 text-xs font-medium text-red-600 dark:text-red-400 hover:text-red-700 disabled:opacity-50"
-                          >
-                            {removingExtraId === a.id ? "Removendo..." : "Remover"}
-                          </button>
-                        </li>
-                      ))}
+                    {anexosDoItem(editingId).map((a) => (
+                      <li key={a.id} className="flex items-center justify-between gap-2 text-sm">
+                        <button
+                          type="button"
+                          onClick={() => setAnexoAberto({ fileId: a.file_id, nome: a.nome })}
+                          className="min-w-0 flex-1 truncate text-left text-blue-600 dark:text-blue-400 hover:underline"
+                        >
+                          📎 {a.nome}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleAnalisarAnexo(a)}
+                          disabled={analisandoId === a.id || !online}
+                          title="Analisar este anexo"
+                          className="shrink-0 text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 disabled:opacity-50"
+                        >
+                          {analisandoId === a.id ? "…" : "🔎 Analisar"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveAnexo(a)}
+                          disabled={removingAnexoId === a.id || !online}
+                          className="shrink-0 text-xs font-medium text-red-600 dark:text-red-400 hover:text-red-700 disabled:opacity-50"
+                        >
+                          {removingAnexoId === a.id ? "Removendo..." : "Remover"}
+                        </button>
+                      </li>
+                    ))}
                   </ul>
+                ) : (
+                  <p className="text-xs text-slate-400 dark:text-slate-500">Nenhum anexo ainda.</p>
                 )}
                 <input
                   ref={extraFileInputRef}
                   type="file"
                   accept={ACCEPT_VOUCHER}
-                  disabled={addingExtra || !online}
+                  disabled={addingAnexo || !online}
                   onChange={(e) => {
                     const f = e.target.files?.[0];
-                    if (f) handleAddExtra(f);
+                    if (f) handleAddAnexo(f);
                   }}
                   className="block w-full text-sm text-slate-600 dark:text-slate-400 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 dark:file:bg-slate-800 file:px-3 file:py-2 file:text-sm file:font-medium file:text-slate-700 dark:file:text-slate-300 hover:file:bg-slate-200 dark:hover:file:bg-slate-700 disabled:opacity-50"
                 />
-                {addingExtra && (
+                {addingAnexo && (
                   <p className="text-xs text-slate-400 dark:text-slate-500">Enviando anexo...</p>
                 )}
-                {extraError && <p className="text-xs text-red-600 dark:text-red-400">{extraError}</p>}
+                {anexoError && <p className="text-xs text-red-600 dark:text-red-400">{anexoError}</p>}
               </div>
             )}
 
@@ -1065,16 +1126,20 @@ export default function ItensPage() {
                 <span className="text-slate-400 dark:text-slate-500">
                   {nomePorClassificacao[item.classificacao_id] ?? "Sem classificação"}
                 </span>
-                {item.anexo_file_id && (
+                {anexosPorItem[item.id] > 0 && (
                   <span
                     className="text-slate-400 dark:text-slate-500"
-                    title={
-                      extrasPorItem[item.id]
-                        ? `${1 + extrasPorItem[item.id]} anexos`
-                        : "1 anexo"
-                    }
+                    title={`${anexosPorItem[item.id]} anexo${anexosPorItem[item.id] > 1 ? "s" : ""}`}
                   >
-                    📎{extrasPorItem[item.id] ? ` +${extrasPorItem[item.id]}` : ""}
+                    📎{anexosPorItem[item.id] > 1 ? ` ${anexosPorItem[item.id]}` : ""}
+                  </span>
+                )}
+                {item._anexoPendenteNome && !anexosPorItem[item.id] && (
+                  <span
+                    className="text-slate-400 dark:text-slate-500"
+                    title="Envia quando voltar o sinal"
+                  >
+                    📎 pendente
                   </span>
                 )}
               </div>
@@ -1120,8 +1185,8 @@ export default function ItensPage() {
         iconePorSubclassificacao={iconePorSubclassificacao}
         nomePorClassificacao={nomePorClassificacao}
         nomePorSubclassificacao={nomePorSubclassificacao}
-        extraAnexos={
-          viewingItem ? todosExtras.filter((a) => a.item_id === viewingItem.id) : undefined
+        anexos={
+          viewingItem ? anexosDoItem(viewingItem.id) : undefined
         }
         cambios={cambios}
         cotacoes={cotacoesFallback}

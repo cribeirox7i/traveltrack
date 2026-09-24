@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { errorResponse, requireSession, sessionCanAccessTrip } from "@/lib/api-helpers";
-import { deleteAnexo, downloadAnexo } from "@/lib/sheets/anexos";
+import { deleteDriveFile, downloadDriveFile } from "@/lib/sheets/driveFiles";
 import { getTrip } from "@/lib/sheets/trips";
 
 /** Baixa o arquivo em si (bytes), usado para guardar o anexo offline no aparelho. */
@@ -19,7 +19,7 @@ export async function GET(
   const trip = await getTrip(id);
   if (!trip) return errorResponse("Viagem não encontrada", 404);
 
-  const { name, mimeType, base64Data } = await downloadAnexo(fileId, trip.id, trip.nome);
+  const { name, mimeType, base64Data } = await downloadDriveFile(fileId, trip.id, trip.nome);
   const buffer = Buffer.from(base64Data, "base64");
   return new NextResponse(new Uint8Array(buffer), {
     headers: {
@@ -44,6 +44,6 @@ export async function DELETE(
   const trip = await getTrip(id);
   if (!trip) return errorResponse("Viagem não encontrada", 404);
 
-  await deleteAnexo(fileId, trip.id, trip.nome);
+  await deleteDriveFile(fileId, trip.id, trip.nome);
   return NextResponse.json({ ok: true });
 }

@@ -14,7 +14,7 @@ import {
   useSubclassificacoes,
 } from "@/lib/offline/useOfflineData";
 import { viagemBloqueada } from "@/lib/tripStatus";
-import { deleteItemOffline, type ItemAnexoInfo } from "@/lib/offline/sync";
+import { deleteItemOffline, type AnexoInfo } from "@/lib/offline/sync";
 import { hrefSeguro } from "@/lib/urlSegura";
 import { IconeItem, ItemDetalhesPopup, type Item } from "@/components/ItemDetalhesPopup";
 import { AnexoViewer } from "@/components/AnexoViewer";
@@ -98,7 +98,10 @@ export default function AgendaPage() {
     () => Object.fromEntries(subclassificacoes.map((s) => [s.id, s.icone])),
     [subclassificacoes]
   );
-  const { items: todosExtras } = useOfflineCollection<ItemAnexoInfo>("itemAnexos", tripId);
+  const { items: todosAnexos } = useOfflineCollection<AnexoInfo>("anexosSheet", tripId);
+  function anexosDoItem(itemId: string): AnexoInfo[] {
+    return todosAnexos.filter((a) => a.item_id === itemId);
+  }
   const { items: cambios } = useOfflineCollection<{
     id: string;
     moeda: string;
@@ -301,18 +304,24 @@ export default function AgendaPage() {
                                 Link
                               </a>
                             )}
-                            {item.anexo_file_id && (
+                            {anexosDoItem(item.id).length > 0 && (
                               <button
                                 type="button"
-                                onClick={() => setAnexoAberto({ fileId: item.anexo_file_id, nome: item.anexo_nome })}
+                                onClick={() => {
+                                  const a = anexosDoItem(item.id)[0];
+                                  setAnexoAberto({ fileId: a.file_id, nome: a.nome });
+                                }}
                                 className="truncate text-slate-500 dark:text-slate-400 hover:text-blue-600 hover:underline"
                               >
-                                📎 {item.anexo_nome || "anexo"}
+                                📎{" "}
+                                {anexosDoItem(item.id).length > 1
+                                  ? `${anexosDoItem(item.id).length} anexos`
+                                  : anexosDoItem(item.id)[0].nome}
                               </button>
                             )}
-                            {item.anexo_nome && !item.anexo_file_id && (
+                            {item._anexoPendenteNome && anexosDoItem(item.id).length === 0 && (
                               <span className="text-slate-400 dark:text-slate-500" title="Envia quando voltar o sinal">
-                                📎 {item.anexo_nome} (pendente de sincronização)
+                                📎 {item._anexoPendenteNome} (pendente de sincronização)
                               </span>
                             )}
                           </div>
@@ -365,8 +374,8 @@ export default function AgendaPage() {
         nomePorSubclassificacao={nomePorSubclassificacao}
         iconePorClassificacao={iconePorClassificacao}
         iconePorSubclassificacao={iconePorSubclassificacao}
-        extraAnexos={
-          viewingItem ? todosExtras.filter((a) => a.item_id === viewingItem.id) : undefined
+        anexos={
+          viewingItem ? anexosDoItem(viewingItem.id) : undefined
         }
         cambios={cambios}
         cotacoes={cotacoesCambio}

@@ -4,9 +4,9 @@ import { urlHttpSchema } from "@/lib/urlSegura";
 import { detectarTipoVoucher } from "@/lib/fileValidation";
 import { errorResponse, requireSession, sessionCanAccessTrip, tripLockError } from "@/lib/api-helpers";
 import { ItemEditableInput, deleteItem, listItensByTrip, updateItem } from "@/lib/sheets/itens";
-import { deleteAnexo, uploadAnexo } from "@/lib/sheets/anexos";
+import { deleteDriveFile, uploadDriveFile } from "@/lib/sheets/driveFiles";
+import { createAnexo, listAnexosByTrip } from "@/lib/sheets/anexos";
 import { deleteRowsByField } from "@/lib/sheets/repository";
-import { listItemAnexosByTrip } from "@/lib/sheets/itemAnexos";
 import { getTrip } from "@/lib/sheets/trips";
 
 const MAX_FILE_BYTES = 4 * 1024 * 1024;
@@ -119,6 +119,7 @@ export async function PATCH(
   if ("error" in auth) return auth.error;
 
   const { id, itemId } = await params;
+  const { user } = auth.session;
   if (!(await sessionCanAccessTrip(auth.session, id))) {
     return errorResponse("Sem acesso a esta viagem", 403);
   }
@@ -152,7 +153,8 @@ export async function PATCH(
   const parsed = patchSchema.safeParse(raw);
   if (!parsed.success) return errorResponse(parsed.error.issues[0].message);
 
-  let anexo: { fileId: string; name: string; url: string } | null = null;
+  // Um arquivo vindo junto do PATCH vira mais um anexo do item (nunca substitui um existente -
+  // desde a reforma de 2026-09-24 todo anexo de Item é igual aos demais, sem "principal").
   if (file) {
     if (file.size > MAX_FILE_BYTES) {
       return errorResponse(
@@ -165,7 +167,7 @@ export async function PATCH(
     }
     const buffer = Buffer.from(await file.arrayBuffer());
     try {
-      anexo = await uploadAnexo({
+      const anexo = await uploadDriveFile({
         tripId: trip.id,
         tripName: trip.nome,
         categoria: "outros",
@@ -173,25 +175,24 @@ export async function PATCH(
         mimeType: tipoDetectado,
         base64Data: buffer.toString("base64"),
       });
+      await createAnexo({
+        tripId: id,
+        itemId,
+        fileId: anexo.fileId,
+        nome: anexo.name,
+        url: anexo.url,
+        criadoPor: user.id,
+      });
     } catch (err) {
-      console.error("uploadAnexo (updateItem) falhou:", err);
+      console.error("uploadDriveFile (updateItem) falhou:", err);
       return errorResponse(
         err instanceof Error ? `Falha ao enviar o anexo: ${err.message}` : "Falha ao enviar o anexo",
         502
       );
     }
-    // Best-effort: o item já tem o anexo novo vinculado independente disso funcionar.
-    if (existente.anexo_file_id) {
-      await deleteAnexo(existente.anexo_file_id, trip.id, trip.nome).catch(() => {});
-    }
   }
 
-  await updateItem(itemId, {
-    ...limparAcordeoesInativos(parsed.data),
-    ...(anexo
-      ? { anexo_file_id: anexo.fileId, anexo_nome: anexo.name, anexo_url: anexo.url }
-      : {}),
-  });
+  await updateItem(itemId, limparAcordeoesInativos(parsed.data));
 
   return NextResponse.json({ ok: true });
 }
@@ -217,23 +218,18 @@ export async function DELETE(
     const bloqueio = tripLockError(trip);
     if (bloqueio) return bloqueio;
   }
-  const extras = (await listItemAnexosByTrip(id)).filter((a) => a.item_id === itemId);
+  const anexos = (await listAnexosByTrip(id)).filter((a) => a.item_id === itemId);
 
   await deleteItem(itemId);
-  await deleteRowsByField("ItemAnexos", "item_id", itemId);
+  await deleteRowsByField("Anexos", "item_id", itemId);
 
+  // Um arquivo que não sumir do Drive não deve travar a exclusão do item, que já aconteceu na
+  // planilha - best-effort, reportado pra quem chamou em vez de virar erro que desfaz nada.
   let avisoAnexo: string | undefined;
-  if (existente.anexo_file_id && trip) {
-    await deleteAnexo(existente.anexo_file_id, trip.id, trip.nome).catch((err) => {
-      avisoAnexo = err instanceof Error ? err.message : "Não foi possível remover o anexo";
-    });
-  }
-  // Anexos extras seguem o mesmo padrão best-effort do principal: um arquivo que não sumir do
-  // Drive não deve travar a exclusão do item, que já aconteceu na planilha.
-  for (const extra of extras) {
+  for (const anexo of anexos) {
     if (!trip) break;
-    await deleteAnexo(extra.file_id, trip.id, trip.nome).catch((err) => {
-      avisoAnexo = avisoAnexo ?? (err instanceof Error ? err.message : "Não foi possível remover um anexo extra");
+    await deleteDriveFile(anexo.file_id, trip.id, trip.nome).catch((err) => {
+      avisoAnexo = avisoAnexo ?? (err instanceof Error ? err.message : "Não foi possível remover um anexo");
     });
   }
 

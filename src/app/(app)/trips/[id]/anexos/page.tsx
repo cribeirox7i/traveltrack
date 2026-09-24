@@ -8,10 +8,10 @@ import {
   useOnlineStatus,
 } from "@/lib/offline/useOfflineData";
 import {
-  createAnexoSoltoOnline,
-  deleteAnexoSoltoOnline,
-  updateAnexoSoltoOnline,
-  type AnexoSoltoInfo,
+  createAnexoOnline,
+  deleteAnexoOnline,
+  updateAnexoOnline,
+  type AnexoInfo,
 } from "@/lib/offline/sync";
 import { viagemBloqueada } from "@/lib/tripStatus";
 import { InfoDisclaimer } from "@/components/InfoDisclaimer";
@@ -25,13 +25,16 @@ function formatDataBR(iso: string): string {
 }
 
 /**
- * Aba solta de anexos (fora de Itens) - reforma do cadastro, 2026-09-21. Registro simples: data,
- * descrição, arquivo. Upload/edição/remoção exigem internet na hora (mesmo padrão dos anexos
- * extras de Item) - a lista em si abre offline via `useOfflineCollection`.
+ * Anexos soltos da viagem (fora de Itens) - registro simples: data, descrição, arquivo. Aba
+ * `Anexos` unificada (2026-09-24): a mesma coleção guarda também os anexos de Item, então esta
+ * tela filtra por `item_id` vazio - o que entrou por aqui só é editado/removido por aqui, o que
+ * entrou por um Item só é editado/removido na tela de Itens (nunca aparece nesta lista). Upload/
+ * edição/remoção exigem internet na hora - a lista em si abre offline via `useOfflineCollection`.
  */
 export default function AnexosPage() {
   const { id: tripId } = useParams<{ id: string }>();
-  const { items: anexos, loading } = useOfflineCollection<AnexoSoltoInfo>("anexosSoltos", tripId);
+  const { items: todosAnexos, loading } = useOfflineCollection<AnexoInfo>("anexosSheet", tripId);
+  const anexos = todosAnexos.filter((a) => !a.item_id);
   const { trip } = useOfflineTrip<{ id: string; status?: string; data_inicio: string; data_fim: string }>(tripId);
   const bloqueada = !!trip && viagemBloqueada(trip);
   const online = useOnlineStatus();
@@ -59,7 +62,7 @@ export default function AnexosPage() {
     }
     setErroEnvio(null);
     setEnviando(true);
-    const res = await createAnexoSoltoOnline(tripId, { data, descricao, file });
+    const res = await createAnexoOnline(tripId, { data, descricao, file });
     setEnviando(false);
     if (!res.ok) {
       setErroEnvio(res.error);
@@ -70,7 +73,7 @@ export default function AnexosPage() {
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
-  function iniciarEdicao(a: AnexoSoltoInfo) {
+  function iniciarEdicao(a: AnexoInfo) {
     setEditandoId(a.id);
     setDataEdicao(a.data);
     setDescricaoEdicao(a.descricao);
@@ -82,7 +85,7 @@ export default function AnexosPage() {
     if (!editandoId) return;
     setSalvandoEdicao(true);
     setErroEdicao(null);
-    const res = await updateAnexoSoltoOnline(tripId, editandoId, {
+    const res = await updateAnexoOnline(tripId, editandoId, {
       data: dataEdicao,
       descricao: descricaoEdicao,
     });
@@ -94,10 +97,10 @@ export default function AnexosPage() {
     setEditandoId(null);
   }
 
-  async function handleRemover(a: AnexoSoltoInfo) {
+  async function handleRemover(a: AnexoInfo) {
     if (!confirm(`Remover o anexo "${a.nome}"?`)) return;
     setRemovendoId(a.id);
-    await deleteAnexoSoltoOnline(tripId, a.id);
+    await deleteAnexoOnline(tripId, a.id);
     setRemovendoId(null);
   }
 

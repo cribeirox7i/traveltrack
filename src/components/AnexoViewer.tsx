@@ -19,7 +19,7 @@ import { getAnexoFile } from "@/lib/offline/db";
  * gente empurra uma entrada no `history` pra o voltar do Android fechar só o visualizador.
  *
  * Os bytes vêm do IndexedDB quando a viagem está baixada offline (`getAnexoFile`), senão da
- * rota `/api/trips/{tripId}/anexos/{fileId}` (que baixa via Apps Script e devolve inline) -
+ * rota `/api/trips/{tripId}/drive-files/{fileId}` (que baixa via Apps Script e devolve inline) -
  * nunca do link cru do Drive, que pede login Google.
  */
 export function AnexoViewer({
@@ -94,7 +94,7 @@ export function AnexoViewer({
           blob = local.blob;
           mime = local.mimeType || local.blob.type || "";
         } else {
-          const res = await fetch(`/api/trips/${tripId}/anexos/${fileId}`, {
+          const res = await fetch(`/api/trips/${tripId}/drive-files/${fileId}`, {
             credentials: "same-origin",
           });
           if (!res.ok) {

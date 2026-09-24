@@ -109,16 +109,15 @@ export async function pullTrips(): Promise<void> {
   }
 }
 
-/** Atualiza dias/agenda/itens de UMA viagem no cache local - chamado ao abrir a viagem. */
+/** Atualiza dias/agenda/itens/anexos de UMA viagem no cache local - chamado ao abrir a viagem. */
 export async function pullTripDetail(tripId: string): Promise<void> {
   if (!isOnline()) return;
-  const [days, agenda, itens, itemAnexos, cambio, anexosSoltos] = await Promise.all([
+  const [days, agenda, itens, anexos, cambio] = await Promise.all([
     getJson<Record<string, unknown>[]>(`/api/trips/${tripId}/days`),
     getJson<Record<string, unknown>[]>(`/api/trips/${tripId}/agenda`),
     getJson<Record<string, unknown>[]>(`/api/trips/${tripId}/itens`),
-    getJson<Record<string, unknown>[]>(`/api/trips/${tripId}/itens-anexos`),
+    getJson<Record<string, unknown>[]>(`/api/trips/${tripId}/anexos`),
     getJson<Record<string, unknown>[]>(`/api/trips/${tripId}/cambio`),
-    getJson<Record<string, unknown>[]>(`/api/trips/${tripId}/anexos-soltos`),
   ]);
   if (days) await putAllReplacing("tripDays", days as never, tripId);
   if (agenda) {
@@ -129,17 +128,14 @@ export async function pullTripDetail(tripId: string): Promise<void> {
     const protectedIds = await pendingCreateIds("createItem", tripId);
     await putAllReplacing("itens", itens as never, tripId, protectedIds);
   }
-  // Anexos extras não têm mutação otimista local (adicionar/remover exige internet, ver
-  // `addItemAnexoOnline`/`removeItemAnexoOnline`), então não precisa de `protectedIds` - não
-  // existe uma criação pendente na fila pra proteger.
-  if (itemAnexos) await putAllReplacing("itemAnexos", itemAnexos as never, tripId);
+  // Anexos (soltos e de Item, aba unificada) não têm mutação otimista local (adicionar/editar/
+  // remover exigem internet, ver `createAnexoOnline`/`updateAnexoOnline`/`deleteAnexoOnline`),
+  // então não precisa de `protectedIds` - não existe uma criação pendente na fila pra proteger.
+  if (anexos) await putAllReplacing("anexosSheet", anexos as never, tripId);
   if (cambio) {
     const protectedIds = await pendingCreateIds("createCambio", tripId);
     await putAllReplacing("cambio", cambio as never, tripId, protectedIds);
   }
-  // Anexos soltos não têm mutação otimista local (upload/edição/remoção exigem internet, ver
-  // `createAnexoSoltoOnline`), então sem `protectedIds` - mesma lógica de `itemAnexos`.
-  if (anexosSoltos) await putAllReplacing("anexosSoltos", anexosSoltos as never, tripId);
   notifyChange();
 }
 
@@ -306,7 +302,7 @@ const downloading = new Set<string>();
  * via `downloadTripFull`, quando a viagem está marcada. */
 export async function pullAnexosList(tripId: string): Promise<void> {
   if (!isOnline()) return;
-  const anexos = await getJson<AnexoInfoLike[]>(`/api/trips/${tripId}/anexos`);
+  const anexos = await getJson<AnexoInfoLike[]>(`/api/trips/${tripId}/drive-files`);
   if (!anexos) return;
   await putAll(
     "anexos",
@@ -328,7 +324,7 @@ export async function downloadTripFull(tripId: string): Promise<void> {
     await Promise.all([pullCollaborators(tripId), pullMeiosPagamento()]);
     await pullTripDetail(tripId);
 
-    const anexos = await getJson<AnexoInfoLike[]>(`/api/trips/${tripId}/anexos`);
+    const anexos = await getJson<AnexoInfoLike[]>(`/api/trips/${tripId}/drive-files`);
     if (!anexos) return;
 
     const existingMeta = await listByTrip("anexos", tripId);
@@ -351,7 +347,7 @@ export async function downloadTripFull(tripId: string): Promise<void> {
     const existingFileIds = new Set(existingFiles.map((f) => f.fileId));
     const toDownload = anexos.filter((a) => !existingFileIds.has(a.fileId));
     for (const anexo of toDownload) {
-      const blob = await getBlob(`/api/trips/${tripId}/anexos/${anexo.fileId}`);
+      const blob = await getBlob(`/api/trips/${tripId}/drive-files/${anexo.fileId}`);
       if (!blob) continue;
       await putAnexoFile({
         fileId: anexo.fileId,
@@ -608,7 +604,7 @@ export async function uploadAnexoAndRefresh(
   tripId: string,
   form: FormData
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const res = await fetch(`/api/trips/${tripId}/anexos`, { method: "POST", body: form });
+  const res = await fetch(`/api/trips/${tripId}/drive-files`, { method: "POST", body: form });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
     return { ok: false, error: data.error ?? "Erro ao enviar anexo" };
@@ -619,7 +615,7 @@ export async function uploadAnexoAndRefresh(
 }
 
 export async function deleteAnexoAndRefresh(tripId: string, fileId: string): Promise<void> {
-  await fetch(`/api/trips/${tripId}/anexos/${fileId}`, { method: "DELETE" });
+  await fetch(`/api/trips/${tripId}/drive-files/${fileId}`, { method: "DELETE" });
   await deleteMany("anexos", [fileId]);
   await deleteMany("anexoFiles", [fileId]);
   await refreshIfOffline(tripId);
@@ -657,9 +653,11 @@ export async function pushOutbox(): Promise<void> {
               entry.kind === "updateAgenda") &&
             Boolean((entry.payload as { file?: File }).file);
           if (teveUpload) {
-            // O upload do anexo só termina no servidor durante este push - a linha otimista
-            // local nasceu sem anexo_file_id/anexo_url (ver createItemOffline/
-            // createAgendaOffline). `refreshIfOffline` só re-busca a viagem quando ela está
+            // O upload do anexo só termina no servidor durante este push - a linha otimista local
+            // nasceu sem o arquivo de verdade (Item só com `_anexoPendenteNome`, marcador local
+            // que não é coluna nenhuma - ver createItemOffline; Agenda com `anexo_nome` mas sem
+            // `anexo_file_id` - ver createAgendaOffline). `refreshIfOffline` só re-busca a viagem
+            // quando ela está
             // marcada "Dados offline"; sem esse pull aqui, quem NÃO marcou a viagem via ficava
             // com "sem anexo" na tela pro resto da sessão mesmo com o arquivo salvo certo no
             // Drive (o próprio servidor sempre esteve certo).
@@ -926,9 +924,8 @@ export async function deleteTripOffline(
   await deleteByTrip("anexoFiles", tripId);
   await deleteByTrip("agenda", tripId);
   await deleteByTrip("itens", tripId);
-  await deleteByTrip("itemAnexos", tripId);
+  await deleteByTrip("anexosSheet", tripId);
   await deleteByTrip("cambio", tripId);
-  await deleteByTrip("anexosSoltos", tripId);
   await deleteTripImage(tripId);
   await removeOutboxByTrip(tripId);
 
@@ -1074,9 +1071,10 @@ export async function createItemOffline(
     id,
     trip_id: tripId,
     natureza: "",
-    anexo_file_id: "",
-    anexo_nome: file?.name ?? "",
-    anexo_url: "",
+    // Marcador só local (nunca vai pro servidor - não faz parte de `fields`/`payload` abaixo):
+    // pro badge da lista mostrar "pendente de sincronização" antes de a linha em `Anexos`
+    // existir de verdade. Some sozinho quando `pullTripDetail` re-busca o item depois do push.
+    _anexoPendenteNome: file?.name ?? "",
     criado_por: "",
     criado_em: new Date().toISOString(),
     ...fields,
@@ -1100,7 +1098,7 @@ export async function updateItemOffline(
     ...(existing ?? { trip_id: tripId }),
     id: itemId,
     ...fields,
-    ...(file ? { anexo_nome: file.name } : {}),
+    ...(file ? { _anexoPendenteNome: file.name } : {}),
   });
   const payload: Omit<ItemPayload, "id"> & { itemId: string; file?: File } = {
     itemId,
@@ -1177,76 +1175,17 @@ export async function deleteCambioOffline(tripId: string, cambioId: string): Pro
   void pushOutbox();
 }
 
-// ---------- Anexos extras de um Item (além do principal) ----------
-// Só existem pra um item que já tem o anexo principal (anexo_file_id) - sem opção de "Analisar
-// voucher". Diferente do resto do app, NÃO entram no outbox: exigem internet na hora (mesma
-// decisão de `deleteTripOffline`) - a leitura funciona offline (cache normal via
-// `pullTripDetail`), só adicionar/remover exige sinal.
+// ---------- Anexos (aba Anexos unificada - soltos e de Item, 2026-09-24) ----------
+// Upload/edição/remoção exigem internet na hora, sem outbox (o arquivo em si não é enfileirável
+// de forma prática) - a leitura funciona offline via `pullTripDetail`/
+// `useOfflineCollection("anexosSheet", tripId)`. `item_id` vazio = solto (só a tela solta de
+// Anexos cria/edita/exclui); preenchido = pertence a um Item (só a tela de Itens cria/exclui -
+// não edita `data`/`descricao`, que nem existem pra esse caso).
 
-export interface ItemAnexoInfo {
+export interface AnexoInfo {
   id: string;
+  trip_id: string;
   item_id: string;
-  trip_id: string;
-  file_id: string;
-  nome: string;
-  url: string;
-  criado_por: string;
-  criado_em: string;
-}
-
-export async function addItemAnexoOnline(
-  tripId: string,
-  itemId: string,
-  file: File
-): Promise<{ ok: true; anexo: ItemAnexoInfo } | { ok: false; error: string }> {
-  if (!isOnline()) return { ok: false, error: "Sem conexão - adicionar anexo precisa de internet" };
-
-  const form = new FormData();
-  form.set("file", file);
-  let res: Response;
-  try {
-    res = await fetch(`/api/trips/${tripId}/itens/${itemId}/anexos`, { method: "POST", body: form });
-  } catch {
-    return { ok: false, error: "Sem conexão - adicionar anexo precisa de internet" };
-  }
-  const body = await res.json().catch(() => ({}));
-  if (!res.ok) return { ok: false, error: body.error ?? "Erro ao adicionar anexo" };
-
-  const anexo = body as ItemAnexoInfo;
-  await putOne("itemAnexos", anexo as never);
-  notifyChange();
-  return { ok: true, anexo };
-}
-
-export async function removeItemAnexoOnline(
-  tripId: string,
-  itemId: string,
-  anexoId: string
-): Promise<{ ok: true; avisoAnexo?: string } | { ok: false; error: string }> {
-  if (!isOnline()) return { ok: false, error: "Sem conexão - remover anexo precisa de internet" };
-
-  let res: Response;
-  try {
-    res = await fetch(`/api/trips/${tripId}/itens/${itemId}/anexos/${anexoId}`, { method: "DELETE" });
-  } catch {
-    return { ok: false, error: "Sem conexão - remover anexo precisa de internet" };
-  }
-  const body = await res.json().catch(() => ({}));
-  if (!res.ok) return { ok: false, error: body.error ?? "Erro ao remover anexo" };
-
-  await deleteOne("itemAnexos", anexoId);
-  notifyChange();
-  return { ok: true, avisoAnexo: body.avisoAnexo };
-}
-
-// ---------- Anexos soltos (aba Anexos, fora de Itens) ----------
-// Mesma decisão de "Anexos extras de um Item": upload/edição/remoção exigem internet na hora, sem
-// outbox (o arquivo em si não é enfileirável de forma prática) - a leitura funciona offline via
-// `pullTripDetail`/`useOfflineCollection("anexosSoltos", tripId)`.
-
-export interface AnexoSoltoInfo {
-  id: string;
-  trip_id: string;
   data: string;
   descricao: string;
   file_id: string;
@@ -1256,32 +1195,34 @@ export interface AnexoSoltoInfo {
   criado_em: string;
 }
 
-export async function createAnexoSoltoOnline(
+export async function createAnexoOnline(
   tripId: string,
-  input: { data: string; descricao: string; file: File }
-): Promise<{ ok: true; anexo: AnexoSoltoInfo } | { ok: false; error: string }> {
+  input: { itemId?: string; data?: string; descricao?: string; file: File }
+): Promise<{ ok: true; anexo: AnexoInfo } | { ok: false; error: string }> {
   if (!isOnline()) return { ok: false, error: "Sem conexão - adicionar anexo precisa de internet" };
 
   const form = new FormData();
-  form.set("data", input.data);
-  form.set("descricao", input.descricao);
+  if (input.itemId) form.set("item_id", input.itemId);
+  if (input.data) form.set("data", input.data);
+  if (input.descricao) form.set("descricao", input.descricao);
   form.set("file", input.file);
   let res: Response;
   try {
-    res = await fetch(`/api/trips/${tripId}/anexos-soltos`, { method: "POST", body: form });
+    res = await fetch(`/api/trips/${tripId}/anexos`, { method: "POST", body: form });
   } catch {
     return { ok: false, error: "Sem conexão - adicionar anexo precisa de internet" };
   }
   const body = await res.json().catch(() => ({}));
   if (!res.ok) return { ok: false, error: body.error ?? "Erro ao adicionar anexo" };
 
-  const anexo = body as AnexoSoltoInfo;
-  await putOne("anexosSoltos", anexo as never);
+  const anexo = body as AnexoInfo;
+  await putOne("anexosSheet", anexo as never);
   notifyChange();
   return { ok: true, anexo };
 }
 
-export async function updateAnexoSoltoOnline(
+/** Só faz sentido pra anexo solto - ver comentário da seção. */
+export async function updateAnexoOnline(
   tripId: string,
   anexoId: string,
   patch: { data?: string; descricao?: string }
@@ -1290,7 +1231,7 @@ export async function updateAnexoSoltoOnline(
 
   let res: Response;
   try {
-    res = await fetch(`/api/trips/${tripId}/anexos-soltos/${anexoId}`, {
+    res = await fetch(`/api/trips/${tripId}/anexos/${anexoId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(patch),
@@ -1301,13 +1242,13 @@ export async function updateAnexoSoltoOnline(
   const body = await res.json().catch(() => ({}));
   if (!res.ok) return { ok: false, error: body.error ?? "Erro ao editar anexo" };
 
-  const existing = await getOne("anexosSoltos", anexoId);
-  if (existing) await putOne("anexosSoltos", { ...existing, ...patch });
+  const existing = await getOne("anexosSheet", anexoId);
+  if (existing) await putOne("anexosSheet", { ...existing, ...patch });
   notifyChange();
   return { ok: true };
 }
 
-export async function deleteAnexoSoltoOnline(
+export async function deleteAnexoOnline(
   tripId: string,
   anexoId: string
 ): Promise<{ ok: true; avisoAnexo?: string } | { ok: false; error: string }> {
@@ -1315,14 +1256,14 @@ export async function deleteAnexoSoltoOnline(
 
   let res: Response;
   try {
-    res = await fetch(`/api/trips/${tripId}/anexos-soltos/${anexoId}`, { method: "DELETE" });
+    res = await fetch(`/api/trips/${tripId}/anexos/${anexoId}`, { method: "DELETE" });
   } catch {
     return { ok: false, error: "Sem conexão - remover anexo precisa de internet" };
   }
   const body = await res.json().catch(() => ({}));
   if (!res.ok) return { ok: false, error: body.error ?? "Erro ao remover anexo" };
 
-  await deleteOne("anexosSoltos", anexoId);
+  await deleteOne("anexosSheet", anexoId);
   notifyChange();
   return { ok: true, avisoAnexo: body.avisoAnexo };
 }

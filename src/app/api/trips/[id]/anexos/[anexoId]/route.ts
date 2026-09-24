@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, requireSession, sessionCanAccessTrip, tripLockError } from "@/lib/api-helpers";
-import { deleteAnexo } from "@/lib/sheets/anexos";
-import { deleteAnexoSolto, getAnexoSolto, updateAnexoSolto } from "@/lib/sheets/anexosSoltos";
+import { deleteDriveFile } from "@/lib/sheets/driveFiles";
+import { deleteAnexo, getAnexo, updateAnexo } from "@/lib/sheets/anexos";
 import { getTrip } from "@/lib/sheets/trips";
 
 const patchSchema = z.object({
@@ -10,6 +10,9 @@ const patchSchema = z.object({
   descricao: z.string().trim().max(200).optional(),
 });
 
+/** Só faz sentido pra anexo solto (`item_id` vazio) - a tela de Itens não oferece edição de
+ * data/descrição pros anexos que ela cria, só analisar/remover. Não bloqueado aqui a mais: a UI
+ * de Itens simplesmente nunca chama este PATCH. */
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string; anexoId: string }> }
@@ -22,7 +25,7 @@ export async function PATCH(
     return errorResponse("Sem acesso a esta viagem", 403);
   }
 
-  const existente = await getAnexoSolto(anexoId);
+  const existente = await getAnexo(anexoId);
   if (!existente || existente.trip_id !== id) return errorResponse("Anexo não encontrado", 404);
 
   const trip = await getTrip(id);
@@ -34,10 +37,10 @@ export async function PATCH(
   if (!parsed.success) return errorResponse(parsed.error.issues[0].message);
 
   try {
-    await updateAnexoSolto(anexoId, parsed.data);
+    await updateAnexo(anexoId, parsed.data);
     return NextResponse.json({ ok: true });
   } catch (err) {
-    console.error("PATCH anexo solto falhou:", err);
+    console.error("PATCH anexo falhou:", err);
     return errorResponse(
       err instanceof Error ? `Falha ao atualizar o anexo: ${err.message}` : "Falha ao atualizar o anexo",
       502
@@ -57,7 +60,7 @@ export async function DELETE(
     return errorResponse("Sem acesso a esta viagem", 403);
   }
 
-  const existente = await getAnexoSolto(anexoId);
+  const existente = await getAnexo(anexoId);
   if (!existente || existente.trip_id !== id) return errorResponse("Anexo não encontrado", 404);
 
   const trip = await getTrip(id);
@@ -66,11 +69,11 @@ export async function DELETE(
     if (bloqueio) return bloqueio;
   }
 
-  await deleteAnexoSolto(anexoId);
+  await deleteAnexo(anexoId);
 
   let avisoAnexo: string | undefined;
   if (trip) {
-    await deleteAnexo(existente.file_id, trip.id, trip.nome).catch((err) => {
+    await deleteDriveFile(existente.file_id, trip.id, trip.nome).catch((err) => {
       avisoAnexo = err instanceof Error ? err.message : "Não foi possível remover o arquivo do Drive";
     });
   }

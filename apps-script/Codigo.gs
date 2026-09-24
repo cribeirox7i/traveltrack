@@ -22,8 +22,6 @@ const ESTRUTURA = {
   Trips: ['id', 'nome', 'data_inicio', 'data_fim', 'qtd_pessoas', 'criado_por', 'criado_em', 'cidade_origem', 'cidade_origem_lat', 'cidade_origem_lon', 'capa_url', 'custo_modo', 'ambiente_id', 'status'],
   TripDays: ['id', 'trip_id', 'data', 'origem', 'destino', 'pernoite', 'traslado_pp', 'passagem_pp', 'alimentacao_pp', 'passeio_pp', 'hospedagem_pp', 'temp_min', 'temp_max', 'chuva_mm', 'vento_kmh', 'origem_lat', 'origem_lon', 'destino_lat', 'destino_lon', 'pernoite_lat', 'pernoite_lon', 'origem_pais', 'destino_pais', 'pernoite_pais'],
   UserTrip: ['id', 'user_id', 'trip_id'],
-  Despesas: ['id', 'trip_id', 'categoria', 'valor', 'data', 'lancado_por', 'descricao', 'pagador_id', 'meio_pagamento_id', 'status', 'natureza'],
-  Receitas: ['id', 'trip_id', 'user_id', 'valor', 'data', 'descricao', 'credor_id', 'status'],
   // `user_id` = dono (cada usuário tem a própria lista; o gestor cadastra pros usuários dele).
   MeiosPagamento: ['id', 'nome', 'ativo', 'user_id'],
   Agenda: ['id', 'trip_id', 'data', 'horario', 'titulo', 'descricao', 'url', 'anexo_file_id', 'anexo_nome', 'anexo_url', 'criado_por', 'criado_em'],
@@ -34,16 +32,12 @@ const ESTRUTURA = {
   Countries: ['id', 'country', 'plug_type', 'volts', 'hertz', 'currency_code', 'currency_name', 'currency_symbol', 'capital', 'ddi', 'driving_side', 'timezone', 'flag_emoji', 'language', 'rate_brl', 'rate_date'],
   // Tabela genérica que substitui Despesas/Receitas/Agenda/Anexos (ver plano "Itens de Viagem +
   // OCR de vouchers") - precisa bater exatamente com Itens em src/lib/sheets/types.ts.
-  Itens: ['id', 'trip_id', 'categoria', 'tipo', 'localizador', 'nome_companhia', 'numero', 'data', 'horario', 'origem', 'destino', 'nome_local', 'endereco', 'data_inicio', 'hora_inicio', 'data_fim', 'hora_fim', 'tipo_documento', 'passageiro_id', 'url', 'anexo_file_id', 'anexo_nome', 'anexo_url', 'descricao', 'valor', 'status', 'natureza', 'data_pagamento', 'pagador_id', 'meio_pagamento_id', 'criado_por', 'criado_em', 'moeda', 'classificacao_id', 'subclassificacao_id', 'financeiro_ativo', 'roteiro_ativo'],
-  // Aba solta de anexos (fora de Itens) - reforma do cadastro, 2026-09-21. Data+descricao+arquivo,
-  // sem categoria nem vinculo com Item nenhum.
-  Anexos: ['id', 'trip_id', 'data', 'descricao', 'file_id', 'nome', 'url', 'criado_por', 'criado_em'],
-  // Anexos ADICIONAIS de um Item (além do único anexo_file_id que já mora na própria linha de
-  // Itens, esse é o "principal" e continua sendo o único que passa pela análise do Gemini). Uma
-  // linha por arquivo extra - `trip_id` vem duplicado (não só `item_id`) pelo mesmo motivo de
-  // Itens/TripDays: rota de download/exclusão de anexo confirma dono da pasta no Drive sem
-  // precisar ir buscar o item pai primeiro.
-  ItemAnexos: ['id', 'item_id', 'trip_id', 'file_id', 'nome', 'url', 'criado_por', 'criado_em'],
+  Itens: ['id', 'trip_id', 'localizador', 'nome_companhia', 'numero', 'data', 'horario', 'origem', 'destino', 'nome_local', 'endereco', 'data_inicio', 'hora_inicio', 'data_fim', 'hora_fim', 'url', 'descricao', 'valor', 'status', 'natureza', 'data_pagamento', 'pagador_id', 'meio_pagamento_id', 'criado_por', 'criado_em', 'moeda', 'classificacao_id', 'subclassificacao_id', 'financeiro_ativo', 'roteiro_ativo'],
+  // Anexos da viagem, unificado (reforma 2026-09-24): tanto os soltos (sem vínculo) quanto os de
+  // um Item (extras e o antigo "principal") viram linha aqui - `item_id` vazio = solto,
+  // preenchido = pertence àquele Item. `data`/`descricao` só fazem sentido pro solto (vazios nos
+  // de Item). Precisa bater exatamente com AnexoRow em src/lib/sheets/types.ts.
+  Anexos: ['id', 'trip_id', 'item_id', 'data', 'descricao', 'file_id', 'nome', 'url', 'criado_por', 'criado_em'],
   // Operações de câmbio de uma viagem (menu Financeiro > Câmbio) - precisa bater com CambioRow em
   // src/lib/sheets/types.ts. `taxa_efetiva` = R$ por unidade da moeda, já com IOF/tarifas.
   Cambio: ['id', 'trip_id', 'data', 'moeda', 'qtd_moeda', 'qtd_reais', 'taxa_efetiva', 'descricao', 'criado_por', 'criado_em'],

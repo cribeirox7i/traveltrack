@@ -3,7 +3,7 @@ import { z } from "zod";
 import { urlHttpSchema } from "@/lib/urlSegura";
 import { errorResponse, requireSession, sessionCanAccessTrip, tripLockError } from "@/lib/api-helpers";
 import { deleteAgenda, getAgenda, updateAgenda } from "@/lib/sheets/agenda";
-import { deleteAnexo, uploadAnexo } from "@/lib/sheets/anexos";
+import { deleteDriveFile, uploadDriveFile } from "@/lib/sheets/driveFiles";
 import { getTrip, listTripDays } from "@/lib/sheets/trips";
 
 const MAX_FILE_BYTES = 4 * 1024 * 1024;
@@ -76,7 +76,7 @@ export async function PATCH(
 
   if (file) {
     const buffer = Buffer.from(await file.arrayBuffer());
-    const anexo = await uploadAnexo({
+    const anexo = await uploadDriveFile({
       tripId: trip.id,
       tripName: trip.nome,
       categoria: "agenda",
@@ -93,7 +93,7 @@ export async function PATCH(
     // lição de `deleteTrip`/DELETE deste arquivo: uma limpeza acessória é best-effort).
     if (agenda.anexo_file_id) {
       try {
-        await deleteAnexo(agenda.anexo_file_id, trip.id, trip.nome);
+        await deleteDriveFile(agenda.anexo_file_id, trip.id, trip.nome);
       } catch (err) {
         avisoAnexo = err instanceof Error ? err.message : String(err);
       }
@@ -134,7 +134,7 @@ export async function DELETE(
   if (!agenda.anexo_file_id) return NextResponse.json({ ok: true, anexoRemovido: true });
 
   try {
-    await deleteAnexo(agenda.anexo_file_id, trip.id, trip.nome);
+    await deleteDriveFile(agenda.anexo_file_id, trip.id, trip.nome);
     return NextResponse.json({ ok: true, anexoRemovido: true });
   } catch (err) {
     return NextResponse.json({

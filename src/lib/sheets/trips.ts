@@ -9,7 +9,7 @@ import {
   updateRow,
   updateRows,
 } from "./repository";
-import { deleteAnexo, deleteTripFolder } from "./anexos";
+import { deleteDriveFile, deleteTripFolder } from "./driveFiles";
 import { listAgendaByTrip } from "./agenda";
 import { Role, TripDayRow, TripRow, UserRow, UserTripRow } from "./types";
 import type { TripStatus } from "../tripStatus";
@@ -447,7 +447,7 @@ export async function deleteTripDay(tripId: string, dayId: string): Promise<void
   for (const item of doDiaExcluido) {
     if (item.anexo_file_id) {
       try {
-        await deleteAnexo(item.anexo_file_id, trip.id, trip.nome);
+        await deleteDriveFile(item.anexo_file_id, trip.id, trip.nome);
       } catch {
         // best-effort - a limpeza do anexo não pode travar a exclusão do dia em si
       }

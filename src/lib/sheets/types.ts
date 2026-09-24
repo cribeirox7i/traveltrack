@@ -11,7 +11,6 @@ export type SheetTab =
   | "Agenda"
   | "Countries"
   | "Itens"
-  | "ItemAnexos"
   | "Cambio"
   | "Classificacoes"
   | "Subclassificacoes"
@@ -129,9 +128,6 @@ export const SHEET_HEADERS: Record<SheetTab, string[]> = {
     "data_fim",
     "hora_fim",
     "url",
-    "anexo_file_id",
-    "anexo_nome",
-    "anexo_url",
     "descricao",
     "valor",
     "status",
@@ -154,11 +150,6 @@ export const SHEET_HEADERS: Record<SheetTab, string[]> = {
     "financeiro_ativo",
     "roteiro_ativo",
   ],
-  // Anexos ADICIONAIS de um Item (além do `anexo_file_id` que já mora na própria linha de Itens -
-  // esse continua sendo o único "principal", o único que passa pela análise do Gemini). Uma linha
-  // por arquivo extra; `trip_id` duplicado pelo mesmo motivo de Itens/TripDays (rota de
-  // download/exclusão confirma a pasta no Drive sem precisar buscar o item pai primeiro).
-  ItemAnexos: ["id", "item_id", "trip_id", "file_id", "nome", "url", "criado_por", "criado_em"],
   // Operações de câmbio de uma viagem (comprar moeda estrangeira com reais) - ver menu Financeiro
   // > Câmbio. `taxa_efetiva` é R$ por 1 unidade da moeda, já com IOF/tarifas (uma taxa só, o
   // "custo efetivo da transação"). Não repete `ambiente_id` - chega pelo `trip_id`, igual às
@@ -187,10 +178,14 @@ export const SHEET_HEADERS: Record<SheetTab, string[]> = {
   // uma classificação (ex. "Ônibus" só faz sentido dentro de "Traslado"). `icone` aqui SOBRESCREVE
   // o da classificação-mãe quando preenchido (ex. "Ônibus" = 🚌 em vez do 🚐 genérico de Traslado).
   Subclassificacoes: ["id", "classificacao_id", "nome", "ativo", "criado_em", "icone"],
-  // Aba solta de anexos (reforma do cadastro de Itens, 2026-09-21) - volta a existir um lugar pra
-  // guardar arquivo sem passar por um Item: só data, descrição e o arquivo. Sem categoria, sem
-  // vínculo com Item (diferente de `ItemAnexos`, que é sempre extra DE um item).
-  Anexos: ["id", "trip_id", "data", "descricao", "file_id", "nome", "url", "criado_por", "criado_em"],
+  // Anexos da viagem, unificado (reforma 2026-09-24) - toda linha é um arquivo, esteja ele solto
+  // (sem vínculo, `item_id` vazio - o antigo conceito de "aba Anexos") ou pendurado num Item
+  // (`item_id` preenchido - antes dividido entre o "principal" na própria linha de Itens e os
+  // extras na aba `ItemAnexos`; agora todos os anexos de um Item são iguais entre si, sem
+  // destaque pro primeiro). `data`/`descricao` só fazem sentido pro solto, ficam vazios no de
+  // Item. `trip_id` duplicado mesmo tendo `item_id` (quando presente) pelo motivo de sempre:
+  // rota de download/exclusão confirma dono da pasta no Drive sem precisar buscar o item pai.
+  Anexos: ["id", "trip_id", "item_id", "data", "descricao", "file_id", "nome", "url", "criado_por", "criado_em"],
 };
 
 /**
@@ -403,9 +398,6 @@ export interface ItemRow {
   data_fim: string;
   hora_fim: string;
   url: string;
-  anexo_file_id: string;
-  anexo_nome: string;
-  anexo_url: string;
   descricao: string;
   /** Vazio se o item não tem valor lançado (comum em Documento/Outro, e possível em qualquer
    * categoria financeira sem custo, ex. atrativo gratuito). */
@@ -427,29 +419,19 @@ export interface ItemRow {
   moeda: string;
 }
 
-/** Anexo ADICIONAL de um Item - o principal continua vivendo em `anexo_file_id`/`anexo_nome`/
- * `anexo_url` da própria linha de Itens (é o único que a tela oferece "Analisar voucher"); esta
- * tabela existe só pros extras que o usuário anexa depois, sem opção de análise. */
-export interface ItemAnexoRow {
+/**
+ * Um anexo da viagem (aba `Anexos`, unificada 2026-09-24) - todo arquivo anexado, esteja ele
+ * solto (`item_id` vazio - documento qualquer sem precisar criar um Item) ou pendurado num Item
+ * (`item_id` preenchido - qualquer anexo daquele Item, sem distinção de "principal"; todos podem
+ * ser analisados via Gemini). `data`/`descricao` só fazem sentido pro solto, ficam vazios no de
+ * Item. Sobe pro Drive pela mesma `uploadDriveFile` (categoria fixa "outros" - a organização por
+ * pasta do Drive não importa mais aqui).
+ */
+export interface AnexoRow {
   [key: string]: string;
   id: string;
+  trip_id: string;
   item_id: string;
-  trip_id: string;
-  file_id: string;
-  nome: string;
-  url: string;
-  criado_por: string;
-  criado_em: string;
-}
-
-/** Um anexo solto da viagem (aba `Anexos`) - arquivo sem categoria nem vínculo com Item, só data +
- * descrição. Reintroduzido na reforma do cadastro de Itens (2026-09-21) pra guardar um documento
- * qualquer sem precisar criar um Item pra ele. Sobe pro Drive pela mesma `uploadAnexo` dos outros
- * anexos (categoria fixa "outros" no Drive - a organização por pasta não importa aqui). */
-export interface AnexoSoltoRow {
-  [key: string]: string;
-  id: string;
-  trip_id: string;
   data: string;
   descricao: string;
   file_id: string;

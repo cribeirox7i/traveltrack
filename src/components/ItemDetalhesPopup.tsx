@@ -5,9 +5,10 @@ import type { CambioEventoLike } from "@/lib/cambioCalc";
 import { converterValorParaBRL, custoMedioPorMoeda } from "@/lib/cambioCalc";
 import { AnexoViewer } from "@/components/AnexoViewer";
 
-/** Anexo extra de um item (além do principal) - mesmos campos de `ItemAnexoInfo` em
- * lib/offline/sync.ts, redeclarado aqui pra este arquivo não depender do módulo de sincronização. */
-export interface ItemAnexoExtra {
+/** Um anexo do item (todos iguais entre si, sem destaque pro primeiro - reforma 2026-09-24) -
+ * mesmos campos de `AnexoInfo` em lib/offline/sync.ts, redeclarado aqui pra este arquivo não
+ * depender do módulo de sincronização. */
+export interface ItemAnexoInfo {
   id: string;
   file_id: string;
   nome: string;
@@ -37,9 +38,6 @@ export interface Item {
   data_fim: string;
   hora_fim: string;
   url: string;
-  anexo_file_id: string;
-  anexo_nome: string;
-  anexo_url: string;
   descricao: string;
   valor: string;
   status: string;
@@ -48,6 +46,10 @@ export interface Item {
   pagador_id: string;
   meio_pagamento_id: string;
   moeda: string;
+  /** Marcador só local (IndexedDB), nunca vem do servidor - nome do arquivo escolhido num Item
+   * criado/editado offline, antes de a linha em `Anexos` existir de verdade (ver
+   * `createItemOffline`/`updateItemOffline` em lib/offline/sync.ts). Some sozinho ao sincronizar. */
+  _anexoPendenteNome?: string;
 }
 
 export function formatDataBR(iso: string): string {
@@ -121,7 +123,7 @@ function ItemDetalhes({
   item,
   nomePorPessoa,
   nomePorMeio,
-  extraAnexos,
+  anexos,
   cambios,
   cotacoes,
   onAbrirAnexo,
@@ -129,7 +131,7 @@ function ItemDetalhes({
   item: Item;
   nomePorPessoa: Record<string, string>;
   nomePorMeio: Record<string, string>;
-  extraAnexos: ItemAnexoExtra[];
+  anexos: ItemAnexoInfo[];
   cambios: CambioEventoLike[];
   cotacoes: Record<string, number>;
   onAbrirAnexo: (fileId: string, nome: string) => void;
@@ -193,24 +195,15 @@ function ItemDetalhes({
     }
   }
 
-  if (!pares.length && !item.descricao && !item.anexo_file_id && !extraAnexos.length) {
+  if (!pares.length && !item.descricao && !anexos.length) {
     return <p className="text-sm text-slate-400 dark:text-slate-500">Sem outros campos preenchidos.</p>;
   }
 
   return (
     <div className="flex flex-col gap-3">
-      {(item.anexo_file_id || extraAnexos.length > 0) && (
+      {anexos.length > 0 && (
         <div className="flex flex-col items-start gap-1">
-          {item.anexo_file_id && (
-            <button
-              type="button"
-              onClick={() => onAbrirAnexo(item.anexo_file_id, item.anexo_nome)}
-              className="inline-flex w-fit items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:underline"
-            >
-              📎 {item.anexo_nome || "abrir anexo"}
-            </button>
-          )}
-          {extraAnexos.map((a) => (
+          {anexos.map((a) => (
             <button
               key={a.id}
               type="button"
@@ -260,7 +253,7 @@ export function ItemDetalhesPopup({
   nomePorSubclassificacao,
   iconePorClassificacao,
   iconePorSubclassificacao,
-  extraAnexos = [],
+  anexos = [],
   cambios = [],
   cotacoes = {},
   podeEditar = true,
@@ -277,9 +270,9 @@ export function ItemDetalhesPopup({
    * caem no ícone genérico por acordeão. */
   iconePorClassificacao?: Record<string, string>;
   iconePorSubclassificacao?: Record<string, string>;
-  /** Anexos extras deste item (já filtrados pelo chamador - lista inteira da viagem vem de
-   * `useOfflineCollection<ItemAnexoInfo>("itemAnexos", tripId)`). */
-  extraAnexos?: ItemAnexoExtra[];
+  /** Anexos deste item, todos iguais entre si (já filtrados pelo chamador - lista inteira da
+   * viagem vem de `useOfflineCollection<AnexoInfo>("anexosSheet", tripId)`). */
+  anexos?: ItemAnexoInfo[];
   /** Eventos de câmbio da viagem + cotação do dia por moeda (`Countries.rate_brl`) - só pra
    * mostrar o valor em R$ de um item lançado em moeda estrangeira. Ausentes = não mostra a
    * conversão (o valor na moeda ainda aparece). */
@@ -328,7 +321,7 @@ export function ItemDetalhesPopup({
           item={item}
           nomePorPessoa={nomePorPessoa}
           nomePorMeio={nomePorMeio}
-          extraAnexos={extraAnexos}
+          anexos={anexos}
           cambios={cambios}
           cotacoes={cotacoes}
           onAbrirAnexo={(fileId, nome) => setAnexoAberto({ fileId, nome })}
