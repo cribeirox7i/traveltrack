@@ -198,8 +198,8 @@ export default function ItinerarioPage() {
 
   /**
    * Insere um dia em branco depois de `afterDayId` e Salva o Roteiro. Exige conexão e nenhuma
-   * edição local pendente - é uma operação estrutural (desloca datas de outros dias e da Agenda
-   * no servidor), misturar com edições de célula ainda não salvas arriscaria a mistura de dois
+   * edição local pendente - é uma operação estrutural (desloca datas de outros dias e dos itens
+   * de Roteiro no servidor), misturar com edições de célula ainda não salvas arriscaria a mistura de dois
    * estados. Não existe inserir "antes do primeiro dia" - a data de início da viagem é fixa,
    * só muda editando a própria viagem (ver `/trips/[id]/editar`).
    */
@@ -238,7 +238,7 @@ export default function ItinerarioPage() {
   async function deleteDay(day: TripDay) {
     if (days.length <= 1) return;
     const ok = confirm(
-      `Excluir ${formatDateBR(day.data)}? Isso também apaga os compromissos da Agenda cadastrados nesta data, se houver, e reorganiza as datas dos dias seguintes. Não pode ser desfeito.`
+      `Excluir ${formatDateBR(day.data)}? Isso também apaga os itens de Roteiro cadastrados nesta data, se houver, e reorganiza as datas dos dias seguintes. Não pode ser desfeito.`
     );
     if (!ok) return;
     setStructError(null);

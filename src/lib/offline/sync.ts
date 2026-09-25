@@ -33,21 +33,10 @@ function notifyChange() {
   syncEvents.dispatchEvent(new Event("change"));
 }
 
-/** Campos de texto de um compromisso da Agenda - o `file` (quando existe) fica fora, guardado à
- * parte no payload do outbox (ver `createAgendaOffline`), porque aqui ele vira `String(value)`
- * ao montar o FormData de reenvio. */
-interface AgendaPayload {
-  id: string;
-  data: string;
-  horario: string;
-  titulo: string;
-  descricao: string;
-  url: string;
-}
-
-/** Campos de texto de um Item de viagem - mesma ideia de `AgendaPayload`, com `file` fora (vai à
- * parte no FormData de reenvio). Tipado solto (`Record<string, string>`) porque o conjunto de
- * campos usados varia por categoria - o servidor é quem decide o que é relevante. */
+/** Campos de texto de um Item de viagem - o `file` (quando existe) fica fora, guardado à parte no
+ * payload do outbox, porque aqui ele vira `String(value)` ao montar o FormData de reenvio. Tipado
+ * solto (`Record<string, string>`) porque o conjunto de campos usados varia por categoria - o
+ * servidor é quem decide o que é relevante. */
 type ItemPayload = Record<string, string> & { id: string };
 
 /** Campos de uma operação de câmbio - todos texto, sem `file`. */
@@ -109,21 +98,16 @@ export async function pullTrips(): Promise<void> {
   }
 }
 
-/** Atualiza dias/agenda/itens/anexos de UMA viagem no cache local - chamado ao abrir a viagem. */
+/** Atualiza dias/itens/anexos de UMA viagem no cache local - chamado ao abrir a viagem. */
 export async function pullTripDetail(tripId: string): Promise<void> {
   if (!isOnline()) return;
-  const [days, agenda, itens, anexos, cambio] = await Promise.all([
+  const [days, itens, anexos, cambio] = await Promise.all([
     getJson<Record<string, unknown>[]>(`/api/trips/${tripId}/days`),
-    getJson<Record<string, unknown>[]>(`/api/trips/${tripId}/agenda`),
     getJson<Record<string, unknown>[]>(`/api/trips/${tripId}/itens`),
     getJson<Record<string, unknown>[]>(`/api/trips/${tripId}/anexos`),
     getJson<Record<string, unknown>[]>(`/api/trips/${tripId}/cambio`),
   ]);
   if (days) await putAllReplacing("tripDays", days as never, tripId);
-  if (agenda) {
-    const protectedIds = await pendingCreateIds("createAgenda", tripId);
-    await putAllReplacing("agenda", agenda as never, tripId, protectedIds);
-  }
   if (itens) {
     const protectedIds = await pendingCreateIds("createItem", tripId);
     await putAllReplacing("itens", itens as never, tripId, protectedIds);
@@ -311,7 +295,7 @@ export async function pullAnexosList(tripId: string): Promise<void> {
   notifyChange();
 }
 
-/** Baixa por completo uma viagem - dias/agenda/itens + os ARQUIVOS dos anexos (não só o
+/** Baixa por completo uma viagem - dias/itens + os ARQUIVOS dos anexos (não só o
  * link do Drive) - pro cache local. Chamado ao marcar "Dados offline" e, depois, sempre que algo
  * daquela viagem muda (edição local, sincronização, ou no ciclo periódico/ao voltar o sinal). */
 export async function downloadTripFull(tripId: string): Promise<void> {
@@ -647,17 +631,13 @@ export async function pushOutbox(): Promise<void> {
         await removeOutboxEntry(entry.localId);
         if (entry.tripId) {
           const teveUpload =
-            (entry.kind === "createItem" ||
-              entry.kind === "updateItem" ||
-              entry.kind === "createAgenda" ||
-              entry.kind === "updateAgenda") &&
+            (entry.kind === "createItem" || entry.kind === "updateItem") &&
             Boolean((entry.payload as { file?: File }).file);
           if (teveUpload) {
             // O upload do anexo só termina no servidor durante este push - a linha otimista local
             // nasceu sem o arquivo de verdade (Item só com `_anexoPendenteNome`, marcador local
-            // que não é coluna nenhuma - ver createItemOffline; Agenda com `anexo_nome` mas sem
-            // `anexo_file_id` - ver createAgendaOffline). `refreshIfOffline` só re-busca a viagem
-            // quando ela está
+            // que não é coluna nenhuma - ver createItemOffline). `refreshIfOffline` só re-busca a
+            // viagem quando ela está
             // marcada "Dados offline"; sem esse pull aqui, quem NÃO marcou a viagem via ficava
             // com "sem anexo" na tela pro resto da sessão mesmo com o arquivo salvo certo no
             // Drive (o próprio servidor sempre esteve certo).
@@ -706,52 +686,6 @@ async function sendOutboxEntry(entry: OutboxEntry): Promise<"ok" | "network-erro
           body: JSON.stringify(entry.payload),
         });
         break;
-      case "createAgenda": {
-        const { file, ...fields } = entry.payload as AgendaPayload & { file?: File };
-        if (file) {
-          // O File fica gravado no próprio IndexedDB (o algoritmo de clone estruturado suporta
-          // Blob/File nativamente), então mesmo enfileirado offline ele sobrevive até a
-          // sincronização - não precisa reabrir o seletor de arquivo depois de voltar o sinal.
-          const form = new FormData();
-          for (const [key, value] of Object.entries(fields)) form.set(key, String(value));
-          form.set("file", file);
-          res = await fetch(`/api/trips/${entry.tripId}/agenda`, { method: "POST", body: form });
-        } else {
-          res = await fetch(`/api/trips/${entry.tripId}/agenda`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(fields),
-          });
-        }
-        break;
-      }
-      case "updateAgenda": {
-        const { agendaId, file, ...fields } = entry.payload as Omit<AgendaPayload, "id"> & {
-          agendaId: string;
-          file?: File;
-        };
-        if (file) {
-          const form = new FormData();
-          for (const [key, value] of Object.entries(fields)) form.set(key, String(value));
-          form.set("file", file);
-          res = await fetch(`/api/trips/${entry.tripId}/agenda/${agendaId}`, {
-            method: "PATCH",
-            body: form,
-          });
-        } else {
-          res = await fetch(`/api/trips/${entry.tripId}/agenda/${agendaId}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(fields),
-          });
-        }
-        break;
-      }
-      case "deleteAgenda": {
-        const { agendaId } = entry.payload as { agendaId: string };
-        res = await fetch(`/api/trips/${entry.tripId}/agenda/${agendaId}`, { method: "DELETE" });
-        break;
-      }
       case "createItem": {
         const { file, ...fields } = entry.payload as ItemPayload & { file?: File };
         if (file) {
@@ -922,7 +856,6 @@ export async function deleteTripOffline(
   await deleteByTrip("tripDays", tripId);
   await deleteByTrip("anexos", tripId);
   await deleteByTrip("anexoFiles", tripId);
-  await deleteByTrip("agenda", tripId);
   await deleteByTrip("itens", tripId);
   await deleteByTrip("anexosSheet", tripId);
   await deleteByTrip("cambio", tripId);
@@ -961,100 +894,6 @@ export async function saveDaysOffline(tripId: string, days: DayPatch[]): Promise
   void pushOutbox();
 }
 
-export async function createAgendaOffline(
-  tripId: string,
-  input: {
-    data: string;
-    horario: string;
-    titulo: string;
-    descricao: string;
-    url: string;
-    file?: File | null;
-  }
-): Promise<void> {
-  const id = uuid();
-  await putOne("agenda", {
-    id,
-    trip_id: tripId,
-    data: input.data,
-    horario: input.horario,
-    titulo: input.titulo,
-    descricao: input.descricao,
-    url: input.url,
-    // Anexo ainda não existe no Drive enquanto a mutação está só na fila - a linha local nasce
-    // sem ele; quando a sincronização de fato enviar o arquivo, `pullTripDetail` traz de volta
-    // a linha completa (com anexo_file_id/nome/url) do servidor.
-    anexo_file_id: "",
-    anexo_nome: input.file?.name ?? "",
-    anexo_url: "",
-    criado_por: "",
-    criado_em: new Date().toISOString(),
-  });
-  const payload: AgendaPayload & { file?: File } = {
-    id,
-    data: input.data,
-    horario: input.horario,
-    titulo: input.titulo,
-    descricao: input.descricao,
-    url: input.url,
-  };
-  if (input.file) payload.file = input.file;
-  await enqueueOutbox({ localId: uuid(), kind: "createAgenda", tripId, payload });
-  notifyChange();
-  void pushOutbox();
-}
-
-export async function updateAgendaOffline(
-  tripId: string,
-  agendaId: string,
-  input: {
-    data: string;
-    horario: string;
-    titulo: string;
-    descricao: string;
-    url: string;
-    file?: File | null;
-  }
-): Promise<void> {
-  const existing = await getOne("agenda", agendaId);
-  await putOne("agenda", {
-    ...(existing ?? { trip_id: tripId }),
-    id: agendaId,
-    data: input.data,
-    horario: input.horario,
-    titulo: input.titulo,
-    descricao: input.descricao,
-    url: input.url,
-    // Se um arquivo novo foi anexado agora, o nome já reflete isso na tela mesmo antes de
-    // sincronizar; o `anexo_file_id`/`anexo_url` de fato só chegam depois do upload, via
-    // `pullTripDetail` - mesma lógica de `createAgendaOffline`.
-    ...(input.file ? { anexo_nome: input.file.name } : {}),
-  });
-  const payload: Omit<AgendaPayload, "id"> & { agendaId: string; file?: File } = {
-    agendaId,
-    data: input.data,
-    horario: input.horario,
-    titulo: input.titulo,
-    descricao: input.descricao,
-    url: input.url,
-  };
-  if (input.file) payload.file = input.file;
-  await enqueueOutbox({ localId: uuid(), kind: "updateAgenda", tripId, payload });
-  notifyChange();
-  void pushOutbox();
-}
-
-export async function deleteAgendaOffline(tripId: string, agendaId: string): Promise<void> {
-  await deleteOne("agenda", agendaId);
-  await enqueueOutbox({
-    localId: uuid(),
-    kind: "deleteAgenda",
-    tripId,
-    payload: { agendaId },
-  });
-  notifyChange();
-  void pushOutbox();
-}
 
 /** Cria um Item de viagem otimista - `fields` é o mesmo conjunto de campos aceito pela API (ver
  * `ITEM_EDITABLE_FIELDS` em lib/sheets/itens.ts), fora `file`, incluindo `natureza` (campo

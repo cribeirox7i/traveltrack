@@ -4,7 +4,6 @@ export type DataTab =
   | "trips"
   | "tripDays"
   | "anexos"
-  | "agenda"
   | "itens"
   | "anexosSheet"
   | "cambio";
@@ -14,9 +13,6 @@ export interface OutboxEntry {
   kind:
     | "createTrip"
     | "saveDays"
-    | "createAgenda"
-    | "updateAgenda"
-    | "deleteAgenda"
     | "createItem"
     | "updateItem"
     | "deleteItem"
@@ -60,7 +56,6 @@ interface TravelTrackDB extends DBSchema {
   tripDays: { key: string; value: RowBase; indexes: { trip_id: string } };
   anexos: { key: string; value: RowBase; indexes: { trip_id: string } };
   anexoFiles: { key: string; value: AnexoFileRow; indexes: { trip_id: string } };
-  agenda: { key: string; value: RowBase; indexes: { trip_id: string } };
   itens: { key: string; value: RowBase; indexes: { trip_id: string } };
   anexosSheet: { key: string; value: RowBase; indexes: { trip_id: string } };
   cambio: { key: string; value: RowBase; indexes: { trip_id: string } };
@@ -102,9 +97,6 @@ export function getDB(): Promise<IDBPDatabase<TravelTrackDB>> {
             "trip_id",
             "trip_id"
           );
-        }
-        if (!db.objectStoreNames.contains("agenda")) {
-          db.createObjectStore("agenda", { keyPath: "id" }).createIndex("trip_id", "trip_id");
         }
         if (!db.objectStoreNames.contains("itens")) {
           db.createObjectStore("itens", { keyPath: "id" }).createIndex("trip_id", "trip_id");
@@ -149,7 +141,6 @@ export async function putAllReplacing(
   tab:
     | "trips"
     | "tripDays"
-    | "agenda"
     | "itens"
     | "anexosSheet"
     | "cambio",
@@ -173,7 +164,6 @@ export async function putAllReplacing(
     const tx = db.transaction(
       tab as
         | "tripDays"
-        | "agenda"
         | "itens"
         | "anexosSheet"
         | "cambio",
@@ -217,7 +207,6 @@ export async function listByTrip(
   tab:
     | "tripDays"
     | "anexos"
-    | "agenda"
     | "itens"
     | "anexosSheet"
     | "cambio",
@@ -257,7 +246,6 @@ export async function deleteByTrip(
     | "tripDays"
     | "anexos"
     | "anexoFiles"
-    | "agenda"
     | "itens"
     | "anexosSheet"
     | "cambio",

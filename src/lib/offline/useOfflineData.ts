@@ -70,11 +70,10 @@ export function useOfflineTrip<T extends { id: string }>(tripId: string | undefi
   return { trip, loading };
 }
 
-/** Dias / agenda / itens de uma viagem. Puxa do servidor em segundo plano quando online. */
+/** Dias / itens de uma viagem. Puxa do servidor em segundo plano quando online. */
 export function useOfflineCollection<T extends { id: string }>(
   tab:
     | "tripDays"
-    | "agenda"
     | "itens"
     | "anexosSheet"
     | "cambio",

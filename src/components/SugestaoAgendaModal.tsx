@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { createAgendaOffline } from "@/lib/offline/sync";
+import { createItemOffline } from "@/lib/offline/sync";
+import { useClassificacoes } from "@/lib/offline/useOfflineData";
 import { DocumentoExtraido } from "@/lib/documentoParser";
 
 /**
@@ -10,6 +11,11 @@ import { DocumentoExtraido } from "@/lib/documentoParser";
  * **Nunca cria o compromisso sozinho**: a leitura é heurística e erra - principalmente no título,
  * que sai como uma lista de palpites pra pessoa escolher. Data e horário vêm pré-selecionados no
  * melhor palpite, mas continuam editáveis, e dá pra descartar tudo sem salvar nada.
+ *
+ * Salva como Item de Roteiro (canonização da Agenda em Itens, 2026-09-25) - `titulo` vira
+ * `nome_local` (mesmo papel que tem na lista de Roteiro, ver `resumoItem` em agenda/page.tsx) e
+ * cai na classificação "Compromisso" (criada pra isso - nenhuma das 6 da reforma de 21/9 serve
+ * pra um compromisso que não é despesa/receita).
  */
 export function SugestaoAgendaModal({
   tripId,
@@ -37,19 +43,31 @@ export function SugestaoAgendaModal({
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const classificacoes = useClassificacoes();
 
   async function handleSave() {
     if (!form.titulo.trim() || !form.data || !form.horario) {
       setError("Título, data e horário são obrigatórios");
       return;
     }
+    const compromisso = classificacoes.find(
+      (c) => c.nome.trim().toLowerCase() === "compromisso"
+    );
+    if (!compromisso) {
+      setError('Classificação "Compromisso" não encontrada - crie em Admin → Classificações');
+      return;
+    }
     setError(null);
     setSaving(true);
-    await createAgendaOffline(tripId, {
+    await createItemOffline(tripId, {
+      classificacao_id: compromisso.id,
+      subclassificacao_id: "",
+      financeiro_ativo: "false",
+      roteiro_ativo: "true",
       data: form.data,
       horario: form.horario,
-      titulo: form.titulo.trim(),
-      descricao: form.descricao.trim(),
+      nome_local: form.titulo.trim(),
+      descricao: form.descricao.trim() || form.titulo.trim(),
       url: "",
     });
     setSaving(false);

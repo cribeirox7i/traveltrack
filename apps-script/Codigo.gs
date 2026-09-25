@@ -24,14 +24,14 @@ const ESTRUTURA = {
   UserTrip: ['id', 'user_id', 'trip_id'],
   // `user_id` = dono (cada usuário tem a própria lista; o gestor cadastra pros usuários dele).
   MeiosPagamento: ['id', 'nome', 'ativo', 'user_id'],
-  Agenda: ['id', 'trip_id', 'data', 'horario', 'titulo', 'descricao', 'url', 'anexo_file_id', 'anexo_nome', 'anexo_url', 'criado_por', 'criado_em'],
   // Nasceu como "Eletric" (tomada/voltagem/frequência, preenchida à mão pelo usuário) - renomeie
   // a aba pra "Countries" na planilha (bota direito na aba > Renomear) e o app passa a
   // completá-la sozinho com o resto (moeda, capital, DDI, lado de direção, fuso, cotação) na
   // primeira vez que cada país for necessário.
   Countries: ['id', 'country', 'plug_type', 'volts', 'hertz', 'currency_code', 'currency_name', 'currency_symbol', 'capital', 'ddi', 'driving_side', 'timezone', 'flag_emoji', 'language', 'rate_brl', 'rate_date'],
-  // Tabela genérica que substitui Despesas/Receitas/Agenda/Anexos (ver plano "Itens de Viagem +
-  // OCR de vouchers") - precisa bater exatamente com Itens em src/lib/sheets/types.ts.
+  // Tabela genérica que já substituiu Despesas/Receitas e a Agenda (aba legada, retirada da
+  // estrutura em 2026-09-25 - ver scripts/migrate-agenda-para-itens.js) - precisa bater
+  // exatamente com Itens em src/lib/sheets/types.ts.
   Itens: ['id', 'trip_id', 'localizador', 'nome_companhia', 'numero', 'data', 'horario', 'origem', 'destino', 'nome_local', 'endereco', 'data_inicio', 'hora_inicio', 'data_fim', 'hora_fim', 'url', 'descricao', 'valor', 'status', 'natureza', 'data_pagamento', 'pagador_id', 'meio_pagamento_id', 'criado_por', 'criado_em', 'moeda', 'classificacao_id', 'subclassificacao_id', 'financeiro_ativo', 'roteiro_ativo'],
   // Anexos da viagem, unificado (reforma 2026-09-24): tanto os soltos (sem vínculo) quanto os de
   // um Item (extras e o antigo "principal") viram linha aqui - `item_id` vazio = solto,

@@ -7,9 +7,10 @@
  * mudança de navegação, não de rota - evita mexer nas pastas de página e no aquecimento de
  * cache offline, que já indexa por esses mesmos slugs.
  *
- * O slug da segunda aba de Roteiro continua "agenda" (é a pasta/rota já existente, com a
- * tabela Agenda por trás) - só o RÓTULO virou "Roteiro" na navegação; edição de cidades saiu
- * de lá e mora só em Itinerário agora. */
+ * O slug da segunda aba de Roteiro continua "agenda" (é a pasta/rota já existente - a aba Agenda
+ * da planilha por trás dela foi retirada em 2026-09-25, a página lê só Itens/roteiro_ativo desde
+ * a reforma de 21/9) - só o RÓTULO virou "Roteiro" na navegação; edição de cidades saiu de lá e
+ * mora só em Itinerário agora. */
 export const TRIP_TAB_SLUGS = [
   "itinerario",
   "agenda",

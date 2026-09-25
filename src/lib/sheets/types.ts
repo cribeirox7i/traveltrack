@@ -8,7 +8,6 @@ export type SheetTab =
   | "TripDays"
   | "UserTrip"
   | "MeiosPagamento"
-  | "Agenda"
   | "Countries"
   | "Itens"
   | "Cambio"
@@ -69,20 +68,6 @@ export const SHEET_HEADERS: Record<SheetTab, string[]> = {
   // pros usuários comuns do ambiente dele). Linha antiga sem `user_id` é órfã - ainda resolve o
   // nome por id nos Itens que a referenciam, mas não aparece na lista de ninguém.
   MeiosPagamento: ["id", "nome", "ativo", "user_id"],
-  Agenda: [
-    "id",
-    "trip_id",
-    "data",
-    "horario",
-    "titulo",
-    "descricao",
-    "url",
-    "anexo_file_id",
-    "anexo_nome",
-    "anexo_url",
-    "criado_por",
-    "criado_em",
-  ],
   // Tabela de referência por país - nasceu como "Eletric" (tomada/voltagem/frequência,
   // preenchida manualmente pelo usuário) e ganhou o resto (moeda, capital, DDI, lado de
   // direção, fuso, cotação) auto-preenchido pelo app na primeira vez que cada país é
@@ -106,11 +91,10 @@ export const SHEET_HEADERS: Record<SheetTab, string[]> = {
     "rate_brl",
     "rate_date",
   ],
-  // Tabela genérica que substitui Despesas/Receitas/Agenda/Anexos (ver plano "Itens de Viagem +
-  // OCR de vouchers"): um item de viagem, de uma das 8 categorias, com todos os campos possíveis
-  // numa linha só - cada categoria só preenche o subconjunto que faz sentido pra ela, o resto
-  // fica vazio (mesmo padrão de TripDays/Despesas). Fase 1: convive com as abas antigas, não as
-  // substitui ainda - `migrate-itens.js` copia o que já existe pra cá.
+  // Tabela genérica que já substituiu Despesas/Receitas (removidas) e a Agenda (aba legada,
+  // ainda existe na planilha mas sem leitor - ver migrate-agenda-para-itens.js): um item de
+  // viagem com todos os campos possíveis numa linha só, e os dois interruptores Financeiro/
+  // Roteiro decidindo qual subconjunto faz sentido mostrar (mesmo padrão de TripDays/Despesas).
   Itens: [
     "id",
     "trip_id",
@@ -228,8 +212,8 @@ export interface TripRow {
   [key: string]: string;
   id: string;
   nome: string;
-  /** Só muda via `changeTripStartDate` - desloca a grade de TripDays (e a Agenda) inteira junto,
-   * pra `data_inicio` continuar sendo de fato a data do primeiro dia da grade. */
+  /** Só muda via `changeTripStartDate` - desloca a grade de TripDays (e os Itens de Roteiro)
+   * inteira junto, pra `data_inicio` continuar sendo de fato a data do primeiro dia da grade. */
   data_inicio: string;
   /** Derivado, nunca digitado direto: sempre a data do ÚLTIMO dia da grade de TripDays daquela
    * viagem (`sequentialDates(data_inicio, qtd_dias)` no momento da criação; recalculado por
@@ -252,7 +236,7 @@ export interface TripRow {
    * pessoa. Linhas antigas sem essa coluna são tratadas como "por_pessoa". */
   custo_modo: "por_pessoa" | "total" | "";
   /** Ambiente dono da viagem - herdado do usuário que a criou. As abas filhas (TripDays, Itens,
-   * UserTrip, Despesas, Receitas, Agenda) NÃO repetem essa coluna de propósito: elas chegam pelo
+   * UserTrip) NÃO repetem essa coluna de propósito: elas chegam pelo
    * `trip_id`, e duplicar o ambiente criaria duas fontes de verdade que podem divergir. */
   ambiente_id: string;
   /** Status da viagem: `""` = automático (viagem com data_fim já passada conta como "concluida",
@@ -493,21 +477,4 @@ export interface SubclassificacaoRow {
   criado_em: string;
   /** Sobrescreve o ícone da classificação-mãe quando preenchido (ex. "Ônibus" = 🚌). */
   icone: string;
-}
-
-/** Um compromisso do roteiro, ancorado numa das datas da grade de diárias da viagem. */
-export interface AgendaRow {
-  [key: string]: string;
-  id: string;
-  trip_id: string;
-  data: string;
-  horario: string;
-  titulo: string;
-  descricao: string;
-  url: string;
-  anexo_file_id: string;
-  anexo_nome: string;
-  anexo_url: string;
-  criado_por: string;
-  criado_em: string;
 }

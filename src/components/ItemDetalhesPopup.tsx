@@ -15,8 +15,8 @@ export interface ItemAnexoInfo {
 }
 
 /** Mesmos campos da aba Itens (reforma de 2026-09-21) - usado tanto pela tela Itens (cadastro/
- * edição) quanto por Roteiro > Agenda (só leitura), que mostra o mesmo pop-up de detalhe ao
- * clicar num item. `classificacao_id`/`subclassificacao_id` são FK - os nomes vêm resolvidos por
+ * edição) quanto pela página de Roteiro (rota `/agenda`, só leitura), que mostra o mesmo pop-up
+ * de detalhe ao clicar num item. `classificacao_id`/`subclassificacao_id` são FK - os nomes vêm resolvidos por
  * quem chama (`nomePorClassificacao`/`nomePorSubclassificacao`), o componente não busca sozinho. */
 export interface Item {
   id: string;
@@ -241,9 +241,9 @@ function ItemDetalhes({
 }
 
 /** Pop-up read-only com todos os campos do item - compartilhado entre a tela Itens (clicar numa
- * linha da lista) e Roteiro > Agenda (clicar num item do acordeão do dia), pra sempre mostrar o
+ * linha da lista) e a página de Roteiro (clicar num item do acordeão do dia), pra sempre mostrar o
  * mesmo detalhe nos dois lugares. `onEditar` é quem decide o que "editar" significa em cada tela:
- * na tela Itens abre o formulário inline; na Agenda navega pra Itens com `?editar=`. */
+ * na tela Itens abre o formulário inline; no Roteiro navega pra Itens com `?editar=`. */
 export function ItemDetalhesPopup({
   item,
   tripId,

@@ -12,7 +12,8 @@
     "migrate-ambientes": "node --env-file=.env.local scripts/migrate-ambientes.js",
     "migrate-itens-classificacao": "node --env-file=.env.local scripts/migrate-itens-classificacao.js",
     "seed-icones-classificacao": "node --env-file=.env.local scripts/seed-icones-classificacao.js",
-    "migrate-anexos-unificado": "node --env-file=.env.local scripts/migrate-anexos-unificado.js"
+    "migrate-anexos-unificado": "node --env-file=.env.local scripts/migrate-anexos-unificado.js",
+    "migrate-agenda-para-itens": "node --env-file=.env.local scripts/migrate-agenda-para-itens.js"
   },
   "dependencies": {
     "@serwist/cli": "^9.5.12",

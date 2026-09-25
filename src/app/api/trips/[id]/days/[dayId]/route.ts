@@ -3,7 +3,7 @@ import { errorResponse, requireTripEditor, tripLockError } from "@/lib/api-helpe
 import { deleteTripDay } from "@/lib/sheets/trips";
 
 /** Remove um dia da grade - ver `deleteTripDay` pra regra completa de reindexação de datas,
- * cascade de compromissos da Agenda cravados na data do dia removido, etc. Admin ou quem criou a
+ * cascade de itens de Roteiro cravados na data do dia removido, etc. Admin ou quem criou a
  * viagem - mesma regra do insert, é estrutura de Itinerário. */
 export async function DELETE(
   _req: NextRequest,

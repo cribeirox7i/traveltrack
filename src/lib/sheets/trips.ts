@@ -10,7 +10,8 @@ import {
   updateRows,
 } from "./repository";
 import { deleteDriveFile, deleteTripFolder } from "./driveFiles";
-import { listAgendaByTrip } from "./agenda";
+import { listAnexosByTrip } from "./anexos";
+import { deleteItem, listItensByTrip } from "./itens";
 import { Role, TripDayRow, TripRow, UserRow, UserTripRow } from "./types";
 import type { TripStatus } from "../tripStatus";
 
@@ -193,7 +194,6 @@ export async function deleteTrip(tripId: string): Promise<DeleteTripResult> {
   await Promise.all([
     deleteRowsByField("TripDays", "trip_id", tripId),
     deleteRowsByField("UserTrip", "trip_id", tripId),
-    deleteRowsByField("Agenda", "trip_id", tripId),
   ]);
 
   await deleteRow("Trips", tripId);
@@ -299,10 +299,10 @@ export async function saveTripDays(
 }
 
 /**
- * Muda a data de início da viagem, deslocando TODOS os dias da grade (e os compromissos da
- * Agenda que caem em alguma dessas datas) pela mesma diferença de dias - a duração da viagem
- * (quantidade de dias) não muda, só desliza no calendário inteira. `data_fim` da viagem é
- * recalculado junto (mesmo delta).
+ * Muda a data de início da viagem, deslocando TODOS os dias da grade (e os itens de Roteiro que
+ * caem em alguma dessas datas) pela mesma diferença de dias - a duração da viagem (quantidade de
+ * dias) não muda, só desliza no calendário inteira. `data_fim` da viagem é recalculado junto
+ * (mesmo delta).
  */
 export async function changeTripStartDate(tripId: string, novaDataInicio: string): Promise<void> {
   const trip = await findRowById<TripRow>("Trips", tripId);
@@ -319,11 +319,11 @@ export async function changeTripStartDate(tripId: string, novaDataInicio: string
   });
   if (updatesDias.length) await updateRows("TripDays", updatesDias);
 
-  const agenda = await listAgendaByTrip(tripId);
-  const updatesAgenda = agenda
-    .filter((a) => mapaDatas.has(a.data))
-    .map((a) => ({ id: a.id, patch: { data: mapaDatas.get(a.data)! } }));
-  if (updatesAgenda.length) await updateRows("Agenda", updatesAgenda);
+  const itens = await listItensByTrip(tripId);
+  const updatesItens = itens
+    .filter((i) => i.roteiro_ativo === "true" && mapaDatas.has(i.data))
+    .map((i) => ({ id: i.id, patch: { data: mapaDatas.get(i.data)! } }));
+  if (updatesItens.length) await updateRows("Itens", updatesItens);
 
   await updateRow("Trips", tripId, {
     data_inicio: novaDataInicio,
@@ -335,9 +335,8 @@ export async function changeTripStartDate(tripId: string, novaDataInicio: string
  * Insere um dia em branco na grade, na posição logo depois de `afterDayId` (ou no início da
  * viagem, se `afterDayId` for null) - único lugar onde a duração da viagem pode crescer (ver
  * changeTripStartDate, que só desliza, não estica). Todos os dias que ficam depois do ponto de
- * inserção (e os compromissos da Agenda cravados nas datas deles) deslocam 1 dia pra frente,
- * pra grade continuar sequencial sem furo a partir de `data_inicio`. `data_fim` da viagem cresce
- * junto.
+ * inserção (e os itens de Roteiro cravados nas datas deles) deslocam 1 dia pra frente, pra grade
+ * continuar sequencial sem furo a partir de `data_inicio`. `data_fim` da viagem cresce junto.
  */
 export async function insertTripDay(tripId: string, afterDayId: string | null): Promise<void> {
   const trip = await findRowById<TripRow>("Trips", tripId);
@@ -401,11 +400,11 @@ export async function insertTripDay(tripId: string, afterDayId: string | null): 
   if (updatesDias.length) await updateRows("TripDays", updatesDias);
 
   if (mapaDatas.size) {
-    const agenda = await listAgendaByTrip(tripId);
-    const updatesAgenda = agenda
-      .filter((a) => mapaDatas.has(a.data))
-      .map((a) => ({ id: a.id, patch: { data: mapaDatas.get(a.data)! } }));
-    if (updatesAgenda.length) await updateRows("Agenda", updatesAgenda);
+    const itens = await listItensByTrip(tripId);
+    const updatesItens = itens
+      .filter((i) => i.roteiro_ativo === "true" && mapaDatas.has(i.data))
+      .map((i) => ({ id: i.id, patch: { data: mapaDatas.get(i.data)! } }));
+    if (updatesItens.length) await updateRows("Itens", updatesItens);
   }
 
   await updateRow("Trips", tripId, { data_fim: novasDatas[novasDatas.length - 1] });
@@ -413,11 +412,11 @@ export async function insertTripDay(tripId: string, afterDayId: string | null): 
 
 /**
  * Remove um dia da grade - único lugar onde a duração da viagem pode encolher. Os dias
- * seguintes ao removido (e os compromissos da Agenda cravados nas datas deles) deslocam 1 dia
- * pra trás, fechando o buraco - a grade continua sequencial a partir de `data_inicio`, sem furo.
- * Compromissos da Agenda cravados exatamente na data do dia removido não têm mais nenhum dia da
- * grade pra "pertencer" - são apagados junto (com o anexo no Drive, best-effort), não ficam
- * órfãos escondidos na planilha. `data_fim` da viagem encolhe junto.
+ * seguintes ao removido (e os itens de Roteiro cravados nas datas deles) deslocam 1 dia pra
+ * trás, fechando o buraco - a grade continua sequencial a partir de `data_inicio`, sem furo.
+ * Itens de Roteiro cravados exatamente na data do dia removido não têm mais nenhum dia da grade
+ * pra "pertencer" - são apagados junto (com os anexos deles, no Drive e na aba Anexos,
+ * best-effort), não ficam órfãos escondidos na planilha. `data_fim` da viagem encolhe junto.
  */
 export async function deleteTripDay(tripId: string, dayId: string): Promise<void> {
   const trip = await findRowById<TripRow>("Trips", tripId);
@@ -440,24 +439,26 @@ export async function deleteTripDay(tripId: string, dayId: string): Promise<void
     }
   });
 
-  const agenda = await listAgendaByTrip(tripId);
-  const doDiaExcluido = agenda.filter((a) => a.data === alvo.data);
-  const paraDeslocar = agenda.filter((a) => mapaDatas.has(a.data));
+  const itens = await listItensByTrip(tripId);
+  const itensDoDiaExcluido = itens.filter((i) => i.roteiro_ativo === "true" && i.data === alvo.data);
+  const itensParaDeslocar = itens.filter((i) => i.roteiro_ativo === "true" && mapaDatas.has(i.data));
 
-  for (const item of doDiaExcluido) {
-    if (item.anexo_file_id) {
+  const anexos = await listAnexosByTrip(tripId);
+  for (const item of itensDoDiaExcluido) {
+    for (const anexo of anexos.filter((a) => a.item_id === item.id)) {
       try {
-        await deleteDriveFile(item.anexo_file_id, trip.id, trip.nome);
+        await deleteDriveFile(anexo.file_id, trip.id, trip.nome);
       } catch {
         // best-effort - a limpeza do anexo não pode travar a exclusão do dia em si
       }
+      await deleteRow("Anexos", anexo.id);
     }
-    await deleteRow("Agenda", item.id);
+    await deleteItem(item.id);
   }
-  if (paraDeslocar.length) {
+  if (itensParaDeslocar.length) {
     await updateRows(
-      "Agenda",
-      paraDeslocar.map((a) => ({ id: a.id, patch: { data: mapaDatas.get(a.data)! } }))
+      "Itens",
+      itensParaDeslocar.map((i) => ({ id: i.id, patch: { data: mapaDatas.get(i.data)! } }))
     );
   }
 

@@ -164,7 +164,7 @@ export async function canManageByHierarchy(
 /**
  * Devolve uma resposta 423 quando a viagem está concluída ou cancelada (ver `viagemBloqueada`
  * em `lib/tripStatus.ts`), ou `null` quando a edição pode seguir. Toda rota que ESCREVE conteúdo
- * de uma viagem (Itens, ItemAnexos, Agenda, dias de Itinerário/Orçamento, análise de voucher)
+ * de uma viagem (Itens, Anexos, dias de Itinerário/Orçamento, análise de voucher)
  * chama isto logo depois do `getTrip` que ela já faz. O único campo que continua editável numa
  * viagem bloqueada é o próprio `status` - tratado à parte em `PATCH /api/trips/[id]`.
  *

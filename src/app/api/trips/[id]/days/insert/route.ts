@@ -6,7 +6,7 @@ import { insertTripDay } from "@/lib/sheets/trips";
 const bodySchema = z.object({ afterDayId: z.string().min(1).nullable() });
 
 /** Insere um dia em branco na grade, logo depois de `afterDayId` (ou no início, se null) - ver
- * `insertTripDay` pra regra completa de deslocamento de datas/Agenda. Admin ou quem criou a
+ * `insertTripDay` pra regra completa de deslocamento de datas/Itens de Roteiro. Admin ou quem criou a
  * viagem: mexer na estrutura de dias é parte de Itinerário, que usuário comum só edita nas
  * próprias viagens. */
 export async function POST(
