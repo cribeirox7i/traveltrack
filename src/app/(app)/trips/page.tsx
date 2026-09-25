@@ -231,7 +231,7 @@ export default function TripsPage() {
             value={filtroStatus}
             onChange={(e) => setFiltroStatus(e.target.value as FiltroStatus)}
             aria-label="Filtrar por status"
-            className={FILTER_SELECT_COMPACT_CLASS}
+            className={`${FILTER_SELECT_COMPACT_CLASS} w-32 flex-shrink-0`}
           >
             {FILTRO_STATUS_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
