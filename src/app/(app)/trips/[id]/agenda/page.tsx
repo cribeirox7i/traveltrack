@@ -140,12 +140,13 @@ export default function AgendaPage() {
   const sortedDays = [...days].sort((a, b) => a.data.localeCompare(b.data));
   const itensPorDia = new Map<string, Item[]>();
   for (const item of itens) {
-    const lista = itensPorDia.get(item.data) ?? [];
+    const chave = (item.data_inicio || item.data).slice(0, 10);
+    const lista = itensPorDia.get(chave) ?? [];
     lista.push(item);
-    itensPorDia.set(item.data, lista);
+    itensPorDia.set(chave, lista);
   }
   for (const lista of itensPorDia.values()) {
-    lista.sort((a, b) => a.horario.localeCompare(b.horario));
+    lista.sort((a, b) => (a.hora_inicio || a.horario).localeCompare(b.hora_inicio || b.horario));
   }
 
   async function handleDelete(itemId: string) {
