@@ -186,12 +186,45 @@ export default function RelatorioPage() {
         </p>
       )}
 
-      <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-        {/* `table-fixed` + largura fixa por coluna (definida no `<th>`) - sem isso, a largura de
-            cada coluna se ajusta ao conteúdo mais largo daquela renderização, e trocar de filtro
-            muda os valores (menos dígitos = coluna mais estreita), fazendo a Categoria "andar"
-            de lugar mesmo sem nada mudar nela. */}
-        <table className="w-full table-fixed text-sm">
+      <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+        {/* Mobile: lista de cards por categoria */}
+        <div className="sm:hidden">
+          <div className="grid grid-cols-3 gap-1 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-3 py-2 text-[10px] font-medium uppercase text-slate-500 dark:text-slate-400">
+            <span>Orçado</span>
+            <span className="text-center">Realizado</span>
+            <span className="text-right">Diferença</span>
+          </div>
+          {relatorio.categorias.map((c) => {
+            const diff = c.orcado - c.realizado;
+            return (
+              <div key={c.categoria} className="border-b border-slate-100 dark:border-slate-800 px-3 py-2.5">
+                <p className="mb-1.5 truncate text-xs font-medium capitalize text-slate-700 dark:text-slate-300">{c.categoria}</p>
+                <div className="grid grid-cols-3 gap-1 text-xs text-slate-800 dark:text-slate-200">
+                  <span>{formatMoney(c.orcado)}</span>
+                  <span className="text-center">{formatMoney(c.realizado)}</span>
+                  <span className={`text-right ${diff < 0 ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"}`}>
+                    {formatMoney(diff)}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+          <div className="bg-slate-50 dark:bg-slate-950 px-3 py-2.5 font-medium">
+            <p className="mb-1.5 text-xs text-slate-700 dark:text-slate-300">Total</p>
+            <div className="grid grid-cols-3 gap-1 text-xs text-slate-800 dark:text-slate-200">
+              <span>{formatMoney(relatorio.totalOrcado)}</span>
+              <span className="text-center">{formatMoney(relatorio.totalDespesas)}</span>
+              <span className={`text-right ${relatorio.totalOrcado - relatorio.totalDespesas < 0 ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"}`}>
+                {formatMoney(relatorio.totalOrcado - relatorio.totalDespesas)}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Desktop: tabela tradicional (sm+) */}
+        {/* `table-fixed` + largura fixa por coluna - sem isso, trocar de filtro muda os valores
+            (menos dígitos = coluna mais estreita), fazendo a Categoria "andar" de lugar. */}
+        <table className="hidden w-full table-fixed text-sm sm:table">
           <thead className="bg-slate-50 dark:bg-slate-950 text-left text-xs uppercase text-slate-500 dark:text-slate-400">
             <tr>
               <th className="w-[34%] px-3 py-2">Categoria</th>
