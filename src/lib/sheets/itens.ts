@@ -59,7 +59,11 @@ export async function getItem(id: string): Promise<ItemRow | null> {
 function buildPatch(input: ItemEditableInput): Record<string, string> {
   const patch: Record<string, string> = {};
   for (const campo of ITEM_EDITABLE_FIELDS) {
-    if (input[campo] !== undefined) patch[campo] = input[campo] as string;
+    if (input[campo] === undefined) continue;
+    let v = input[campo] as string;
+    // Planilha pt-BR: gravar valor com vírgula decimal ("1234,56"), não ponto.
+    if (campo === "valor" && v !== "") v = v.replace(".", ",");
+    patch[campo] = v;
   }
   return patch;
 }

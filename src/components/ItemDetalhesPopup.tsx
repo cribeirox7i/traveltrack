@@ -57,12 +57,16 @@ export function formatDataBR(iso: string): string {
   return d && m && y ? `${d}/${m}/${y}` : iso;
 }
 
+function numValor(v: string | number): number {
+  return Number(typeof v === "string" ? v.replace(",", ".") : v);
+}
+
 function formatMoney(valor: string | number): string {
-  return `R$ ${Number(valor).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `R$ ${numValor(valor).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 function formatMoedaEstrangeira(valor: string, moeda: string): string {
-  return `${Number(valor).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${moeda}`;
+  return `${numValor(valor).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${moeda}`;
 }
 
 /** Ícone contextual: prioriza o emoji curado pelo admin em Subclassificação (sobrescreve),
