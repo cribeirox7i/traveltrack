@@ -10,7 +10,7 @@ import {
   useOfflineCollection,
   useOfflineTrip,
 } from "@/lib/offline/useOfflineData";
-import { computeRelatorio } from "@/lib/relatorioCalc";
+import { computeRelatorio, categoriaDoNome, type Categoria } from "@/lib/relatorioCalc";
 import { FILTER_SELECT_CLASS } from "@/lib/uiClasses";
 
 interface ItemFinanceiro {
@@ -22,6 +22,12 @@ interface ItemFinanceiro {
   pagador_id?: string;
   meio_pagamento_id?: string;
   moeda?: string;
+  nome_companhia?: string;
+  nome_local?: string;
+  numero?: string;
+  descricao?: string;
+  data?: string;
+  data_pagamento?: string;
 }
 
 interface CambioEvento {
@@ -39,6 +45,41 @@ const STATUS_OPCOES = [
 
 function formatMoney(value: number): string {
   return `R$ ${value.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function parseValor(v: string | undefined): number {
+  if (!v) return 0;
+  return Number(String(v).replace(",", ".")) || 0;
+}
+
+function nomeItem(i: ItemFinanceiro): string {
+  return i.nome_companhia || i.nome_local || i.numero || i.descricao || "Item sem nome";
+}
+
+function formatData(d: string | undefined): string {
+  if (!d) return "";
+  // dd/mm/yyyy or yyyy-mm-dd
+  if (/^\d{4}-\d{2}-\d{2}/.test(d)) {
+    const [y, m, day] = d.split("-");
+    return `${day}/${m}/${y}`;
+  }
+  return d.slice(0, 10);
+}
+
+function StatusBadge({ status }: { status?: string }) {
+  if (status === "pago")
+    return (
+      <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400">
+        Pago
+      </span>
+    );
+  if (status === "a_pagar")
+    return (
+      <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/40 dark:text-amber-400">
+        A pagar
+      </span>
+    );
+  return null;
 }
 
 export default function RelatorioPage() {
@@ -60,11 +101,16 @@ export default function RelatorioPage() {
     [classificacoes]
   );
   const collaborators = useCollaborators(tripId);
+  const nomePorColaborador = useMemo(
+    () => Object.fromEntries(collaborators.map((c) => [c.id, c.nome])),
+    [collaborators]
+  );
   const meiosPagamento = useMeiosPagamento().filter((m) => m.ativo === "true");
 
   const [filtroStatus, setFiltroStatus] = useState("");
   const [filtroMeioPagamento, setFiltroMeioPagamento] = useState("");
   const [filtroPagador, setFiltroPagador] = useState("");
+  const [expandidas, setExpandidas] = useState<Set<Categoria>>(new Set());
 
   const loading = loadingTrip || loadingDays || loadingItens;
 
@@ -80,6 +126,17 @@ export default function RelatorioPage() {
     .filter((i) => !filtroPagador || i.pagador_id === filtroPagador)
     .map((i) => ({ ...i, classificacaoNome: nomePorClassificacao[i.classificacao_id] ?? "" }));
   const temFiltroAtivo = Boolean(filtroStatus || filtroMeioPagamento || filtroPagador);
+
+  // Itens de débito agrupados por categoria (para o acordeão analítico)
+  const itensPorCategoria = new Map<Categoria, (ItemFinanceiro & { classificacaoNome: string })[]>();
+  for (const item of itensFiltrados) {
+    if (item.natureza !== "debito") continue;
+    const cat = categoriaDoNome(item.classificacaoNome ?? "");
+    if (!cat) continue;
+    const lista = itensPorCategoria.get(cat) ?? [];
+    lista.push(item);
+    itensPorCategoria.set(cat, lista);
+  }
 
   const cotacoes: Record<string, number> = {};
   for (const c of countries) {
@@ -97,6 +154,15 @@ export default function RelatorioPage() {
     cambios,
     cotacoes
   );
+
+  function toggleCategoria(cat: Categoria) {
+    setExpandidas((prev) => {
+      const next = new Set(prev);
+      if (next.has(cat)) next.delete(cat);
+      else next.add(cat);
+      return next;
+    });
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -196,16 +262,60 @@ export default function RelatorioPage() {
           </div>
           {relatorio.categorias.map((c) => {
             const diff = c.orcado - c.realizado;
+            const itensCategoria = itensPorCategoria.get(c.categoria) ?? [];
+            const aberto = expandidas.has(c.categoria);
             return (
-              <div key={c.categoria} className="border-b border-slate-100 dark:border-slate-800 px-3 py-2.5">
-                <p className="mb-1.5 truncate text-xs font-medium capitalize text-slate-700 dark:text-slate-300">{c.categoria}</p>
-                <div className="grid grid-cols-3 gap-1 text-xs text-slate-800 dark:text-slate-200">
-                  <span>{formatMoney(c.orcado)}</span>
-                  <span className="text-center">{formatMoney(c.realizado)}</span>
-                  <span className={`text-right ${diff < 0 ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"}`}>
-                    {formatMoney(diff)}
-                  </span>
-                </div>
+              <div key={c.categoria} className="border-b border-slate-100 dark:border-slate-800 last:border-b-0">
+                <button
+                  type="button"
+                  onClick={() => itensCategoria.length > 0 && toggleCategoria(c.categoria)}
+                  className="w-full px-3 py-2.5 text-left"
+                >
+                  <div className="mb-1.5 flex items-center gap-1">
+                    {itensCategoria.length > 0 && (
+                      <span className={`text-[10px] text-slate-400 transition-transform ${aberto ? "rotate-90" : ""}`}>▶</span>
+                    )}
+                    <span className="truncate text-xs font-medium capitalize text-slate-700 dark:text-slate-300">{c.categoria}</span>
+                    {itensCategoria.length > 0 && (
+                      <span className="ml-auto shrink-0 text-[10px] text-slate-400">{itensCategoria.length}</span>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-3 gap-1 text-xs text-slate-800 dark:text-slate-200">
+                    <span>{formatMoney(c.orcado)}</span>
+                    <span className="text-center">{formatMoney(c.realizado)}</span>
+                    <span className={`text-right ${diff < 0 ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"}`}>
+                      {formatMoney(diff)}
+                    </span>
+                  </div>
+                </button>
+
+                {aberto && itensCategoria.length > 0 && (
+                  <div className="border-t border-slate-100 bg-slate-50/70 dark:border-slate-800 dark:bg-slate-800/30">
+                    {itensCategoria.map((item) => {
+                      const data = formatData(item.data_pagamento || item.data);
+                      const moedaStr = item.moeda && item.moeda !== "BRL" && item.moeda !== "" ? item.moeda : null;
+                      const valorNum = parseValor(item.valor);
+                      const valorStr = moedaStr
+                        ? `${moedaStr} ${valorNum.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`
+                        : formatMoney(valorNum);
+                      const pagador = item.pagador_id ? nomePorColaborador[item.pagador_id] : undefined;
+                      return (
+                        <div key={item.id} className="flex items-start justify-between gap-2 px-4 py-2 text-xs">
+                          <div className="min-w-0">
+                            <p className="truncate text-slate-700 dark:text-slate-300">{nomeItem(item)}</p>
+                            <p className="text-[10px] text-slate-400">
+                              {[data, pagador].filter(Boolean).join(" · ")}
+                            </p>
+                          </div>
+                          <div className="flex shrink-0 flex-col items-end gap-0.5">
+                            <span className="font-medium text-slate-800 dark:text-slate-200">{valorStr}</span>
+                            <StatusBadge status={item.status} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             );
           })}
@@ -236,15 +346,67 @@ export default function RelatorioPage() {
           <tbody>
             {relatorio.categorias.map((c) => {
               const diff = c.orcado - c.realizado;
+              const itensCategoria = itensPorCategoria.get(c.categoria) ?? [];
+              const aberto = expandidas.has(c.categoria);
               return (
-                <tr key={c.categoria} className="border-t border-slate-100 dark:border-slate-800">
-                  <td className="truncate px-3 py-2 capitalize">{c.categoria}</td>
-                  <td className="whitespace-nowrap px-3 py-2 text-right">{formatMoney(c.orcado)}</td>
-                  <td className="whitespace-nowrap px-3 py-2 text-right">{formatMoney(c.realizado)}</td>
-                  <td className={`whitespace-nowrap px-3 py-2 text-right ${diff < 0 ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"}`}>
-                    {formatMoney(diff)}
-                  </td>
-                </tr>
+                <>
+                  <tr
+                    key={c.categoria}
+                    className={`border-t border-slate-100 dark:border-slate-800 ${itensCategoria.length > 0 ? "cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50" : ""}`}
+                    onClick={() => itensCategoria.length > 0 && toggleCategoria(c.categoria)}
+                  >
+                    <td className="px-3 py-2">
+                      <span className="flex items-center gap-1.5">
+                        {itensCategoria.length > 0 ? (
+                          <span className={`text-[10px] text-slate-400 transition-transform duration-150 ${aberto ? "rotate-90" : ""}`}>▶</span>
+                        ) : (
+                          <span className="w-3" />
+                        )}
+                        <span className="capitalize">{c.categoria}</span>
+                        {itensCategoria.length > 0 && (
+                          <span className="text-xs text-slate-400">({itensCategoria.length})</span>
+                        )}
+                      </span>
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2 text-right">{formatMoney(c.orcado)}</td>
+                    <td className="whitespace-nowrap px-3 py-2 text-right">{formatMoney(c.realizado)}</td>
+                    <td className={`whitespace-nowrap px-3 py-2 text-right ${diff < 0 ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"}`}>
+                      {formatMoney(diff)}
+                    </td>
+                  </tr>
+                  {aberto &&
+                    itensCategoria.map((item) => {
+                      const data = formatData(item.data_pagamento || item.data);
+                      const moedaStr = item.moeda && item.moeda !== "BRL" && item.moeda !== "" ? item.moeda : null;
+                      const valorNum = parseValor(item.valor);
+                      const valorStr = moedaStr
+                        ? `${moedaStr} ${valorNum.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`
+                        : formatMoney(valorNum);
+                      const pagador = item.pagador_id ? nomePorColaborador[item.pagador_id] : undefined;
+                      return (
+                        <tr key={item.id} className="bg-slate-50/70 dark:bg-slate-800/30">
+                          <td className="px-3 py-1.5">
+                            <span className="flex items-center gap-2 pl-5">
+                              <span className="h-px w-2 shrink-0 bg-slate-300 dark:bg-slate-600" />
+                              <span className="min-w-0">
+                                <span className="block truncate text-xs text-slate-700 dark:text-slate-300">{nomeItem(item)}</span>
+                                {(data || pagador) && (
+                                  <span className="text-[10px] text-slate-400">
+                                    {[data, pagador].filter(Boolean).join(" · ")}
+                                  </span>
+                                )}
+                              </span>
+                            </span>
+                          </td>
+                          <td className="px-3 py-1.5 text-right text-[11px] text-slate-400">{data}</td>
+                          <td className="whitespace-nowrap px-3 py-1.5 text-right text-xs text-slate-700 dark:text-slate-300">{valorStr}</td>
+                          <td className="px-3 py-1.5 text-right">
+                            <StatusBadge status={item.status} />
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </>
               );
             })}
           </tbody>

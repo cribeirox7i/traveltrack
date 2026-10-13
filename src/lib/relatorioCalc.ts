@@ -20,7 +20,7 @@ const CATEGORIAS: { key: Categoria; dayField: string; nomes: string[] }[] = [
  * assim que a migração semeia as classificações iniciais (Traslado, Passagem, Hospedagem,
  * Alimentação, Atrativo, Repasse) - o admin pode renomear e aí perde o match aqui, mas o item
  * continua contando no total (ver `totalDespesas`), só sai da grade por categoria. */
-function categoriaDoNome(nome: string): Categoria | null {
+export function categoriaDoNome(nome: string): Categoria | null {
   const normalizado = nome
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")
