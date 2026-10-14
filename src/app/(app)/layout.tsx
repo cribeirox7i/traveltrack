@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { NavBar } from "@/components/NavBar";
 import { SyncStatusBar } from "@/components/SyncStatusBar";
 import { TopBar } from "@/components/TopBar";
+import { buildLabel } from "@/lib/version";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const cookieStore = await cookies();
@@ -19,8 +20,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <NavBar />
         {/* max-w-[1078px]: os 980px de antes, 10% mais largo - mesma largura da TopBar em
             components/TopBar.tsx, pra alinhar as duas. */}
-        <main className="flex-1 pb-20 md:pb-6 p-4 md:p-8 max-w-[1078px] mx-auto w-full">
+        <main className="flex-1 p-4 md:p-8 max-w-[1078px] mx-auto w-full">
           {children}
+          <footer className="mt-8 pb-20 md:pb-6 text-center text-[11px] text-slate-300 dark:text-slate-600">
+            TravelTrack {buildLabel()}
+          </footer>
         </main>
         </div>
       </div>
