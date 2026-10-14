@@ -14,13 +14,14 @@ import {
   type TripStatus,
 } from "@/lib/tripStatus";
 
-type FiltroStatus = "ativas" | TripStatus;
+type FiltroStatus = "todas" | "ativas" | TripStatus;
 
 /** "Ativas" agrupa planejada + em_andamento - é o padrão da tela, pra viagem em curso não
- * sumir da lista sem o usuário trocar o filtro. Ordem pedida: Ativas, Em Andamento, Planejadas,
- * Concluídas, Canceladas (diferente da ordem de TRIP_STATUS_OPTIONS, que é pro select de status
- * manual da tela Editar). */
+ * sumir da lista sem o usuário trocar o filtro. Ordem pedida: Todas, Ativas, Em Andamento,
+ * Planejadas, Concluídas, Canceladas (diferente da ordem de TRIP_STATUS_OPTIONS, que é pro select
+ * de status manual da tela Editar). */
 const FILTRO_STATUS_OPTIONS: { value: FiltroStatus; label: string }[] = [
+  { value: "todas", label: "Todas" },
   { value: "ativas", label: "Ativas" },
   { value: "em_andamento", label: "Em Andamento" },
   { value: "planejada", label: "Planejadas" },
@@ -79,19 +80,32 @@ function TripCard({
         </Link>
       )}
       <div className="flex flex-col gap-2 p-4">
-        <div className="flex items-start justify-between gap-2">
-          <Link href={`/trips/${trip.id}`} className="min-w-0 flex-1">
-            <p className="font-semibold text-slate-900 dark:text-slate-100">{trip.nome}</p>
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-              {formatDateBR(trip.data_inicio)} - {formatDateBR(trip.data_fim)}
-            </p>
-            <p className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
-              <span className={`rounded px-1.5 py-0.5 font-medium ${TRIP_STATUS_BADGE[statusViagem(trip)]}`}>
-                {TRIP_STATUS_LABEL[statusViagem(trip)]}
-              </span>
-              <span>{trip.qtd_pessoas} pessoa(s)</span>
-            </p>
-          </Link>
+        <Link href={`/trips/${trip.id}`} className="min-w-0">
+          <p className="font-semibold text-slate-900 dark:text-slate-100">{trip.nome}</p>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            {formatDateBR(trip.data_inicio)} - {formatDateBR(trip.data_fim)}
+          </p>
+          <p className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+            <span className={`rounded px-1.5 py-0.5 font-medium ${TRIP_STATUS_BADGE[statusViagem(trip)]}`}>
+              {TRIP_STATUS_LABEL[statusViagem(trip)]}
+            </span>
+            <span>{trip.qtd_pessoas} pessoa(s)</span>
+          </p>
+        </Link>
+        <div className="mt-1 flex items-center justify-between gap-2 border-t border-slate-100 dark:border-slate-800 pt-2">
+          <label className="flex cursor-pointer items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+            <input
+              type="checkbox"
+              checked={offline}
+              disabled={busy}
+              onChange={(e) => onToggleOffline(e.target.checked)}
+              className="h-4 w-4 rounded border-slate-300 dark:border-slate-700"
+            />
+            <span>
+              Dados offline
+              {busy && <span className="ml-1 text-slate-400 dark:text-slate-500">({offline ? "apagando" : "baixando"}...)</span>}
+            </span>
+          </label>
           <div className="flex shrink-0 items-center gap-1">
             <Link
               href={`/trips/${trip.id}/agenda`}
@@ -134,19 +148,6 @@ function TripCard({
             )}
           </div>
         </div>
-        <label className="mt-1 flex items-center justify-between gap-2 border-t border-slate-100 dark:border-slate-800 pt-2 text-xs text-slate-500 dark:text-slate-400">
-          <span>
-            Dados offline
-            {busy && <span className="ml-1 text-slate-400 dark:text-slate-500">({offline ? "apagando" : "baixando"}...)</span>}
-          </span>
-          <input
-            type="checkbox"
-            checked={offline}
-            disabled={busy}
-            onChange={(e) => onToggleOffline(e.target.checked)}
-            className="h-4 w-4 rounded border-slate-300 dark:border-slate-700"
-          />
-        </label>
       </div>
     </div>
   );
@@ -164,6 +165,7 @@ export default function TripsPage() {
 
   const visiveis = trips.filter((t) => {
     const s = statusViagem(t);
+    if (filtroStatus === "todas") return true;
     if (filtroStatus === "ativas") return s === "planejada" || s === "em_andamento";
     return s === filtroStatus;
   });
@@ -231,7 +233,7 @@ export default function TripsPage() {
             value={filtroStatus}
             onChange={(e) => setFiltroStatus(e.target.value as FiltroStatus)}
             aria-label="Filtrar por status"
-            className={`${FILTER_SELECT_COMPACT_CLASS} w-32 flex-shrink-0`}
+            className={`${FILTER_SELECT_COMPACT_CLASS} w-[90px] flex-shrink-0 sm:w-32`}
           >
             {FILTRO_STATUS_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
@@ -243,7 +245,7 @@ export default function TripsPage() {
             href="/trips/novo"
             className="inline-flex h-9 items-center whitespace-nowrap rounded-lg bg-slate-900 px-3 text-sm font-medium text-white hover:bg-slate-800"
           >
-            + Nova viagem
+            + Nova
           </Link>
         </div>
       </div>

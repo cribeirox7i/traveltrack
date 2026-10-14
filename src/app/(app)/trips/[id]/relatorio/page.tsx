@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import {
   useClassificacoes,
   useCollaborators,
@@ -9,34 +9,13 @@ import {
   useMeiosPagamento,
   useOfflineCollection,
   useOfflineTrip,
+  useSubclassificacoes,
 } from "@/lib/offline/useOfflineData";
 import { computeRelatorio, categoriaDoNome, type Categoria } from "@/lib/relatorioCalc";
+import { converterValorParaBRL, custoMedioPorMoeda, type CambioEventoLike } from "@/lib/cambioCalc";
 import { FILTER_SELECT_CLASS } from "@/lib/uiClasses";
-
-interface ItemFinanceiro {
-  id: string;
-  classificacao_id: string;
-  valor: string;
-  natureza?: string;
-  status?: string;
-  pagador_id?: string;
-  meio_pagamento_id?: string;
-  moeda?: string;
-  nome_companhia?: string;
-  nome_local?: string;
-  numero?: string;
-  descricao?: string;
-  data?: string;
-  data_pagamento?: string;
-}
-
-interface CambioEvento {
-  id: string;
-  moeda: string;
-  qtd_moeda: string;
-  qtd_reais: string;
-  taxa_efetiva: string;
-}
+import { ItemDetalhesPopup, type Item, type ItemAnexoInfo } from "@/components/ItemDetalhesPopup";
+import type { AnexoInfo } from "@/lib/offline/sync";
 
 const STATUS_OPCOES = [
   { value: "pago", label: "Pago" },
@@ -47,23 +26,17 @@ function formatMoney(value: number): string {
   return `R$ ${value.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-function parseValor(v: string | undefined): number {
-  if (!v) return 0;
-  return Number(String(v).replace(",", ".")) || 0;
-}
-
-function nomeItem(i: ItemFinanceiro): string {
-  return i.nome_companhia || i.nome_local || i.numero || i.descricao || "Item sem nome";
-}
-
 function formatData(d: string | undefined): string {
   if (!d) return "";
-  // dd/mm/yyyy or yyyy-mm-dd
   if (/^\d{4}-\d{2}-\d{2}/.test(d)) {
     const [y, m, day] = d.split("-");
     return `${day}/${m}/${y}`;
   }
   return d.slice(0, 10);
+}
+
+function nomeItem(i: Item): string {
+  return i.nome_companhia || i.nome_local || i.numero || i.descricao || "Item sem nome";
 }
 
 function StatusBadge({ status }: { status?: string }) {
@@ -84,33 +57,55 @@ function StatusBadge({ status }: { status?: string }) {
 
 export default function RelatorioPage() {
   const { id: tripId } = useParams<{ id: string }>();
+  const router = useRouter();
   const { trip, loading: loadingTrip } = useOfflineTrip<{
     id: string;
     qtd_pessoas: string;
     custo_modo?: "por_pessoa" | "total" | "";
+    status?: string;
   }>(tripId);
   const { items: days, loading: loadingDays } = useOfflineCollection<
     { id: string } & Record<string, unknown>
   >("tripDays", tripId);
-  const { items: itens, loading: loadingItens } = useOfflineCollection<ItemFinanceiro>("itens", tripId);
-  const { items: cambios } = useOfflineCollection<CambioEvento>("cambio", tripId);
+  const { items: itens, loading: loadingItens } = useOfflineCollection<Item>("itens", tripId);
+  const { items: cambios } = useOfflineCollection<CambioEventoLike & { id: string }>("cambio", tripId);
+  const { items: todosAnexos } = useOfflineCollection<AnexoInfo>("anexosSheet", tripId);
   const countries = useCountries();
   const classificacoes = useClassificacoes();
+  const subclassificacoes = useSubclassificacoes();
+  const collaborators = useCollaborators(tripId);
+  const meiosPagamento = useMeiosPagamento().filter((m) => m.ativo === "true");
+
   const nomePorClassificacao = useMemo(
     () => Object.fromEntries(classificacoes.map((c) => [c.id, c.nome])),
     [classificacoes]
   );
-  const collaborators = useCollaborators(tripId);
+  const nomePorSubclassificacao = useMemo(
+    () => Object.fromEntries(subclassificacoes.map((s) => [s.id, s.nome])),
+    [subclassificacoes]
+  );
+  const iconePorClassificacao = useMemo(
+    () => Object.fromEntries(classificacoes.filter((c) => c.icone).map((c) => [c.id, c.icone])),
+    [classificacoes]
+  );
+  const iconePorSubclassificacao = useMemo(
+    () => Object.fromEntries(subclassificacoes.filter((s) => s.icone).map((s) => [s.id, s.icone])),
+    [subclassificacoes]
+  );
   const nomePorColaborador = useMemo(
     () => Object.fromEntries(collaborators.map((c) => [c.id, c.nome])),
     [collaborators]
   );
-  const meiosPagamento = useMeiosPagamento().filter((m) => m.ativo === "true");
+  const nomePorMeio = useMemo(
+    () => Object.fromEntries(meiosPagamento.map((m) => [m.id, m.nome])),
+    [meiosPagamento]
+  );
 
   const [filtroStatus, setFiltroStatus] = useState("");
   const [filtroMeioPagamento, setFiltroMeioPagamento] = useState("");
   const [filtroPagador, setFiltroPagador] = useState("");
   const [expandidas, setExpandidas] = useState<Set<Categoria>>(new Set());
+  const [itemDetalhado, setItemDetalhado] = useState<Item | null>(null);
 
   const loading = loadingTrip || loadingDays || loadingItens;
 
@@ -127,8 +122,17 @@ export default function RelatorioPage() {
     .map((i) => ({ ...i, classificacaoNome: nomePorClassificacao[i.classificacao_id] ?? "" }));
   const temFiltroAtivo = Boolean(filtroStatus || filtroMeioPagamento || filtroPagador);
 
+  const medioPorMoeda = custoMedioPorMoeda(cambios);
+
+  const cotacoes: Record<string, number> = {};
+  for (const c of countries) {
+    const code = (c.currency_code || "").trim().toUpperCase();
+    const rate = Number(String(c.rate_brl).replace(",", "."));
+    if (code && Number.isFinite(rate) && rate > 0 && !cotacoes[code]) cotacoes[code] = rate;
+  }
+
   // Itens de débito agrupados por categoria (para o acordeão analítico)
-  const itensPorCategoria = new Map<Categoria, (ItemFinanceiro & { classificacaoNome: string })[]>();
+  const itensPorCategoria = new Map<Categoria, (Item & { classificacaoNome: string })[]>();
   for (const item of itensFiltrados) {
     if (item.natureza !== "debito") continue;
     const cat = categoriaDoNome(item.classificacaoNome ?? "");
@@ -136,13 +140,6 @@ export default function RelatorioPage() {
     const lista = itensPorCategoria.get(cat) ?? [];
     lista.push(item);
     itensPorCategoria.set(cat, lista);
-  }
-
-  const cotacoes: Record<string, number> = {};
-  for (const c of countries) {
-    const code = (c.currency_code || "").trim().toUpperCase();
-    const rate = Number(String(c.rate_brl).replace(",", "."));
-    if (code && Number.isFinite(rate) && rate > 0 && !cotacoes[code]) cotacoes[code] = rate;
   }
 
   const relatorio = computeRelatorio(
@@ -155,6 +152,8 @@ export default function RelatorioPage() {
     cotacoes
   );
 
+  const tripBloqueada = trip.status === "concluida" || trip.status === "cancelada";
+
   function toggleCategoria(cat: Categoria) {
     setExpandidas((prev) => {
       const next = new Set(prev);
@@ -162,6 +161,12 @@ export default function RelatorioPage() {
       else next.add(cat);
       return next;
     });
+  }
+
+  function anexosDoItem(itemId: string): ItemAnexoInfo[] {
+    return todosAnexos
+      .filter((a) => a.item_id === itemId)
+      .map((a) => ({ id: a.id, file_id: a.file_id, nome: a.nome }));
   }
 
   return (
@@ -293,25 +298,26 @@ export default function RelatorioPage() {
                   <div className="border-t border-slate-100 bg-slate-50/70 dark:border-slate-800 dark:bg-slate-800/30">
                     {itensCategoria.map((item) => {
                       const data = formatData(item.data_pagamento || item.data);
-                      const moedaStr = item.moeda && item.moeda !== "BRL" && item.moeda !== "" ? item.moeda : null;
-                      const valorNum = parseValor(item.valor);
-                      const valorStr = moedaStr
-                        ? `${moedaStr} ${valorNum.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`
-                        : formatMoney(valorNum);
+                      const conv = converterValorParaBRL(item.valor, item.moeda ?? "", medioPorMoeda, cotacoes);
                       const pagador = item.pagador_id ? nomePorColaborador[item.pagador_id] : undefined;
                       return (
-                        <div key={item.id} className="flex items-start justify-between gap-2 px-4 py-2 text-xs">
-                          <div className="min-w-0">
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => setItemDetalhado(item)}
+                          className="flex w-full items-start justify-between gap-2 px-4 py-2 text-xs hover:bg-slate-100/80 dark:hover:bg-slate-700/40"
+                        >
+                          <div className="min-w-0 text-left">
                             <p className="truncate text-slate-700 dark:text-slate-300">{nomeItem(item)}</p>
                             <p className="text-[10px] text-slate-400">
                               {[data, pagador].filter(Boolean).join(" · ")}
                             </p>
                           </div>
                           <div className="flex shrink-0 flex-col items-end gap-0.5">
-                            <span className="font-medium text-slate-800 dark:text-slate-200">{valorStr}</span>
+                            <span className="font-medium text-slate-800 dark:text-slate-200">{formatMoney(conv.valorBRL)}</span>
                             <StatusBadge status={item.status} />
                           </div>
-                        </div>
+                        </button>
                       );
                     })}
                   </div>
@@ -377,14 +383,14 @@ export default function RelatorioPage() {
                   {aberto &&
                     itensCategoria.map((item) => {
                       const data = formatData(item.data_pagamento || item.data);
-                      const moedaStr = item.moeda && item.moeda !== "BRL" && item.moeda !== "" ? item.moeda : null;
-                      const valorNum = parseValor(item.valor);
-                      const valorStr = moedaStr
-                        ? `${moedaStr} ${valorNum.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`
-                        : formatMoney(valorNum);
+                      const conv = converterValorParaBRL(item.valor, item.moeda ?? "", medioPorMoeda, cotacoes);
                       const pagador = item.pagador_id ? nomePorColaborador[item.pagador_id] : undefined;
                       return (
-                        <tr key={item.id} className="bg-slate-50/70 dark:bg-slate-800/30">
+                        <tr
+                          key={item.id}
+                          className="cursor-pointer bg-slate-50/70 hover:bg-slate-100/80 dark:bg-slate-800/30 dark:hover:bg-slate-700/40"
+                          onClick={() => setItemDetalhado(item)}
+                        >
                           <td className="px-3 py-1.5">
                             <span className="flex items-center gap-2 pl-5">
                               <span className="h-px w-2 shrink-0 bg-slate-300 dark:bg-slate-600" />
@@ -398,8 +404,10 @@ export default function RelatorioPage() {
                               </span>
                             </span>
                           </td>
-                          <td className="px-3 py-1.5 text-right text-[11px] text-slate-400">{data}</td>
-                          <td className="whitespace-nowrap px-3 py-1.5 text-right text-xs text-slate-700 dark:text-slate-300">{valorStr}</td>
+                          <td className="px-3 py-1.5" />
+                          <td className="whitespace-nowrap px-3 py-1.5 text-right text-xs font-medium text-slate-700 dark:text-slate-300">
+                            {formatMoney(conv.valorBRL)}
+                          </td>
                           <td className="px-3 py-1.5 text-right">
                             <StatusBadge status={item.status} />
                           </td>
@@ -447,6 +455,28 @@ export default function RelatorioPage() {
           </p>
         </div>
       </div>
+
+      {itemDetalhado && (
+        <ItemDetalhesPopup
+          item={itemDetalhado}
+          tripId={tripId}
+          nomePorPessoa={nomePorColaborador}
+          nomePorMeio={nomePorMeio}
+          nomePorClassificacao={nomePorClassificacao}
+          nomePorSubclassificacao={nomePorSubclassificacao}
+          iconePorClassificacao={iconePorClassificacao}
+          iconePorSubclassificacao={iconePorSubclassificacao}
+          anexos={anexosDoItem(itemDetalhado.id)}
+          cambios={cambios}
+          cotacoes={cotacoes}
+          podeEditar={!tripBloqueada}
+          onClose={() => setItemDetalhado(null)}
+          onEditar={(item) => {
+            setItemDetalhado(null);
+            router.push(`/trips/${tripId}/itens?editar=${item.id}`);
+          }}
+        />
+      )}
     </div>
   );
 }
