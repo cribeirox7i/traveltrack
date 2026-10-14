@@ -163,12 +163,14 @@ export default function TripsPage() {
   const [deleteWarning, setDeleteWarning] = useState<string | null>(null);
   const [filtroStatus, setFiltroStatus] = useState<FiltroStatus>("ativas");
 
-  const visiveis = trips.filter((t) => {
-    const s = statusViagem(t);
-    if (filtroStatus === "todas") return true;
-    if (filtroStatus === "ativas") return s === "planejada" || s === "em_andamento";
-    return s === filtroStatus;
-  });
+  const visiveis = trips
+    .filter((t) => {
+      const s = statusViagem(t);
+      if (filtroStatus === "todas") return true;
+      if (filtroStatus === "ativas") return s === "planejada" || s === "em_andamento";
+      return s === filtroStatus;
+    })
+    .sort((a, b) => a.data_inicio.localeCompare(b.data_inicio));
 
   const refresh = useCallback(async () => {
     setOfflineIds(new Set(await listOfflineTripIds()));
