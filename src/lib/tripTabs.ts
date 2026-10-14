@@ -20,6 +20,7 @@ export const TRIP_TAB_SLUGS = [
   "relatorio",
   "cambio",
   "anexos",
+  "drive",
 ] as const;
 
 export type TripTabSlug = (typeof TRIP_TAB_SLUGS)[number];
