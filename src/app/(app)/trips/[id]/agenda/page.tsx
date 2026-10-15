@@ -146,7 +146,11 @@ export default function AgendaPage() {
     itensPorDia.set(chave, lista);
   }
   for (const lista of itensPorDia.values()) {
-    lista.sort((a, b) => (a.hora_inicio || a.horario).localeCompare(b.hora_inicio || b.horario));
+    lista.sort((a, b) => {
+      const ta = (a.hora_inicio || a.horario || "").slice(0, 5);
+      const tb = (b.hora_inicio || b.horario || "").slice(0, 5);
+      return ta < tb ? -1 : ta > tb ? 1 : 0;
+    });
   }
 
   async function handleDelete(itemId: string) {
