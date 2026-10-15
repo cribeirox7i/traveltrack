@@ -20,14 +20,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <NavBar />
         {/* max-w-[1078px]: os 980px de antes, 10% mais largo - mesma largura da TopBar em
             components/TopBar.tsx, pra alinhar as duas. */}
-        <main className="flex-1 p-4 md:p-8 max-w-[1078px] mx-auto w-full">
+        <main className="flex-1 px-4 pt-4 pb-24 md:px-8 md:pt-8 md:pb-10 max-w-[1078px] mx-auto w-full">
           {children}
-          <footer className="mt-8 pb-20 md:pb-6 text-center text-[11px] text-slate-300 dark:text-slate-600">
-            TravelTrack {buildLabel()}
-          </footer>
         </main>
         </div>
       </div>
+      <footer className="fixed bottom-16 md:bottom-0 left-0 right-0 z-20 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 py-1 text-center text-[11px] text-slate-300 dark:text-slate-600">
+        TravelTrack {buildLabel()}
+      </footer>
     </div>
   );
 }
