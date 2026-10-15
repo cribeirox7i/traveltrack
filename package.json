@@ -13,7 +13,11 @@
     "migrate-itens-classificacao": "node --env-file=.env.local scripts/migrate-itens-classificacao.js",
     "seed-icones-classificacao": "node --env-file=.env.local scripts/seed-icones-classificacao.js",
     "migrate-anexos-unificado": "node --env-file=.env.local scripts/migrate-anexos-unificado.js",
-    "migrate-agenda-para-itens": "node --env-file=.env.local scripts/migrate-agenda-para-itens.js"
+    "migrate-agenda-para-itens": "node --env-file=.env.local scripts/migrate-agenda-para-itens.js",
+    "import-cruzeiro-2026-03": "node --env-file=.env.local scripts/import-cruzeiro-2026-03.js",
+    "importar-viagem": "node --env-file=.env.local scripts/importar-viagem.js",
+    "geocodificar-dias": "node --env-file=.env.local scripts/geocodificar-dias.js",
+    "adicionar-itens": "node --env-file=.env.local scripts/adicionar-itens.js"
   },
   "dependencies": {
     "@serwist/cli": "^9.5.12",
