@@ -161,7 +161,13 @@ export default function TripsPage() {
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleteWarning, setDeleteWarning] = useState<string | null>(null);
-  const [filtroStatus, setFiltroStatus] = useState<FiltroStatus>("ativas");
+  const [filtroStatus, setFiltroStatus] = useState<FiltroStatus>(() => {
+    try {
+      return (sessionStorage.getItem("trips_filtro") as FiltroStatus) ?? "ativas";
+    } catch {
+      return "ativas";
+    }
+  });
 
   const visiveis = trips
     .filter((t) => {
@@ -233,7 +239,11 @@ export default function TripsPage() {
         <div className="flex shrink-0 items-center gap-2">
           <select
             value={filtroStatus}
-            onChange={(e) => setFiltroStatus(e.target.value as FiltroStatus)}
+            onChange={(e) => {
+              const v = e.target.value as FiltroStatus;
+              setFiltroStatus(v);
+              try { sessionStorage.setItem("trips_filtro", v); } catch {}
+            }}
             aria-label="Filtrar por status"
             className={`${FILTER_SELECT_COMPACT_CLASS} w-[90px] flex-shrink-0 sm:w-32`}
           >
