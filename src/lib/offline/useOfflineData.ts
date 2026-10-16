@@ -76,7 +76,8 @@ export function useOfflineCollection<T extends { id: string }>(
     | "tripDays"
     | "itens"
     | "anexosSheet"
-    | "cambio",
+    | "cambio"
+    | "checklist",
   tripId: string | undefined
 ) {
   const [items, setItems] = useState<T[]>([]);

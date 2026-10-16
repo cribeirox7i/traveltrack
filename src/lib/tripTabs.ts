@@ -20,6 +20,7 @@ export const TRIP_TAB_SLUGS = [
   "relatorio",
   "cambio",
   "anexos",
+  "checklist",
   "drive",
 ] as const;
 
@@ -58,6 +59,7 @@ export const TRIP_TAB_GROUPS: TripTabGroup[] = [
     tabs: [
       { slug: "itens", label: "Itens" },
       { slug: "anexos", label: "Anexos" },
+      { slug: "checklist", label: "Check" },
     ],
   },
 ];

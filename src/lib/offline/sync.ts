@@ -101,11 +101,12 @@ export async function pullTrips(): Promise<void> {
 /** Atualiza dias/itens/anexos de UMA viagem no cache local - chamado ao abrir a viagem. */
 export async function pullTripDetail(tripId: string): Promise<void> {
   if (!isOnline()) return;
-  const [days, itens, anexos, cambio] = await Promise.all([
+  const [days, itens, anexos, cambio, checklist] = await Promise.all([
     getJson<Record<string, unknown>[]>(`/api/trips/${tripId}/days`),
     getJson<Record<string, unknown>[]>(`/api/trips/${tripId}/itens`),
     getJson<Record<string, unknown>[]>(`/api/trips/${tripId}/anexos`),
     getJson<Record<string, unknown>[]>(`/api/trips/${tripId}/cambio`),
+    getJson<Record<string, unknown>[]>(`/api/trips/${tripId}/checklist`),
   ]);
   if (days) await putAllReplacing("tripDays", days as never, tripId);
   if (itens) {
@@ -119,6 +120,10 @@ export async function pullTripDetail(tripId: string): Promise<void> {
   if (cambio) {
     const protectedIds = await pendingCreateIds("createCambio", tripId);
     await putAllReplacing("cambio", cambio as never, tripId, protectedIds);
+  }
+  if (checklist) {
+    const protectedIds = await pendingCreateIds("createCheck", tripId);
+    await putAllReplacing("checklist", checklist as never, tripId, protectedIds);
   }
   notifyChange();
 }
@@ -752,6 +757,27 @@ async function sendOutboxEntry(entry: OutboxEntry): Promise<"ok" | "network-erro
         res = await fetch(`/api/trips/${entry.tripId}/cambio/${cambioId}`, { method: "DELETE" });
         break;
       }
+      case "createCheck":
+        res = await fetch(`/api/trips/${entry.tripId}/checklist`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(entry.payload),
+        });
+        break;
+      case "updateCheck": {
+        const { checkId, ...checkFields } = entry.payload as { checkId: string; [k: string]: string };
+        res = await fetch(`/api/trips/${entry.tripId}/checklist/${checkId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(checkFields),
+        });
+        break;
+      }
+      case "deleteCheck": {
+        const { checkId } = entry.payload as { checkId: string };
+        res = await fetch(`/api/trips/${entry.tripId}/checklist/${checkId}`, { method: "DELETE" });
+        break;
+      }
       default:
         return "Ação desconhecida na fila";
     }
@@ -859,6 +885,7 @@ export async function deleteTripOffline(
   await deleteByTrip("itens", tripId);
   await deleteByTrip("anexosSheet", tripId);
   await deleteByTrip("cambio", tripId);
+  await deleteByTrip("checklist", tripId);
   await deleteTripImage(tripId);
   await removeOutboxByTrip(tripId);
 
@@ -1105,6 +1132,61 @@ export async function deleteAnexoOnline(
   await deleteOne("anexosSheet", anexoId);
   notifyChange();
   return { ok: true, avisoAnexo: body.avisoAnexo };
+}
+
+// ---------- Checklist (por viagem e por usuário) ----------
+// Mutação otimista + fila, igual ao Câmbio (sem `file`). A reconciliação filtra por trip_id,
+// mas o servidor retorna só os itens do usuário autenticado - o cache local pode ter itens de
+// outros usuários que acessaram o mesmo aparelho; eles continuam no IndexedDB mas nunca
+// reaparecem na tela de outro usuário porque a página filtra por `user_id` do session.
+
+interface CheckFields {
+  descritivo: string;
+  data_alvo: string;
+}
+
+export async function createCheckOffline(
+  tripId: string,
+  fields: CheckFields,
+  autor: { id: string; criado_em?: string }
+): Promise<string> {
+  const id = uuid();
+  await putOne("checklist", {
+    id,
+    trip_id: tripId,
+    user_id: autor.id,
+    ...fields,
+    status: "false",
+    criado_em: autor.criado_em ?? new Date().toISOString(),
+  });
+  await enqueueOutbox({
+    localId: uuid(),
+    kind: "createCheck",
+    tripId,
+    payload: { id, ...fields, criado_em: autor.criado_em ?? new Date().toISOString() },
+  });
+  notifyChange();
+  void pushOutbox();
+  return id;
+}
+
+export async function updateCheckOffline(
+  tripId: string,
+  checkId: string,
+  patch: Partial<CheckFields & { status: "true" | "false" }>
+): Promise<void> {
+  const existing = await getOne("checklist", checkId);
+  await putOne("checklist", { ...(existing ?? { trip_id: tripId }), id: checkId, ...patch });
+  await enqueueOutbox({ localId: uuid(), kind: "updateCheck", tripId, payload: { checkId, ...patch } });
+  notifyChange();
+  void pushOutbox();
+}
+
+export async function deleteCheckOffline(tripId: string, checkId: string): Promise<void> {
+  await deleteOne("checklist", checkId);
+  await enqueueOutbox({ localId: uuid(), kind: "deleteCheck", tripId, payload: { checkId } });
+  notifyChange();
+  void pushOutbox();
 }
 
 // ---------- Ciclo de vida ----------

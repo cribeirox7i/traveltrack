@@ -6,7 +6,8 @@ export type DataTab =
   | "anexos"
   | "itens"
   | "anexosSheet"
-  | "cambio";
+  | "cambio"
+  | "checklist";
 
 export interface OutboxEntry {
   localId: string;
@@ -18,7 +19,10 @@ export interface OutboxEntry {
     | "deleteItem"
     | "createCambio"
     | "updateCambio"
-    | "deleteCambio";
+    | "deleteCambio"
+    | "createCheck"
+    | "updateCheck"
+    | "deleteCheck";
   tripId?: string;
   payload: unknown;
   createdAt: number;
@@ -59,6 +63,7 @@ interface TravelTrackDB extends DBSchema {
   itens: { key: string; value: RowBase; indexes: { trip_id: string } };
   anexosSheet: { key: string; value: RowBase; indexes: { trip_id: string } };
   cambio: { key: string; value: RowBase; indexes: { trip_id: string } };
+  checklist: { key: string; value: RowBase; indexes: { trip_id: string } };
   tripImages: { key: string; value: TripImageRow };
   outbox: { key: string; value: OutboxEntry };
   meta: { key: string; value: { key: string; value: unknown } };
@@ -68,11 +73,10 @@ const DB_NAME = "traveltrack-offline";
 // 6: store `itemAnexos` (removida na v9). 7: store `cambio` (operações de câmbio da viagem -
 // menu Financeiro > Câmbio). 8: store `anexosSoltos` (removida na v9). 9: as duas viram uma
 // store só, `anexosSheet` (unificação da aba Anexos, 2026-09-24 - ver AnexoRow em
-// lib/sheets/types.ts). O `upgrade` abaixo é aditivo (só cria o que falta, nunca apaga uma
-// store velha), então subir a versão não descarta nada já baixado nos aparelhos que estavam em
-// versões anteriores - as stores `itemAnexos`/`anexosSoltos` ficam pra trás, vazias, em quem já
-// tinha instalado antes.
-const DB_VERSION = 9;
+// lib/sheets/types.ts). 10: store `checklist` (checklist por viagem/usuário, 2026-10-16).
+// O `upgrade` abaixo é aditivo (só cria o que falta, nunca apaga uma store velha), então subir
+// a versão não descarta nada já baixado nos aparelhos que estavam em versões anteriores.
+const DB_VERSION = 10;
 
 let dbPromise: Promise<IDBPDatabase<TravelTrackDB>> | null = null;
 
@@ -106,6 +110,9 @@ export function getDB(): Promise<IDBPDatabase<TravelTrackDB>> {
         }
         if (!db.objectStoreNames.contains("anexosSheet")) {
           db.createObjectStore("anexosSheet", { keyPath: "id" }).createIndex("trip_id", "trip_id");
+        }
+        if (!db.objectStoreNames.contains("checklist")) {
+          db.createObjectStore("checklist", { keyPath: "id" }).createIndex("trip_id", "trip_id");
         }
         if (!db.objectStoreNames.contains("tripImages")) {
           db.createObjectStore("tripImages", { keyPath: "trip_id" });
@@ -143,7 +150,8 @@ export async function putAllReplacing(
     | "tripDays"
     | "itens"
     | "anexosSheet"
-    | "cambio",
+    | "cambio"
+    | "checklist",
   rows: RowBase[],
   tripId?: string,
   // Ids que nunca devem ser apagados mesmo se ausentes de `rows` - a linha criada offline há
@@ -166,7 +174,8 @@ export async function putAllReplacing(
         | "tripDays"
         | "itens"
         | "anexosSheet"
-        | "cambio",
+        | "cambio"
+        | "checklist",
       "readwrite"
     );
     const existingKeys = await tx.store.index("trip_id").getAllKeys(IDBKeyRange.only(tripId));
@@ -209,7 +218,8 @@ export async function listByTrip(
     | "anexos"
     | "itens"
     | "anexosSheet"
-    | "cambio",
+    | "cambio"
+    | "checklist",
   tripId: string
 ) {
   const db = await getDB();
@@ -248,7 +258,8 @@ export async function deleteByTrip(
     | "anexoFiles"
     | "itens"
     | "anexosSheet"
-    | "cambio",
+    | "cambio"
+    | "checklist",
   tripId: string
 ): Promise<void> {
   const db = await getDB();

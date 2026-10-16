@@ -13,7 +13,8 @@ export type SheetTab =
   | "Cambio"
   | "Classificacoes"
   | "Subclassificacoes"
-  | "Anexos";
+  | "Anexos"
+  | "Checklist";
 
 export const SHEET_HEADERS: Record<SheetTab, string[]> = {
   // Tenant do sistema: cada ambiente tem seus próprios usuários e viagens, e quem está num
@@ -162,6 +163,9 @@ export const SHEET_HEADERS: Record<SheetTab, string[]> = {
   // uma classificação (ex. "Ônibus" só faz sentido dentro de "Traslado"). `icone` aqui SOBRESCREVE
   // o da classificação-mãe quando preenchido (ex. "Ônibus" = 🚌 em vez do 🚐 genérico de Traslado).
   Subclassificacoes: ["id", "classificacao_id", "nome", "ativo", "criado_em", "icone"],
+  // Checklist por viagem e por usuário: tarefa simples com descritivo (obrigatório), data alvo
+  // (opcional) e status (booleano - "true"/"false"). Precisa bater exatamente com ChecklistRow.
+  Checklist: ["id", "trip_id", "user_id", "descritivo", "data_alvo", "status", "criado_em"],
   // Anexos da viagem, unificado (reforma 2026-09-24) - toda linha é um arquivo, esteja ele solto
   // (sem vínculo, `item_id` vazio - o antigo conceito de "aba Anexos") ou pendurado num Item
   // (`item_id` preenchido - antes dividido entre o "principal" na própria linha de Itens e os
@@ -477,4 +481,21 @@ export interface SubclassificacaoRow {
   criado_em: string;
   /** Sobrescreve o ícone da classificação-mãe quando preenchido (ex. "Ônibus" = 🚌). */
   icone: string;
+}
+
+/** Uma tarefa do checklist de viagem - por viagem (`trip_id`) e por usuário (`user_id`).
+ * `status` é booleano ("true" = concluída, "false" = pendente). `data_alvo` é opcional
+ * (yyyy-MM-dd ou vazio). Cada usuário vê e gerencia só o próprio checklist. */
+export interface ChecklistRow {
+  [key: string]: string;
+  id: string;
+  trip_id: string;
+  /** Usuário dono da tarefa - só ele vê e pode alterar. */
+  user_id: string;
+  descritivo: string;
+  /** Data alvo da tarefa (yyyy-MM-dd). Vazio se não definida. */
+  data_alvo: string;
+  /** Concluída ("true") ou pendente ("false"). */
+  status: "true" | "false";
+  criado_em: string;
 }
