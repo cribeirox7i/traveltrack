@@ -53,7 +53,7 @@ export function NavBar() {
         ))}
       </aside>
 
-      <nav className="fixed bottom-0 left-0 right-0 z-10 flex border-t border-slate-200 bg-white md:hidden dark:border-slate-800 dark:bg-slate-900">
+      <nav className="fixed bottom-0 left-0 right-0 z-10 flex gap-[7px] border-t border-slate-200 bg-white md:hidden dark:border-slate-800 dark:bg-slate-900">
         {visibleLinks.map((link) => (
           <Link
             key={link.href}

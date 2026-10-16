@@ -52,7 +52,7 @@ export function TopBar({ initialDark }: { initialDark: boolean }) {
       {/* max-w-[1078px] = os 980px de antes, 10% mais largo - mesmo valor usado no `main` em
           (app)/layout.tsx, os dois têm que bater pra continuar alinhado. */}
       <div className="mx-auto flex w-full max-w-[1078px] flex-1 items-center justify-between gap-3 px-4 py-2">
-        <span className="text-lg font-bold text-slate-800 dark:text-slate-100">TravelX7i</span>
+        <span className="text-[17px] font-bold text-slate-800 dark:text-slate-100">TravelTrack</span>
         <div className="flex shrink-0 items-center gap-1">
           <AmbienteSwitcher />
           <DownloadOfflineButton />

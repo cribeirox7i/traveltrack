@@ -16,10 +16,10 @@ export const BUILD_TIME = process.env.NEXT_PUBLIC_BUILD_TIME ?? "";
 export function buildLabel(): string {
   const partes = [BUILD_SHA];
   if (BUILD_TIME) {
-    const d = new Date(BUILD_TIME);
+    const d = new Date(new Date(BUILD_TIME).getTime() - 3 * 60 * 60 * 1000);
     if (!Number.isNaN(d.getTime())) {
       const p = (n: number) => String(n).padStart(2, "0");
-      partes.push(`${p(d.getDate())}/${p(d.getMonth() + 1)} ${p(d.getHours())}:${p(d.getMinutes())}`);
+      partes.push(`${p(d.getUTCDate())}/${p(d.getUTCMonth() + 1)} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`);
     }
   }
   return partes.join(" · ");
