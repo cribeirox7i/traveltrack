@@ -243,10 +243,10 @@ export default function AgendaPage() {
                   <span className="text-[13px] font-semibold text-slate-900 dark:text-slate-100">
                     {formatDateBR(day.data)}
                   </span>
-                  <span className="ml-[3px] text-xs uppercase text-slate-500 dark:text-slate-400">
+                  <span className="ml-[8px] text-xs uppercase text-slate-500 dark:text-slate-400">
                     {weekdayLabel(day.data)}
                   </span>
-                  <span className="ml-[5px] flex items-center gap-[3px]">
+                  <span className="ml-[10px] flex items-center gap-[3px]">
                     <span
                       title={temHospedagem ? "Hospedagem coberta" : "Sem hospedagem nesta data"}
                       className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold text-white ${temHospedagem ? "bg-emerald-500" : "bg-red-400"}`}
