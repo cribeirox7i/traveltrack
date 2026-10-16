@@ -170,24 +170,19 @@ export default function AgendaPage() {
       const fim = (item.data_fim || ini).slice(0, 10);
       return ini <= data && data <= fim;
     });
-    // Transporte: chegada ou saída de passagem/traslado nesse dia, OU dia dentro do período
-    // de pernoite (há transporte chegando antes E transporte saindo depois).
+    // Transporte: chegada ou saída de passagem/traslado nesse dia, OU dia interior a uma
+    // hospedagem (check-in < dia < check-out) - esses dias não precisam de transporte próprio.
     const temTransporte =
       transporteItens.some((item) => {
         const ini = (item.data_inicio || item.data).slice(0, 10);
         const fim = (item.data_fim || "").slice(0, 10);
         return ini === data || (fim && fim === data);
       }) ||
-      (
-        transporteItens.some((item) => {
-          const fim = (item.data_fim || item.data_inicio || item.data || "").slice(0, 10);
-          return fim < data;
-        }) &&
-        transporteItens.some((item) => {
-          const ini = (item.data_inicio || item.data || "").slice(0, 10);
-          return ini > data;
-        })
-      );
+      hospedagemItens.some((item) => {
+        const ini = (item.data_inicio || item.data).slice(0, 10);
+        const fim = (item.data_fim || ini).slice(0, 10);
+        return ini < data && data < fim;
+      });
     return { temHospedagem, temTransporte };
   }
 
