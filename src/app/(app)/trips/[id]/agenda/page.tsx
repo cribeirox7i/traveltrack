@@ -154,6 +154,38 @@ export default function AgendaPage() {
     });
   }
 
+  // Semáforo: listas pré-filtradas por categoria para cálculo de cobertura por período.
+  const hospedagemItens = itens.filter(
+    (item) => categoriaDoNome(nomePorClassificacao[item.classificacao_id] ?? "") === "hospedagem"
+  );
+  const transporteItens = itens.filter((item) => {
+    const cat = categoriaDoNome(nomePorClassificacao[item.classificacao_id] ?? "");
+    return cat === "passagem" || cat === "traslado";
+  });
+
+  function coberturaDia(data: string): { temHospedagem: boolean; temTransporte: boolean } {
+    // Hospedagem: item cobre o dia se data_inicio <= data <= data_fim.
+    const temHospedagem = hospedagemItens.some((item) => {
+      const ini = (item.data_inicio || item.data).slice(0, 10);
+      const fim = (item.data_fim || ini).slice(0, 10);
+      return ini <= data && data <= fim;
+    });
+    // Transporte: item de passagem/traslado saindo (data_inicio) ou chegando (data_fim) nesse dia,
+    // OU dia interior a uma hospedagem (não precisa de transporte próprio nesse caso).
+    const temTransporte =
+      transporteItens.some((item) => {
+        const ini = (item.data_inicio || item.data).slice(0, 10);
+        const fim = (item.data_fim || "").slice(0, 10);
+        return ini === data || (fim && fim === data);
+      }) ||
+      hospedagemItens.some((item) => {
+        const ini = (item.data_inicio || item.data).slice(0, 10);
+        const fim = (item.data_fim || ini).slice(0, 10);
+        return ini < data && data < fim;
+      });
+    return { temHospedagem, temTransporte };
+  }
+
   async function handleDelete(itemId: string) {
     if (!confirm("Excluir este item?")) return;
     await deleteItemOffline(tripId, itemId);
@@ -199,13 +231,7 @@ export default function AgendaPage() {
         {sortedDays.map((day) => {
           const isOpen = openDay === day.data;
           const itensDoDia = itensPorDia.get(day.data) ?? [];
-          const temHospedagem = itensDoDia.some(
-            (item) => categoriaDoNome(nomePorClassificacao[item.classificacao_id] ?? "") === "hospedagem"
-          );
-          const temTransporte = itensDoDia.some((item) => {
-            const cat = categoriaDoNome(nomePorClassificacao[item.classificacao_id] ?? "");
-            return cat === "passagem" || cat === "traslado";
-          });
+          const { temHospedagem, temTransporte } = coberturaDia(day.data);
           return (
             <div key={day.id} className="overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
               <button
