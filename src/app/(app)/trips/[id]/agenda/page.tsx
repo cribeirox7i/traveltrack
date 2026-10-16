@@ -19,6 +19,7 @@ import { hrefSeguro } from "@/lib/urlSegura";
 import { IconeItem, ItemDetalhesPopup, type Item } from "@/components/ItemDetalhesPopup";
 import { AnexoViewer } from "@/components/AnexoViewer";
 import { InfoDisclaimer } from "@/components/InfoDisclaimer";
+import { categoriaDoNome } from "@/lib/relatorioCalc";
 
 interface TripDay {
   id: string;
@@ -198,6 +199,13 @@ export default function AgendaPage() {
         {sortedDays.map((day) => {
           const isOpen = openDay === day.data;
           const itensDoDia = itensPorDia.get(day.data) ?? [];
+          const temHospedagem = itensDoDia.some(
+            (item) => categoriaDoNome(nomePorClassificacao[item.classificacao_id] ?? "") === "hospedagem"
+          );
+          const temTransporte = itensDoDia.some((item) => {
+            const cat = categoriaDoNome(nomePorClassificacao[item.classificacao_id] ?? "");
+            return cat === "passagem" || cat === "traslado";
+          });
           return (
             <div key={day.id} className="overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
               <button
@@ -217,6 +225,18 @@ export default function AgendaPage() {
                       {itensDoDia.length} {itensDoDia.length === 1 ? "item" : "itens"}
                     </span>
                   )}
+                  <span
+                    title={temHospedagem ? "Hospedagem coberta" : "Sem hospedagem nesta data"}
+                    className={`rounded-full px-1.5 py-0.5 text-[11px] ${temHospedagem ? "bg-emerald-100 dark:bg-emerald-900/50" : "bg-slate-100 dark:bg-slate-800 opacity-30"}`}
+                  >
+                    🏨
+                  </span>
+                  <span
+                    title={temTransporte ? "Transporte coberto" : "Sem transporte nesta data"}
+                    className={`rounded-full px-1.5 py-0.5 text-[11px] ${temTransporte ? "bg-emerald-100 dark:bg-emerald-900/50" : "bg-slate-100 dark:bg-slate-800 opacity-30"}`}
+                  >
+                    🚌
+                  </span>
                 </div>
                 <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
                   <span>
