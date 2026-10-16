@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { TripTabs } from "@/components/TripTabs";
 import { TRIP_TAB_SLUGS } from "@/lib/tripTabs";
+import { TripDisclaimerProvider } from "@/lib/TripDisclaimerContext";
 import { useOfflineTrip } from "@/lib/offline/useOfflineData";
 import { isOnline } from "@/lib/offline/sync";
 import { TRIP_STATUS_BADGE, TRIP_STATUS_LABEL, statusViagem } from "@/lib/tripStatus";
@@ -79,8 +80,10 @@ export default function TripLayout({ children }: { children: React.ReactNode }) 
           </span>
         </p>
       </div>
-      <TripTabs tripId={id} />
-      {children}
+      <TripDisclaimerProvider>
+        <TripTabs tripId={id} />
+        {children}
+      </TripDisclaimerProvider>
     </div>
   );
 }

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { TRIP_TAB_GROUPS, type TripTabGroup } from "@/lib/tripTabs";
+import { useTripDisclaimer } from "@/lib/TripDisclaimerContext";
 
 export function TripTabs({ tripId }: { tripId: string }) {
   const pathname = usePathname();
@@ -20,6 +21,7 @@ export function TripTabs({ tripId }: { tripId: string }) {
   });
   // Na raiz da viagem (`/trips/{id}`, o Dashboard) não há grupo ativo - nenhuma pill destacada e
   // sem a linha de sub-abas, já que o Dashboard não pertence a nenhum dos 3 grupos.
+  const disclaimer = useTripDisclaimer();
   const isDashboard = pathname === `/trips/${tripId}`;
   const currentSlug = isDashboard ? "" : (pathname.split("/").pop() ?? "");
   const activeGroup = groups.find((g) => g.tabs.some((t) => t.slug === currentSlug));
@@ -50,24 +52,37 @@ export function TripTabs({ tripId }: { tripId: string }) {
       </div>
 
       {activeGroup && activeGroup.tabs.length > 1 && (
-        <div className="flex gap-1 overflow-x-auto">
-          {activeGroup.tabs.map((tab) => {
-            const href = `/trips/${tripId}/${tab.slug}`;
-            const active = pathname === href;
-            return (
-              <Link
-                key={tab.slug}
-                href={href}
-                className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium ${
-                  active
-                    ? "bg-slate-900 text-white"
-                    : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200"
-                }`}
-              >
-                {tab.label}
-              </Link>
-            );
-          })}
+        <div className="flex items-center gap-2">
+          <div className="flex flex-1 gap-1 overflow-x-auto">
+            {activeGroup.tabs.map((tab) => {
+              const href = `/trips/${tripId}/${tab.slug}`;
+              const active = pathname === href;
+              return (
+                <Link
+                  key={tab.slug}
+                  href={href}
+                  className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium ${
+                    active
+                      ? "bg-slate-900 text-white"
+                      : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200"
+                  }`}
+                >
+                  {tab.label}
+                </Link>
+              );
+            })}
+          </div>
+          {disclaimer?.content && (
+            <button
+              type="button"
+              onClick={() => disclaimer.setOpen(!disclaimer.open)}
+              aria-expanded={disclaimer.open}
+              aria-label={disclaimer.open ? "Ocultar informações" : "Mais informações"}
+              className="sm:hidden flex-shrink-0 flex h-6 w-6 items-center justify-center rounded-full border border-slate-300 dark:border-slate-700 text-xs font-semibold text-slate-500 dark:text-slate-400"
+            >
+              ?
+            </button>
+          )}
         </div>
       )}
     </div>
