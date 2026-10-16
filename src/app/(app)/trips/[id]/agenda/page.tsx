@@ -181,7 +181,8 @@ export default function AgendaPage() {
       hospedagemItens.some((item) => {
         const ini = (item.data_inicio || item.data).slice(0, 10);
         const fim = (item.data_fim || ini).slice(0, 10);
-        return ini < data && data < fim;
+        // `data <= fim`: inclui o ultimo dia da estadia (voce ainda esta no hotel, sem necessidade de transporte proprio)
+        return ini < data && data <= fim;
       });
     return { temHospedagem, temTransporte };
   }
