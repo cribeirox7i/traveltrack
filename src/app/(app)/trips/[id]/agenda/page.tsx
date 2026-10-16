@@ -227,15 +227,15 @@ export default function AgendaPage() {
                   )}
                   <span
                     title={temHospedagem ? "Hospedagem coberta" : "Sem hospedagem nesta data"}
-                    className={`rounded-full px-1.5 py-0.5 text-[11px] ${temHospedagem ? "bg-emerald-100 dark:bg-emerald-900/50" : "bg-slate-100 dark:bg-slate-800 opacity-30"}`}
+                    className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold text-white ${temHospedagem ? "bg-emerald-500" : "bg-red-400"}`}
                   >
-                    🏨
+                    H
                   </span>
                   <span
                     title={temTransporte ? "Transporte coberto" : "Sem transporte nesta data"}
-                    className={`rounded-full px-1.5 py-0.5 text-[11px] ${temTransporte ? "bg-emerald-100 dark:bg-emerald-900/50" : "bg-slate-100 dark:bg-slate-800 opacity-30"}`}
+                    className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold text-white ${temTransporte ? "bg-emerald-500" : "bg-red-400"}`}
                   >
-                    🚌
+                    T
                   </span>
                 </div>
                 <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
