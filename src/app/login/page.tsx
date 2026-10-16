@@ -37,7 +37,7 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-950 px-4">
       <div className="w-full max-w-sm rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-sm">
-        <h1 className="mb-1 text-xl font-semibold text-slate-900 dark:text-slate-100">Viagens App</h1>
+        <h1 className="mb-1 text-xl font-semibold text-slate-900 dark:text-slate-100">TravelTrack</h1>
         <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">Entre com seu email e senha</p>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-3">
