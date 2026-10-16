@@ -237,16 +237,16 @@ export default function AgendaPage() {
               <button
                 type="button"
                 onClick={() => setOpenDay(isOpen ? null : day.data)}
-                className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
+                className="flex w-full items-center justify-between pl-[10px] pr-[11px] py-3 text-left"
               >
-                <div className="flex items-center gap-3">
+                <div className="flex items-center">
                   <span className="text-[13px] font-semibold text-slate-900 dark:text-slate-100">
                     {formatDateBR(day.data)}
                   </span>
-                  <span className="text-xs uppercase text-slate-500 dark:text-slate-400">
+                  <span className="ml-[3px] text-xs uppercase text-slate-500 dark:text-slate-400">
                     {weekdayLabel(day.data)}
                   </span>
-                  <span className="flex items-center gap-[7px]">
+                  <span className="ml-[5px] flex items-center gap-[3px]">
                     <span
                       title={temHospedagem ? "Hospedagem coberta" : "Sem hospedagem nesta data"}
                       className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold text-white ${temHospedagem ? "bg-emerald-500" : "bg-red-400"}`}
@@ -261,17 +261,18 @@ export default function AgendaPage() {
                     </span>
                   </span>
                   {itensDoDia.length > 0 && (
-                    <span className="rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+                    <span className="ml-[7px] rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-[9px] text-slate-500 dark:text-slate-400">
                       {itensDoDia.length} {itensDoDia.length === 1 ? "item" : "itens"}
                     </span>
                   )}
                 </div>
-                <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                <div className="flex items-center text-xs text-slate-500 dark:text-slate-400">
                   <span>
                     {day.temp_min && day.temp_max ? `${day.temp_min}° / ${day.temp_max}°` : "-"}
                   </span>
                   {day.temp_min && day.temp_max && (
                     <span
+                      className="ml-[9px]"
                       title={
                         isForecastReal(day.data)
                           ? "Previsão meteorológica atualizada"
@@ -281,7 +282,7 @@ export default function AgendaPage() {
                       {isForecastReal(day.data) ? "🔮" : "📊"}
                     </span>
                   )}
-                  <span className={`transition-transform ${isOpen ? "rotate-180" : ""}`}>▾</span>
+                  <span className={`ml-2 transition-transform ${isOpen ? "rotate-180" : ""}`}>▾</span>
                 </div>
               </button>
 
