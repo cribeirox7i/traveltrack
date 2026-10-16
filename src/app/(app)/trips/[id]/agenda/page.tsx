@@ -42,7 +42,7 @@ function weekdayLabel(iso: string): string {
 
 function formatDateBR(iso: string): string {
   const [y, m, d] = iso.slice(0, 10).split("-");
-  return d && m && y ? `${d}/${m}/${y}` : iso;
+  return d && m && y ? `${d}/${m}/${y.slice(2)}` : iso;
 }
 
 const FORECAST_MAX_DIAS = 16;
@@ -240,26 +240,28 @@ export default function AgendaPage() {
                 className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
               >
                 <div className="flex items-center gap-3">
-                  <span className="text-[14px] font-semibold text-slate-900 dark:text-slate-100">
+                  <span className="text-[13px] font-semibold text-slate-900 dark:text-slate-100">
                     {formatDateBR(day.data)}
                   </span>
                   <span className="text-xs uppercase text-slate-500 dark:text-slate-400">
                     {weekdayLabel(day.data)}
                   </span>
-                  <span
-                    title={temHospedagem ? "Hospedagem coberta" : "Sem hospedagem nesta data"}
-                    className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold text-white ${temHospedagem ? "bg-emerald-500" : "bg-red-400"}`}
-                  >
-                    H
-                  </span>
-                  <span
-                    title={temTransporte ? "Transporte coberto" : "Sem transporte nesta data"}
-                    className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold text-white ${temTransporte ? "bg-emerald-500" : "bg-red-400"}`}
-                  >
-                    T
+                  <span className="flex items-center gap-[7px]">
+                    <span
+                      title={temHospedagem ? "Hospedagem coberta" : "Sem hospedagem nesta data"}
+                      className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold text-white ${temHospedagem ? "bg-emerald-500" : "bg-red-400"}`}
+                    >
+                      H
+                    </span>
+                    <span
+                      title={temTransporte ? "Transporte coberto" : "Sem transporte nesta data"}
+                      className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold text-white ${temTransporte ? "bg-emerald-500" : "bg-red-400"}`}
+                    >
+                      T
+                    </span>
                   </span>
                   {itensDoDia.length > 0 && (
-                    <span className="rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-xs text-slate-500 dark:text-slate-400">
+                    <span className="rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-[11px] text-slate-500 dark:text-slate-400">
                       {itensDoDia.length} {itensDoDia.length === 1 ? "item" : "itens"}
                     </span>
                   )}
