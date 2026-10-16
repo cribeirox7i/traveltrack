@@ -246,11 +246,6 @@ export default function AgendaPage() {
                   <span className="text-xs uppercase text-slate-500 dark:text-slate-400">
                     {weekdayLabel(day.data)}
                   </span>
-                  {itensDoDia.length > 0 && (
-                    <span className="rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-xs text-slate-500 dark:text-slate-400">
-                      {itensDoDia.length} {itensDoDia.length === 1 ? "item" : "itens"}
-                    </span>
-                  )}
                   <span
                     title={temHospedagem ? "Hospedagem coberta" : "Sem hospedagem nesta data"}
                     className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold text-white ${temHospedagem ? "bg-emerald-500" : "bg-red-400"}`}
@@ -263,6 +258,11 @@ export default function AgendaPage() {
                   >
                     T
                   </span>
+                  {itensDoDia.length > 0 && (
+                    <span className="rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-xs text-slate-500 dark:text-slate-400">
+                      {itensDoDia.length} {itensDoDia.length === 1 ? "item" : "itens"}
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
                   <span>
