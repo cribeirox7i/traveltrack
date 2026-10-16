@@ -22,6 +22,7 @@ import {
   type AnexoInfo,
 } from "@/lib/offline/sync";
 import { converterValorParaBRL, custoMedioPorMoeda } from "@/lib/cambioCalc";
+import { categoriaDoNome } from "@/lib/relatorioCalc";
 import { viagemBloqueada } from "@/lib/tripStatus";
 import type { SegundoTrecho } from "@/lib/gemini";
 import { TimeField } from "@/components/TimeField";
@@ -240,6 +241,24 @@ export default function ItensPage() {
       todosMeiosPagamento.filter((m) => m.ativo === "true" && m.user_id === form.pagador_id),
     [todosMeiosPagamento, form.pagador_id]
   );
+
+  // Cidades únicas do itinerário: usadas como sugestões nos campos Origem/Destino de transportes
+  // para garantir match exato com o pernoite no semáforo T do Roteiro.
+  const cidadesItinerario = useMemo(() => {
+    const set = new Set<string>();
+    for (const d of diasViagem) {
+      for (const c of [d.origem, d.destino, d.pernoite]) {
+        if ((c as string)?.trim()) set.add((c as string).trim());
+      }
+    }
+    return [...set].sort((a, b) => a.localeCompare(b, "pt-BR"));
+  }, [diasViagem]);
+
+  // Item de transporte (passagem ou traslado): ativa datalist de cidades nos campos Origem/Destino.
+  const ehTransporte = useMemo(() => {
+    const cat = categoriaDoNome(nomePorClassificacao[form.classificacao_id] ?? "");
+    return cat === "passagem" || cat === "traslado";
+  }, [nomePorClassificacao, form.classificacao_id]);
 
   const medioPorMoeda = useMemo(() => custoMedioPorMoeda(cambios), [cambios]);
   const cotacoesFallback = useMemo(() => {
@@ -1047,10 +1066,30 @@ export default function ItensPage() {
                     <input value={form.numero} onChange={(e) => setField("numero", e.target.value)} className={inputClass} />
                   </Campo>
                   <Campo label="Origem" compact>
-                    <input value={form.origem} onChange={(e) => setField("origem", e.target.value)} className={inputClass} />
+                    <input
+                      list={ehTransporte ? "cidades-origem" : undefined}
+                      value={form.origem}
+                      onChange={(e) => setField("origem", e.target.value)}
+                      className={inputClass}
+                    />
+                    {ehTransporte && (
+                      <datalist id="cidades-origem">
+                        {cidadesItinerario.map((c) => <option key={c} value={c} />)}
+                      </datalist>
+                    )}
                   </Campo>
                   <Campo label="Destino" compact>
-                    <input value={form.destino} onChange={(e) => setField("destino", e.target.value)} className={inputClass} />
+                    <input
+                      list={ehTransporte ? "cidades-destino" : undefined}
+                      value={form.destino}
+                      onChange={(e) => setField("destino", e.target.value)}
+                      className={inputClass}
+                    />
+                    {ehTransporte && (
+                      <datalist id="cidades-destino">
+                        {cidadesItinerario.map((c) => <option key={c} value={c} />)}
+                      </datalist>
+                    )}
                   </Campo>
                   <Campo label="Local" compact>
                     <input value={form.nome_local} onChange={(e) => setField("nome_local", e.target.value)} className={inputClass} />

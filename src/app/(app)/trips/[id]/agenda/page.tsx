@@ -163,26 +163,40 @@ export default function AgendaPage() {
     return cat === "passagem" || cat === "traslado";
   });
 
-  function coberturaDia(data: string): { temHospedagem: boolean; temTransporte: boolean } {
+  function coberturaDia(day: TripDay): { temHospedagem: boolean; temTransporte: boolean } {
+    const data = day.data.slice(0, 10);
+    const pernoite = (day.pernoite || "").trim().toLowerCase();
+    const norm = (s: string) => (s || "").trim().toLowerCase();
+
     // Hospedagem: item cobre o dia se data_inicio <= data <= data_fim.
     const temHospedagem = hospedagemItens.some((item) => {
       const ini = (item.data_inicio || item.data).slice(0, 10);
       const fim = (item.data_fim || ini).slice(0, 10);
       return ini <= data && data <= fim;
     });
-    // Transporte: chegada ou saída de passagem/traslado nesse dia, OU dia interior a uma
-    // hospedagem (check-in < dia < check-out) - esses dias não precisam de transporte próprio.
-    const temTransporte =
-      transporteItens.some((item) => {
+
+    let temTransporte: boolean;
+    if (!pernoite) {
+      // Sem pernoite cadastrado: cobre só se há transporte chegando ou saindo neste dia.
+      temTransporte = transporteItens.some((item) => {
         const ini = (item.data_inicio || item.data).slice(0, 10);
         const fim = (item.data_fim || "").slice(0, 10);
         return ini === data || (fim && fim === data);
-      }) ||
-      hospedagemItens.some((item) => {
-        const ini = (item.data_inicio || item.data).slice(0, 10);
-        const fim = (item.data_fim || ini).slice(0, 10);
-        return ini < data && data < fim;
       });
+    } else {
+      // Com pernoite: verde se já chegou a essa cidade (por transporte) E ainda vai sair dela.
+      // Cobre chegada, interior e saída numa condição só, sem depender de datas adjacentes.
+      const chegouNoPernoite = transporteItens.some((item) => {
+        const fim = (item.data_fim || item.data_inicio || item.data).slice(0, 10);
+        return fim <= data && norm(item.destino) === pernoite;
+      });
+      const vaiSairDoPernoite = transporteItens.some((item) => {
+        const ini = (item.data_inicio || item.data).slice(0, 10);
+        return ini >= data && norm(item.origem) === pernoite;
+      });
+      temTransporte = chegouNoPernoite && vaiSairDoPernoite;
+    }
+
     return { temHospedagem, temTransporte };
   }
 
@@ -231,7 +245,7 @@ export default function AgendaPage() {
         {sortedDays.map((day) => {
           const isOpen = openDay === day.data;
           const itensDoDia = itensPorDia.get(day.data) ?? [];
-          const { temHospedagem, temTransporte } = coberturaDia(day.data);
+          const { temHospedagem, temTransporte } = coberturaDia(day);
           return (
             <div key={day.id} className="overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
               <button
