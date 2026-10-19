@@ -67,7 +67,8 @@ const patchSchema = z
       return;
     }
     if (data.financeiro_ativo === "false" || !data.valor) return;
-    if (Number.isNaN(Number(data.valor)) || Number(data.valor) <= 0) {
+    const numValor = Number(String(data.valor).replace(",", "."));
+    if (Number.isNaN(numValor) || numValor <= 0) {
       ctx.addIssue({ code: "custom", path: ["valor"], message: "Valor precisa ser um número positivo" });
       return;
     }
