@@ -194,7 +194,14 @@ export default function AgendaPage() {
         const ini = (item.data_inicio || item.data).slice(0, 10);
         return ini >= data && norm(item.origem) === pernoite;
       });
-      temTransporte = chegouNoPernoite && vaiSairDoPernoite;
+      // Voo pernoite que parte hoje e pousa amanhã (ex.: voo noturno de volta pra casa):
+      // data_fim > data, então "chegouNoPernoite" falha. Caso tratado à parte.
+      const emTransitoParaPernoite = transporteItens.some((item) => {
+        const ini = (item.data_inicio || item.data).slice(0, 10);
+        const fim = (item.data_fim || "").slice(0, 10);
+        return ini === data && fim > data && norm(item.destino) === pernoite;
+      });
+      temTransporte = (chegouNoPernoite && vaiSairDoPernoite) || emTransitoParaPernoite;
     }
 
     return { temHospedagem, temTransporte };
