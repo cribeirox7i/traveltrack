@@ -341,6 +341,7 @@ export default function ParametrosPage() {
               onChange={(e) => setSenhaAtual(e.target.value)}
               required
               disabled={!online || salvandoSenha}
+              className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-900 dark:text-slate-100"
             />
           </div>
           <div className="flex flex-col gap-1">
@@ -351,6 +352,7 @@ export default function ParametrosPage() {
               minLength={6}
               required
               disabled={!online || salvandoSenha}
+              className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-900 dark:text-slate-100"
             />
           </div>
           <div className="flex flex-col gap-1">
@@ -361,6 +363,7 @@ export default function ParametrosPage() {
               minLength={6}
               required
               disabled={!online || salvandoSenha}
+              className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-900 dark:text-slate-100"
             />
           </div>
           {erroSenha && <p className="text-xs text-red-600 dark:text-red-400">{erroSenha}</p>}
