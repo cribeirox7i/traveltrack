@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { InfoDisclaimer } from "@/components/InfoDisclaimer";
+import { PasswordInput } from "@/components/PasswordInput";
 import { apiFetch, mensagemErro } from "@/lib/apiFetch";
 import { useOnlineStatus } from "@/lib/offline/useOfflineData";
 import { FILTER_SELECT_CLASS } from "@/lib/uiClasses";
@@ -53,6 +54,13 @@ export default function ParametrosPage() {
   const [nomeEdicao, setNomeEdicao] = useState("");
   const [salvandoEdicao, setSalvandoEdicao] = useState(false);
   const [erroEdicao, setErroEdicao] = useState<string | null>(null);
+
+  const [senhaAtual, setSenhaAtual] = useState("");
+  const [senhaNova, setSenhaNova] = useState("");
+  const [senhaConfirm, setSenhaConfirm] = useState("");
+  const [salvandoSenha, setSalvandoSenha] = useState(false);
+  const [erroSenha, setErroSenha] = useState<string | null>(null);
+  const [sucessoSenha, setSucessoSenha] = useState(false);
 
   // Sem dropdown (usuário comum), o dono é sempre ele mesmo.
   const donoEfetivo = podeEscolherUsuario ? donoId || meuId : meuId;
@@ -143,6 +151,31 @@ export default function ParametrosPage() {
       return;
     }
     carregarMeios();
+  }
+
+  async function handleTrocarSenha(e: React.FormEvent) {
+    e.preventDefault();
+    setErroSenha(null);
+    setSucessoSenha(false);
+    if (senhaNova !== senhaConfirm) {
+      setErroSenha("A confirmação não bate com a nova senha");
+      return;
+    }
+    setSalvandoSenha(true);
+    const res = await apiFetch("/api/users/me/senha", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ senhaAtual, senhaNova }),
+    });
+    setSalvandoSenha(false);
+    if (!res.ok) {
+      setErroSenha(mensagemErro(res.error));
+      return;
+    }
+    setSenhaAtual("");
+    setSenhaNova("");
+    setSenhaConfirm("");
+    setSucessoSenha(true);
   }
 
   return (
@@ -295,6 +328,52 @@ export default function ParametrosPage() {
             );
           })}
         </ul>
+      </div>
+
+      {/* Trocar senha */}
+      <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+        <h2 className="mb-4 text-sm font-semibold text-slate-700 dark:text-slate-200">Trocar senha</h2>
+        <form onSubmit={handleTrocarSenha} className="flex flex-col gap-3 max-w-sm">
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Senha atual</label>
+            <PasswordInput
+              value={senhaAtual}
+              onChange={(e) => setSenhaAtual(e.target.value)}
+              required
+              disabled={!online || salvandoSenha}
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Nova senha</label>
+            <PasswordInput
+              value={senhaNova}
+              onChange={(e) => setSenhaNova(e.target.value)}
+              minLength={6}
+              required
+              disabled={!online || salvandoSenha}
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Confirmar nova senha</label>
+            <PasswordInput
+              value={senhaConfirm}
+              onChange={(e) => setSenhaConfirm(e.target.value)}
+              minLength={6}
+              required
+              disabled={!online || salvandoSenha}
+            />
+          </div>
+          {erroSenha && <p className="text-xs text-red-600 dark:text-red-400">{erroSenha}</p>}
+          {sucessoSenha && <p className="text-xs text-emerald-600 dark:text-emerald-400">Senha alterada com sucesso.</p>}
+          <button
+            type="submit"
+            disabled={!online || salvandoSenha}
+            title={online ? undefined : "Trocar senha precisa de internet"}
+            className="self-start rounded-lg bg-slate-800 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-40 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"
+          >
+            {salvandoSenha ? "Salvando..." : "Salvar nova senha"}
+          </button>
+        </form>
       </div>
     </div>
   );
