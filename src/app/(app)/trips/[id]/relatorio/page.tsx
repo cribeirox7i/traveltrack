@@ -119,7 +119,12 @@ export default function RelatorioPage() {
     .filter((i) => !filtroStatus || i.status === filtroStatus)
     .filter((i) => !filtroMeioPagamento || i.meio_pagamento_id === filtroMeioPagamento)
     .filter((i) => !filtroPagador || i.pagador_id === filtroPagador)
-    .map((i) => ({ ...i, classificacaoNome: nomePorClassificacao[i.classificacao_id] ?? "" }));
+    .map((i) => ({ ...i, classificacaoNome: nomePorClassificacao[i.classificacao_id] ?? "" }))
+    .sort((a, b) => {
+      const da = (a.data_inicio || a.data || "").slice(0, 10);
+      const db = (b.data_inicio || b.data || "").slice(0, 10);
+      return da < db ? -1 : da > db ? 1 : 0;
+    });
   const temFiltroAtivo = Boolean(filtroStatus || filtroMeioPagamento || filtroPagador);
 
   const medioPorMoeda = custoMedioPorMoeda(cambios);
