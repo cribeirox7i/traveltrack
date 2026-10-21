@@ -423,13 +423,18 @@ export default function ItensPage() {
         )
       : undefined;
 
+    // Só aplica campos não-vazios - evita apagar o que o usuário já preencheu quando o Gemini
+    // não conseguiu extrair um campo (devolve "" como required mas sem valor útil).
+    const camposNaoVazios = Object.fromEntries(
+      Object.entries(campos).filter(([, v]) => v !== "" && v !== null && v !== undefined)
+    );
     setForm((prev) => ({
       ...prev,
-      ...campos,
+      ...camposNaoVazios,
       classificacao_id: classificacaoEncontrada?.id ?? prev.classificacao_id,
       subclassificacao_id: subclassificacaoEncontrada?.id ?? prev.subclassificacao_id,
-      financeiroAtivo: prev.financeiroAtivo || Boolean((campos as { valor?: string }).valor),
-      roteiroAtivo: prev.roteiroAtivo || Boolean((campos as { data_inicio?: string }).data_inicio),
+      financeiroAtivo: prev.financeiroAtivo || Boolean((camposNaoVazios as { valor?: string }).valor),
+      roteiroAtivo: prev.roteiroAtivo || Boolean((camposNaoVazios as { data_inicio?: string }).data_inicio),
     }));
     setSegundoTrecho((segundo_trecho as SegundoTrecho) ?? null);
     setAvisosAnalise(Array.isArray(avisos) ? avisos : []);
@@ -838,9 +843,11 @@ export default function ItensPage() {
                   <label
                     htmlFor="input-anexo-item"
                     title={file ? file.name : "Anexar arquivo"}
-                    className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-slate-300 dark:border-slate-700 text-lg hover:bg-slate-50 dark:hover:bg-slate-800"
+                    className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800"
                   >
-                    📎
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 text-slate-500 dark:text-slate-400">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="m18.375 12.739-7.693 7.693a4.5 4.5 0 0 1-6.364-6.364l10.94-10.94A3 3 0 1 1 19.5 7.372L8.552 18.32m.009-.01-.01.01m5.699-9.941-7.81 7.81a1.5 1.5 0 0 0 2.112 2.13" />
+                    </svg>
                   </label>
                   <button
                     type="button"
@@ -855,7 +862,12 @@ export default function ItensPage() {
               </Campo>
             </div>
             {file && (
-              <p className="text-xs text-slate-400 dark:text-slate-500">📎 {file.name}</p>
+              <p className="flex items-center gap-1 text-xs text-slate-400 dark:text-slate-500">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-3.5 h-3.5 shrink-0">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="m18.375 12.739-7.693 7.693a4.5 4.5 0 0 1-6.364-6.364l10.94-10.94A3 3 0 1 1 19.5 7.372L8.552 18.32m.009-.01-.01.01m5.699-9.941-7.81 7.81a1.5 1.5 0 0 0 2.112 2.13" />
+                </svg>
+                {file.name}
+              </p>
             )}
             {analisado && (
               <p className="text-xs text-emerald-600 dark:text-emerald-400">
