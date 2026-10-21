@@ -36,7 +36,7 @@ function formatData(d: string | undefined): string {
 }
 
 function nomeItem(i: Item): string {
-  return i.nome_companhia || i.nome_local || i.numero || i.descricao || "Item sem nome";
+  return i.descricao || i.nome_companhia || i.nome_local || i.numero || "Item sem nome";
 }
 
 function StatusBadge({ status }: { status?: string }) {
