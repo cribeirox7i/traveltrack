@@ -47,8 +47,8 @@ const ESTRUTURA = {
   // pela tela /admin/classificacoes.
   // `icone` (emoji livre, ex. 🍽️) faz o item na lista/Agenda voltar a ter ícone contextual mesmo
   // com classificação sendo dado livre do admin.
-  Classificacoes: ['id', 'nome', 'ativo', 'criado_em', 'icone'],
-  Subclassificacoes: ['id', 'classificacao_id', 'nome', 'ativo', 'criado_em', 'icone'],
+  Clas: ['id', 'nome', 'ativo', 'criado_em', 'icone'],
+  Subclass: ['id', 'classificacao_id', 'nome', 'ativo', 'criado_em', 'icone'],
   // Checklist por viagem e por usuário - precisa bater exatamente com ChecklistRow em
   // src/lib/sheets/types.ts. `status` = "true"/"false" (concluída/pendente).
   Checklist: ['id', 'trip_id', 'user_id', 'descritivo', 'data_alvo', 'status', 'criado_em']
