@@ -302,7 +302,7 @@ export default function RelatorioPage() {
                 {aberto && itensCategoria.length > 0 && (
                   <div className="border-t border-slate-100 bg-slate-50/70 dark:border-slate-800 dark:bg-slate-800/30">
                     {itensCategoria.map((item) => {
-                      const data = formatData(item.data_pagamento || item.data);
+                      const data = formatData(item.data_inicio || item.data);
                       const conv = converterValorParaBRL(item.valor, item.moeda ?? "", medioPorMoeda, cotacoes);
                       const pagador = item.pagador_id ? nomePorColaborador[item.pagador_id] : undefined;
                       return (
@@ -387,7 +387,7 @@ export default function RelatorioPage() {
                   </tr>
                   {aberto &&
                     itensCategoria.map((item) => {
-                      const data = formatData(item.data_pagamento || item.data);
+                      const data = formatData(item.data_inicio || item.data);
                       const conv = converterValorParaBRL(item.valor, item.moeda ?? "", medioPorMoeda, cotacoes);
                       const pagador = item.pagador_id ? nomePorColaborador[item.pagador_id] : undefined;
                       return (
