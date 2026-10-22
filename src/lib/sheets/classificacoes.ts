@@ -1,4 +1,3 @@
-import { v4 as uuid } from "uuid";
 import { appendRows, readSheet, updateRow } from "./repository";
 import { ClassificacaoRow, SubclassificacaoRow } from "./types";
 
@@ -19,13 +18,21 @@ export async function getClassificacao(id: string): Promise<ClassificacaoRow | n
   return todas.find((c) => c.id === id) ?? null;
 }
 
+function nextClassId(rows: ClassificacaoRow[]): string {
+  const max = rows.reduce((acc, r) => {
+    const n = parseInt(r.id.replace(/^C/i, ""), 10);
+    return isNaN(n) ? acc : Math.max(acc, n);
+  }, 0);
+  return `C${max + 1}`;
+}
+
 export async function createClassificacao(nome: string, icone?: string): Promise<ClassificacaoRow> {
   const todas = await listClassificacoes();
   const jaExiste = todas.some((c) => c.nome.trim().toLowerCase() === nome.trim().toLowerCase());
   if (jaExiste) throw new Error("Já existe uma classificação com este nome");
 
   const row: ClassificacaoRow = {
-    id: uuid(),
+    id: nextClassId(todas),
     nome: nome.trim(),
     ativo: "true",
     criado_em: new Date().toISOString(),
@@ -71,6 +78,15 @@ export async function getSubclassificacao(id: string): Promise<SubclassificacaoR
   return todas.find((s) => s.id === id) ?? null;
 }
 
+async function nextSubclassId(): Promise<string> {
+  const todas = await listSubclassificacoes();
+  const max = todas.reduce((acc, s) => {
+    const n = parseInt(s.id.replace(/^S/i, ""), 10);
+    return isNaN(n) ? acc : Math.max(acc, n);
+  }, 0);
+  return `S${max + 1}`;
+}
+
 export async function createSubclassificacao(
   classificacaoId: string,
   nome: string,
@@ -81,7 +97,7 @@ export async function createSubclassificacao(
   if (jaExiste) throw new Error("Esta classificação já tem uma subclassificação com este nome");
 
   const row: SubclassificacaoRow = {
-    id: uuid(),
+    id: await nextSubclassId(),
     classificacao_id: classificacaoId,
     nome: nome.trim(),
     ativo: "true",
