@@ -222,7 +222,7 @@ export interface SubclassificacaoInfo {
 export async function pullClassificacoes(): Promise<void> {
   if (!isOnline()) return;
   const list = await getJson<ClassificacaoInfo[]>("/api/classificacoes");
-  if (list) {
+  if (list && list.length > 0) {
     await setMeta("classificacoes", list);
     notifyChange();
   }
@@ -231,7 +231,7 @@ export async function pullClassificacoes(): Promise<void> {
 export async function pullSubclassificacoes(): Promise<void> {
   if (!isOnline()) return;
   const list = await getJson<SubclassificacaoInfo[]>("/api/subclassificacoes");
-  if (list) {
+  if (list && list.length > 0) {
     await setMeta("subclassificacoes", list);
     notifyChange();
   }
