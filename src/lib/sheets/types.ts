@@ -11,8 +11,8 @@ export type SheetTab =
   | "Countries"
   | "Itens"
   | "Cambio"
-  | "Classificacoes"
-  | "Subclassificacoes"
+  | "Clas"
+  | "Subclass"
   | "Anexos"
   | "Checklist";
 
@@ -158,11 +158,11 @@ export const SHEET_HEADERS: Record<SheetTab, string[]> = {
   // `icone` é um emoji livre (ex. "🍽️") pro ícone do item na lista/Agenda voltar a ser
   // contextual mesmo com a classificação sendo dado livre do admin - vazio cai no ícone genérico
   // por acordeão (💰/🗺️/🧳, ver `IconeItem`).
-  Classificacoes: ["id", "nome", "ativo", "criado_em", "icone"],
+  Clas: ["id", "nome", "ativo", "criado_em", "icone"],
   // `classificacao_id` é a FK pra `Classificacoes.id` - uma subclassificação pertence a exatamente
   // uma classificação (ex. "Ônibus" só faz sentido dentro de "Traslado"). `icone` aqui SOBRESCREVE
   // o da classificação-mãe quando preenchido (ex. "Ônibus" = 🚌 em vez do 🚐 genérico de Traslado).
-  Subclassificacoes: ["id", "classificacao_id", "nome", "ativo", "criado_em", "icone"],
+  Subclass: ["id", "classificacao_id", "nome", "ativo", "criado_em", "icone"],
   // Checklist por viagem e por usuário: tarefa simples com descritivo (obrigatório), data alvo
   // (opcional) e status (booleano - "true"/"false"). Precisa bater exatamente com ChecklistRow.
   Checklist: ["id", "trip_id", "user_id", "descritivo", "data_alvo", "status", "criado_em"],

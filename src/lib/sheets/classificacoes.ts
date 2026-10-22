@@ -9,7 +9,7 @@ import { ClassificacaoRow, SubclassificacaoRow } from "./types";
  */
 
 export async function listClassificacoes(): Promise<ClassificacaoRow[]> {
-  const todas = await readSheet<ClassificacaoRow>("Classificacoes");
+  const todas = await readSheet<ClassificacaoRow>("Clas");
   return todas.sort((a, b) => a.nome.localeCompare(b.nome));
 }
 
@@ -31,7 +31,7 @@ export async function createClassificacao(nome: string, icone?: string): Promise
     criado_em: new Date().toISOString(),
     icone: (icone ?? "").trim(),
   };
-  await appendRows("Classificacoes", [row]);
+  await appendRows("Clas", [row]);
   return row;
 }
 
@@ -53,13 +53,13 @@ export async function updateClassificacao(
   if (patch.ativo !== undefined) stringPatch.ativo = patch.ativo ? "true" : "false";
   if (patch.icone !== undefined) stringPatch.icone = patch.icone.trim();
 
-  await updateRow("Classificacoes", id, stringPatch);
+  await updateRow("Clas", id, stringPatch);
 }
 
 export async function listSubclassificacoes(
   classificacaoId?: string
 ): Promise<SubclassificacaoRow[]> {
-  const todas = await readSheet<SubclassificacaoRow>("Subclassificacoes");
+  const todas = await readSheet<SubclassificacaoRow>("Subclass");
   return todas
     .filter((s) => !classificacaoId || s.classificacao_id === classificacaoId)
     .sort((a, b) => a.nome.localeCompare(b.nome));
@@ -88,7 +88,7 @@ export async function createSubclassificacao(
     criado_em: new Date().toISOString(),
     icone: (icone ?? "").trim(),
   };
-  await appendRows("Subclassificacoes", [row]);
+  await appendRows("Subclass", [row]);
   return row;
 }
 
@@ -113,5 +113,5 @@ export async function updateSubclassificacao(
   if (patch.ativo !== undefined) stringPatch.ativo = patch.ativo ? "true" : "false";
   if (patch.icone !== undefined) stringPatch.icone = patch.icone.trim();
 
-  await updateRow("Subclassificacoes", id, stringPatch);
+  await updateRow("Subclass", id, stringPatch);
 }
