@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useDraggable } from "@/hooks/useDraggable";
 import { createItemOffline } from "@/lib/offline/sync";
 import { useClassificacoes } from "@/lib/offline/useOfflineData";
 import { DocumentoExtraido } from "@/lib/documentoParser";
@@ -42,6 +43,7 @@ export function SugestaoAgendaModal({
     descricao: extraido.descricaoSugerida,
   });
   const [saving, setSaving] = useState(false);
+  const { cardStyle, handleProps } = useDraggable();
   const [error, setError] = useState<string | null>(null);
   const classificacoes = useClassificacoes();
 
@@ -80,8 +82,8 @@ export function SugestaoAgendaModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-3 sm:items-center">
-      <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-xl">
-        <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+      <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-xl" style={cardStyle}>
+        <p className="text-sm font-semibold text-slate-900 dark:text-slate-100" {...handleProps}>
           Criar compromisso a partir do anexo
         </p>
         <p className="mt-0.5 truncate text-xs text-slate-400 dark:text-slate-500" title={nomeArquivo}>

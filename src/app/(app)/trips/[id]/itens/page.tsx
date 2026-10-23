@@ -97,9 +97,7 @@ function formatBRL(v: number): string {
   return `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-/** Resumo de uma linha na lista - a reforma tirou o "formato por categoria" (era condicional a
- * `categoria`, que agora é dado livre); mostra o que tiver preenchido do Roteiro, senão o meio de
- * pagamento, senão a descrição. */
+/** Resumo de uma linha na lista - prioridade: roteiro → descrição → meio de pagamento. */
 function resumoItem(item: Item, nomePorMeio: Record<string, string>): string {
   const roteiro = [
     item.nome_companhia,
@@ -111,6 +109,7 @@ function resumoItem(item: Item, nomePorMeio: Record<string, string>): string {
     .filter(Boolean)
     .join(" · ");
   if (roteiro) return roteiro;
+  if (item.descricao) return item.descricao;
   if (item.meio_pagamento_id) return nomePorMeio[item.meio_pagamento_id] ?? "";
   return "";
 }

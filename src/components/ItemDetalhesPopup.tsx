@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useDraggable } from "@/hooks/useDraggable";
 import type { CambioEventoLike } from "@/lib/cambioCalc";
 import { converterValorParaBRL, custoMedioPorMoeda } from "@/lib/cambioCalc";
 import { AnexoViewer } from "@/components/AnexoViewer";
@@ -288,6 +289,7 @@ export function ItemDetalhesPopup({
   onEditar: (item: Item) => void;
 }) {
   const [anexoAberto, setAnexoAberto] = useState<{ fileId: string; nome: string } | null>(null);
+  const { cardStyle, handleProps } = useDraggable();
   if (!item) return null;
   const nomeClassificacao = nomePorClassificacao[item.classificacao_id] ?? "Sem classificação";
   const nomeSubclassificacao = nomePorSubclassificacao[item.subclassificacao_id];
@@ -298,8 +300,8 @@ export function ItemDetalhesPopup({
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="flex w-full max-w-lg flex-col gap-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-xl">
-        <div className="flex items-center justify-between">
+      <div className="flex w-full max-w-lg flex-col gap-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-xl" style={cardStyle}>
+        <div className="flex items-center justify-between" {...handleProps}>
           <h2 className="flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
             <IconeItem
               item={item}
