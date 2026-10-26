@@ -2,8 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import Link from "next/link";
-import { useSession } from "next-auth/react";
 import { useOfflineCollection, useOfflineTrip, useCountries } from "@/lib/offline/useOfflineData";
 import { findCountry } from "@/lib/countryMatch";
 import { distinctCities } from "@/lib/tripCities";
@@ -17,7 +15,6 @@ interface TripMeta {
   qtd_pessoas: string;
   capa_url: string;
   custo_modo?: "por_pessoa" | "total" | "";
-  criado_por: string;
 }
 
 interface TripDay {
@@ -110,11 +107,7 @@ const ACCORDION_LABELS: Record<AccordionKey, { icon: string; label: string }> = 
 
 export default function TripDashboardPage() {
   const { id: tripId } = useParams<{ id: string }>();
-  const { data: session } = useSession();
   const { trip } = useOfflineTrip<TripMeta>(tripId);
-  // Admin edita qualquer viagem; usuário comum só a própria (criada por ele).
-  const canEdit =
-    session?.user.role === "admin" || (!!trip && trip.criado_por === session?.user.id);
   const { items: days, loading } = useOfflineCollection<TripDay>("tripDays", tripId);
   const countries = useCountries();
 
@@ -169,17 +162,6 @@ export default function TripDashboardPage() {
             e.currentTarget.style.display = "none";
           }}
         />
-      )}
-
-      {canEdit && (
-        <div>
-          <Link
-            href={`/trips/${tripId}/editar`}
-            className="text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:underline"
-          >
-            Editar viagem
-          </Link>
-        </div>
       )}
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">

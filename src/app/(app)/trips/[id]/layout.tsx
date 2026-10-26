@@ -18,6 +18,7 @@ interface TripMeta {
   data_fim: string;
   qtd_pessoas: string;
   status?: string;
+  criado_por: string;
 }
 
 function formatDateBR(iso: string): string {
@@ -28,8 +29,10 @@ function formatDateBR(iso: string): string {
 export default function TripLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { id } = useParams<{ id: string }>();
-  const { status } = useSession();
+  const { status, data: session } = useSession();
   const { trip, loading } = useOfflineTrip<TripMeta>(id);
+  const canEdit =
+    session?.user.role === "admin" || (!!trip && trip.criado_por === session?.user.id);
 
   // O NextAuth revalida a sessão sozinho ao voltar o foco da tela, e engole qualquer erro de
   // rede devolvendo sessão nula - offline isso vira "unauthenticated" por falso alarme, não
@@ -65,12 +68,26 @@ export default function TripLayout({ children }: { children: React.ReactNode }) 
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <Link
-          href={`/trips/${id}`}
-          className="text-xl font-semibold text-slate-900 dark:text-slate-100 hover:underline"
-        >
-          {trip.nome}
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link
+            href={`/trips/${id}`}
+            className="text-xl font-semibold text-slate-900 dark:text-slate-100 hover:underline"
+          >
+            {trip.nome}
+          </Link>
+          {canEdit && (
+            <Link
+              href={`/trips/${id}/editar`}
+              aria-label="Editar viagem"
+              className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+              </svg>
+            </Link>
+          )}
+        </div>
         <p className="flex flex-wrap items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
           <span>
             {formatDateBR(trip.data_inicio)} - {formatDateBR(trip.data_fim)} · {trip.qtd_pessoas} pessoa(s)
