@@ -97,8 +97,9 @@ function formatBRL(v: number): string {
   return `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-/** Resumo de uma linha na lista - prioridade: roteiro → descrição → meio de pagamento. */
+/** Resumo de uma linha na lista - prioridade: descrição → roteiro → meio de pagamento. */
 function resumoItem(item: Item, nomePorMeio: Record<string, string>): string {
+  if (item.descricao) return item.descricao;
   const roteiro = [
     item.nome_companhia,
     item.numero,
@@ -109,7 +110,6 @@ function resumoItem(item: Item, nomePorMeio: Record<string, string>): string {
     .filter(Boolean)
     .join(" · ");
   if (roteiro) return roteiro;
-  if (item.descricao) return item.descricao;
   if (item.meio_pagamento_id) return nomePorMeio[item.meio_pagamento_id] ?? "";
   return "";
 }
