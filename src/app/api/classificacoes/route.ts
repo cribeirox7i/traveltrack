@@ -25,6 +25,7 @@ export async function POST(req: NextRequest) {
     const classificacao = await createClassificacao(parsed.data.nome, parsed.data.icone);
     return NextResponse.json(classificacao, { status: 201 });
   } catch (err) {
-    return errorResponse(err instanceof Error ? err.message : "Erro ao criar classificação");
+    console.error("Erro ao criar classificação:", err);
+    return errorResponse("Erro ao criar classificação");
   }
 }

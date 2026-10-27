@@ -19,6 +19,7 @@ export async function DELETE(
     await deleteTripDay(id, dayId);
     return NextResponse.json({ ok: true });
   } catch (err) {
-    return errorResponse(err instanceof Error ? err.message : "Erro ao excluir dia", 500);
+    console.error("Erro ao excluir dia:", err);
+    return errorResponse("Erro ao excluir dia", 500);
   }
 }

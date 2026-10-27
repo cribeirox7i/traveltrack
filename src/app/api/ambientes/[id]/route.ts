@@ -31,6 +31,7 @@ export async function PATCH(
     await updateAmbiente(id, parsed.data);
     return NextResponse.json({ ok: true });
   } catch (err) {
-    return errorResponse(err instanceof Error ? err.message : "Erro ao atualizar ambiente");
+    console.error("Erro ao atualizar ambiente:", err);
+    return errorResponse("Erro ao atualizar ambiente");
   }
 }

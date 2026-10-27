@@ -10,7 +10,8 @@ export async function GET() {
   try {
     return NextResponse.json(await listCountries());
   } catch (err) {
-    return errorResponse(err instanceof Error ? err.message : String(err), 500);
+    console.error("Erro ao listar countries:", err);
+    return errorResponse("Erro ao carregar países", 500);
   }
 }
 
@@ -45,6 +46,7 @@ export async function POST(req: NextRequest) {
     await upsertCountry(parsed.data.country, parsed.data.fields);
     return NextResponse.json({ ok: true });
   } catch (err) {
-    return errorResponse(err instanceof Error ? err.message : String(err), 500);
+    console.error("Erro ao salvar país:", err);
+    return errorResponse("Erro ao salvar país", 500);
   }
 }

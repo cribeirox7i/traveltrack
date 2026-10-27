@@ -1,3 +1,5 @@
+import "server-only";
+
 interface AppsScriptResponse<T> {
   ok: boolean;
   data?: T;

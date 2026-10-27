@@ -75,7 +75,8 @@ export async function PATCH(
     if (Object.keys(resto).length) await updateTrip(id, resto);
     return NextResponse.json({ ok: true });
   } catch (err) {
-    return errorResponse(err instanceof Error ? err.message : "Erro ao atualizar viagem", 500);
+    console.error("Erro ao atualizar viagem:", err);
+    return errorResponse("Erro ao atualizar viagem", 500);
   }
 }
 
@@ -94,9 +95,9 @@ export async function DELETE(
     const result = await deleteTrip(id);
     return NextResponse.json({ ok: true, ...result });
   } catch (err) {
-    // Sem isso, uma falha aqui (ex.: ação nova do Codigo.gs ainda não publicada numa nova
-    // versão do Web App) vira um 500 sem corpo - o cliente só via "Erro ao excluir viagem"
-    // genérico, sem pista nenhuma do motivo real.
-    return errorResponse(err instanceof Error ? err.message : "Erro ao excluir viagem", 500);
+    // Erro detalhado fica no log do servidor (Vercel Functions > Logs) - não precisa chegar
+    // ao cliente, onde exporia detalhes internos do Apps Script/planilha.
+    console.error("Erro ao excluir viagem:", err);
+    return errorResponse("Erro ao excluir viagem", 500);
   }
 }

@@ -38,6 +38,7 @@ export async function POST(req: NextRequest) {
     const sub = await createSubclassificacao(parsed.data.classificacao_id, parsed.data.nome, parsed.data.icone);
     return NextResponse.json(sub, { status: 201 });
   } catch (err) {
-    return errorResponse(err instanceof Error ? err.message : "Erro ao criar subclassificação");
+    console.error("Erro ao criar subclassificação:", err);
+    return errorResponse("Erro ao criar subclassificação");
   }
 }

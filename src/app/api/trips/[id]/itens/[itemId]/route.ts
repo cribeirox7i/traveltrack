@@ -186,10 +186,7 @@ export async function PATCH(
       });
     } catch (err) {
       console.error("uploadDriveFile (updateItem) falhou:", err);
-      return errorResponse(
-        err instanceof Error ? `Falha ao enviar o anexo: ${err.message}` : "Falha ao enviar o anexo",
-        502
-      );
+      return errorResponse("Falha ao enviar o anexo", 502);
     }
   }
 
@@ -230,7 +227,8 @@ export async function DELETE(
   for (const anexo of anexos) {
     if (!trip) break;
     await deleteDriveFile(anexo.file_id, trip.id, trip.nome).catch((err) => {
-      avisoAnexo = avisoAnexo ?? (err instanceof Error ? err.message : "Não foi possível remover um anexo");
+      console.error("deleteDriveFile falhou:", err);
+      avisoAnexo = avisoAnexo ?? "Não foi possível remover um anexo do Drive";
     });
   }
 

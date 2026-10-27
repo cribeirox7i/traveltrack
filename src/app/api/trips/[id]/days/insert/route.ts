@@ -26,6 +26,7 @@ export async function POST(
     await insertTripDay(id, parsed.data.afterDayId);
     return NextResponse.json({ ok: true });
   } catch (err) {
-    return errorResponse(err instanceof Error ? err.message : "Erro ao inserir dia", 500);
+    console.error("Erro ao inserir dia:", err);
+    return errorResponse("Erro ao inserir dia", 500);
   }
 }

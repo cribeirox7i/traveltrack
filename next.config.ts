@@ -16,7 +16,7 @@ import withSerwistInit from "@serwist/next";
  */
 const csp = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+  "script-src 'self' 'unsafe-inline'",
   "style-src 'self' 'unsafe-inline'",
   // `https:` aberto só para imagem: a capa da viagem (`Trips.capa_url`) é uma URL que o próprio
   // usuário cola, de qualquer site - restringir a uma allowlist quebraria o campo.

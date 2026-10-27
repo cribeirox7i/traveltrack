@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import { cookies } from "next/headers";
+import "server-only";
 import { NextResponse } from "next/server";
 import type { Session } from "next-auth";
 import { getTrip, userCanAccessTrip } from "@/lib/sheets/trips";

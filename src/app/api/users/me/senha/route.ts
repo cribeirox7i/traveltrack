@@ -27,6 +27,7 @@ export async function POST(req: NextRequest) {
     await updateUser(user.id, { senha: senhaNova });
     return NextResponse.json({ ok: true });
   } catch (err) {
-    return errorResponse(err instanceof Error ? err.message : "Erro ao atualizar senha");
+    console.error("Erro ao atualizar senha:", err);
+    return errorResponse("Erro ao atualizar senha");
   }
 }

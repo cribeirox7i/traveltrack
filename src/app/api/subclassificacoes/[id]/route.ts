@@ -30,6 +30,7 @@ export async function PATCH(
     await updateSubclassificacao(id, parsed.data);
     return NextResponse.json({ ok: true });
   } catch (err) {
-    return errorResponse(err instanceof Error ? err.message : "Erro ao atualizar subclassificação");
+    console.error("Erro ao atualizar subclassificação:", err);
+    return errorResponse("Erro ao atualizar subclassificação");
   }
 }

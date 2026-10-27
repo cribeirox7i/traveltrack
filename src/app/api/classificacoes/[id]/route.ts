@@ -29,6 +29,7 @@ export async function PATCH(
     await updateClassificacao(id, parsed.data);
     return NextResponse.json({ ok: true });
   } catch (err) {
-    return errorResponse(err instanceof Error ? err.message : "Erro ao atualizar classificação");
+    console.error("Erro ao atualizar classificação:", err);
+    return errorResponse("Erro ao atualizar classificação");
   }
 }

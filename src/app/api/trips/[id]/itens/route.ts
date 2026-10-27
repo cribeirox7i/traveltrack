@@ -199,10 +199,7 @@ export async function POST(
       });
     } catch (err) {
       console.error("uploadDriveFile (createItem) falhou:", err);
-      return errorResponse(
-        err instanceof Error ? `Falha ao enviar o anexo: ${err.message}` : "Falha ao enviar o anexo",
-        502
-      );
+      return errorResponse("Falha ao enviar o anexo", 502);
     }
   }
 

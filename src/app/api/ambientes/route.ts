@@ -33,6 +33,7 @@ export async function POST(req: NextRequest) {
     const ambiente = await createAmbiente(parsed.data.nome);
     return NextResponse.json(ambiente, { status: 201 });
   } catch (err) {
-    return errorResponse(err instanceof Error ? err.message : "Erro ao criar ambiente");
+    console.error("Erro ao criar ambiente:", err);
+    return errorResponse("Erro ao criar ambiente");
   }
 }

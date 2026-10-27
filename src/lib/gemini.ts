@@ -1,3 +1,5 @@
+import "server-only";
+
 /**
  * Leitura de voucher (PDF/imagem) via Gemini API (Google AI Studio, free tier) - só chamado do
  * servidor, a `GEMINI_API_KEY` nunca chega ao cliente (mesmo padrão de

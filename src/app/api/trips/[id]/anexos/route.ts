@@ -29,10 +29,7 @@ export async function GET(
     return NextResponse.json(await listAnexosByTrip(id));
   } catch (err) {
     console.error("GET anexos falhou:", err);
-    return errorResponse(
-      err instanceof Error ? `Falha ao carregar os anexos: ${err.message}` : "Falha ao carregar os anexos",
-      502
-    );
+    return errorResponse("Falha ao carregar os anexos", 502);
   }
 }
 
@@ -105,9 +102,6 @@ export async function POST(
     return NextResponse.json(criado, { status: 201 });
   } catch (err) {
     console.error("upload de anexo falhou:", err);
-    return errorResponse(
-      err instanceof Error ? `Falha ao enviar o anexo: ${err.message}` : "Falha ao enviar o anexo",
-      502
-    );
+    return errorResponse("Falha ao enviar o anexo", 502);
   }
 }

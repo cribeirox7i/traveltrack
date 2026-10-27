@@ -27,7 +27,8 @@ export async function GET(
     const anexos = await listDriveFiles(trip.id, trip.nome);
     return NextResponse.json(anexos);
   } catch (err) {
-    return errorResponse(err instanceof Error ? err.message : String(err), 500);
+    console.error("Erro ao listar arquivos do Drive:", err);
+    return errorResponse("Erro ao carregar arquivos", 500);
   }
 }
 
@@ -72,6 +73,7 @@ export async function POST(
     });
     return NextResponse.json(anexo, { status: 201 });
   } catch (err) {
-    return errorResponse(err instanceof Error ? err.message : String(err), 500);
+    console.error("Erro ao enviar arquivo ao Drive:", err);
+    return errorResponse("Falha ao enviar o arquivo", 500);
   }
 }
