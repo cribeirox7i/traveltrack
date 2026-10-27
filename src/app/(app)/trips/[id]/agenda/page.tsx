@@ -45,6 +45,22 @@ function formatDateBR(iso: string): string {
   return d && m && y ? `${d}/${m}/${y.slice(2)}` : iso;
 }
 
+/** Soma dias a uma data ISO (YYYY-MM-DD) em UTC - evita o deslocamento de fuso/DST que
+ * `new Date(iso).setDate` em horário local causaria. */
+function addDaysISO(iso: string, n: number): string {
+  const d = new Date(`${iso.slice(0, 10)}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+type FarolEstado = "coberto" | "naoAplica" | "falta";
+
+function farolClasse(estado: FarolEstado): string {
+  if (estado === "coberto") return "bg-emerald-500 text-white";
+  if (estado === "falta") return "bg-red-400 text-white";
+  return "bg-slate-200 text-slate-400 dark:bg-slate-700 dark:text-slate-500";
+}
+
 const FORECAST_MAX_DIAS = 16;
 
 /** Mesma regra de `lib/weather.ts`: até 16 dias à frente de hoje é previsão real, senão é média
@@ -163,54 +179,72 @@ export default function AgendaPage() {
     return cat === "passagem" || cat === "traslado";
   });
 
-  function coberturaDia(day: TripDay): { temHospedagem: boolean; temTransporte: boolean } {
+  // Faróis em 3 estados, derivados de uma linha do tempo única (pernoite por noite) + datas dos
+  // itens. A pergunta de cada farol é "o que esta noite/dia precisa, e isso está coberto?":
+  //   coberto    (verde)    -> tem reserva / tem transporte.
+  //   naoAplica  (cinza)    -> nada é necessário (dia parado; noite em trânsito; volta pra casa).
+  //   falta      (vermelho) -> era esperado e não existe.
+  // `index` é a posição do dia em `sortedDays` - preciso dele para olhar a noite anterior.
+  function coberturaDia(
+    day: TripDay,
+    index: number
+  ): { hospedagem: FarolEstado; transporte: FarolEstado } {
     const data = day.data.slice(0, 10);
     const pernoite = (day.pernoite || "").trim().toLowerCase();
-    const norm = (s: string) => (s || "").trim().toLowerCase();
+    const pernoitePrev = (sortedDays[index - 1]?.pernoite || "").trim().toLowerCase();
+    const ehPrimeiroDia = index === 0;
+    const ehUltimoDia = index === sortedDays.length - 1;
 
-    // Hospedagem: item cobre o dia se data_inicio <= data <= data_fim.
-    const temHospedagem = hospedagemItens.some((item) => {
+    // --- HOSPEDAGEM (por noite) ---
+    // Coberto: reserva cobre a noite de D se check-in <= D < check-out. A comparação é exclusiva
+    // no check-out (`data < fim`) porque a diária do check-out é da noite ANTERIOR - no dia do
+    // check-out você já saiu. Reservas encostadas (check-out e novo check-in no mesmo dia) se
+    // cobrem: o novo check-in cobre a noite do dia da troca.
+    const temReserva = hospedagemItens.some((item) => {
+      const ini = (item.data_inicio || item.data).slice(0, 10);
+      let fim = (item.data_fim || "").slice(0, 10);
+      // Sem check-out (ou check-out <= check-in): assume ao menos uma noite, para não zerar a
+      // cobertura de uma estadia registrada só com a data de entrada.
+      if (!fim || fim <= ini) fim = addDaysISO(ini, 1);
+      return ini <= data && data < fim;
+    });
+
+    // Noite em trânsito: algum transporte atravessa a noite de D (parte em/antes de D e chega
+    // depois). Nesse caso não se cadastra hotel - a cama é o próprio voo/trem noturno.
+    const noiteEmTransito = transporteItens.some((item) => {
+      const ini = (item.data_inicio || item.data).slice(0, 10);
+      const fim = (item.data_fim || "").slice(0, 10);
+      return !!fim && ini <= data && data < fim;
+    });
+
+    let hospedagem: FarolEstado;
+    if (temReserva) hospedagem = "coberto";
+    // Último dia da grade = volta pra casa (não se reserva hotel para a noite do retorno). Se
+    // ainda assim houver reserva, o ramo acima já pegou (coberto vence).
+    else if (noiteEmTransito || ehUltimoDia) hospedagem = "naoAplica";
+    else hospedagem = "falta";
+
+    // --- TRANSPORTE (linha do tempo, só datas) ---
+    // Coberto: existe transporte "ativo" em D - acontece em D ou atravessa D (data_inicio <= D
+    // <= data_fim). Cobre tanto o dia da partida quanto o da chegada de um trecho noturno.
+    const temTransporteNoDia = transporteItens.some((item) => {
       const ini = (item.data_inicio || item.data).slice(0, 10);
       const fim = (item.data_fim || ini).slice(0, 10);
       return ini <= data && data <= fim;
     });
 
-    let temTransporte: boolean;
-    if (!pernoite) {
-      // Sem pernoite cadastrado: cobre só se há transporte chegando ou saindo neste dia.
-      temTransporte = transporteItens.some((item) => {
-        const ini = (item.data_inicio || item.data).slice(0, 10);
-        const fim = (item.data_fim || "").slice(0, 10);
-        return ini === data || (fim && fim === data);
-      });
-    } else {
-      // Com pernoite: verde se já chegou a essa cidade (por transporte) E ainda vai sair dela.
-      // Cobre chegada, interior e saída numa condição só, sem depender de datas adjacentes.
-      const chegouNoPernoite = transporteItens.some((item) => {
-        const fim = (item.data_fim || item.data_inicio || item.data).slice(0, 10);
-        return fim <= data && norm(item.destino) === pernoite;
-      });
-      const vaiSairDoPernoite = transporteItens.some((item) => {
-        const ini = (item.data_inicio || item.data).slice(0, 10);
-        return ini >= data && norm(item.origem) === pernoite;
-      });
-      // Transporte chega HOJE no pernoite: cobre o dia independentemente de saída programada
-      // (ex.: trem diurno A→B quando B ainda não tem saída cadastrada ou é destino final).
-      const chegaHojeNoPernoite = transporteItens.some((item) => {
-        const fim = (item.data_fim || item.data_inicio || item.data).slice(0, 10);
-        return fim === data && norm(item.destino) === pernoite;
-      });
-      // Voo pernoite que parte hoje e pousa amanhã (ex.: voo noturno de volta pra casa):
-      // data_fim > data, então "chegouNoPernoite" falha. Caso tratado à parte.
-      const emTransitoParaPernoite = transporteItens.some((item) => {
-        const ini = (item.data_inicio || item.data).slice(0, 10);
-        const fim = (item.data_fim || "").slice(0, 10);
-        return ini === data && fim > data && norm(item.destino) === pernoite;
-      });
-      temTransporte = (chegouNoPernoite && vaiSairDoPernoite) || chegaHojeNoPernoite || emTransitoParaPernoite;
-    }
+    // Movimento esperado: 1º dia (saída de casa) ou mudança de cidade entre a noite anterior e a
+    // de hoje. A volta no último dia cai aqui também, pois o pernoite muda. Pernoite vazio não
+    // afirma movimento (fail-safe: vira cinza, não vermelho).
+    const mudouDeCidade = !!pernoite && !!pernoitePrev && pernoite !== pernoitePrev;
+    const movimentoEsperado = ehPrimeiroDia || mudouDeCidade;
 
-    return { temHospedagem, temTransporte };
+    let transporte: FarolEstado;
+    if (temTransporteNoDia) transporte = "coberto";
+    else if (movimentoEsperado) transporte = "falta";
+    else transporte = "naoAplica";
+
+    return { hospedagem, transporte };
   }
 
   async function handleDelete(itemId: string) {
@@ -228,7 +262,8 @@ export default function AgendaPage() {
           aparecem aqui automaticamente pela data de início/check-in/partida - cadastre-os na aba
           Itens. Origem/destino/pernoite ficam na aba Itinerário; dados de país (moeda, fuso,
           tomada...) ficam no Dashboard da viagem. &ldquo;Atualizar&rdquo; na barra superior busca
-          a temperatura. Toque numa data pra abrir.
+          a temperatura. Toque numa data pra abrir. Faróis H (hospedagem) e T (transporte): verde =
+          coberto, cinza = não se aplica (dia parado, noite em viagem ou volta), vermelho = falta.
         </InfoDisclaimer>
         {!bloqueada && (
           <Link
@@ -255,10 +290,10 @@ export default function AgendaPage() {
       )}
 
       <div className="flex flex-col gap-2">
-        {sortedDays.map((day) => {
+        {sortedDays.map((day, index) => {
           const isOpen = openDay === day.data;
           const itensDoDia = itensPorDia.get(day.data) ?? [];
-          const { temHospedagem, temTransporte } = coberturaDia(day);
+          const { hospedagem, transporte } = coberturaDia(day, index);
           return (
             <div key={day.id} className="overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
               <button
@@ -275,14 +310,26 @@ export default function AgendaPage() {
                   </span>
                   <span className="ml-[10px] flex items-center gap-[3px]">
                     <span
-                      title={temHospedagem ? "Hospedagem coberta" : "Sem hospedagem nesta data"}
-                      className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold text-white ${temHospedagem ? "bg-emerald-500" : "bg-red-400"}`}
+                      title={
+                        hospedagem === "coberto"
+                          ? "Hospedagem coberta nesta noite"
+                          : hospedagem === "naoAplica"
+                            ? "Sem pernoite nesta noite (viagem ou volta pra casa)"
+                            : "Falta hospedagem nesta noite"
+                      }
+                      className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold ${farolClasse(hospedagem)}`}
                     >
                       H
                     </span>
                     <span
-                      title={temTransporte ? "Transporte coberto" : "Sem transporte nesta data"}
-                      className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold text-white ${temTransporte ? "bg-emerald-500" : "bg-red-400"}`}
+                      title={
+                        transporte === "coberto"
+                          ? "Transporte coberto neste dia"
+                          : transporte === "naoAplica"
+                            ? "Dia parado - sem transporte necessário"
+                            : "Falta transporte neste dia"
+                      }
+                      className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold ${farolClasse(transporte)}`}
                     >
                       T
                     </span>
