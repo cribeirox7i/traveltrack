@@ -7,6 +7,12 @@ import { PasswordInput } from "@/components/PasswordInput";
 import { apiFetch, mensagemErro } from "@/lib/apiFetch";
 import { useOnlineStatus } from "@/lib/offline/useOfflineData";
 import { FILTER_SELECT_CLASS } from "@/lib/uiClasses";
+import {
+  disableBiometricLock,
+  enableBiometricLock,
+  isBiometricLockEnabled,
+  isBiometricSupported,
+} from "@/lib/biometricLock";
 
 interface MeioPagamento {
   id: string;
@@ -61,6 +67,16 @@ export default function ParametrosPage() {
   const [salvandoSenha, setSalvandoSenha] = useState(false);
   const [erroSenha, setErroSenha] = useState<string | null>(null);
   const [sucessoSenha, setSucessoSenha] = useState(false);
+
+  const [bioSupported, setBioSupported] = useState(false);
+  const [bioEnabled, setBioEnabled] = useState(false);
+  const [bioBusy, setBioBusy] = useState(false);
+  const [bioErro, setBioErro] = useState("");
+
+  useEffect(() => {
+    isBiometricSupported().then(setBioSupported);
+    setBioEnabled(isBiometricLockEnabled());
+  }, []);
 
   // Sem dropdown (usuário comum), o dono é sempre ele mesmo.
   const donoEfetivo = podeEscolherUsuario ? donoId || meuId : meuId;
@@ -151,6 +167,23 @@ export default function ParametrosPage() {
       return;
     }
     carregarMeios();
+  }
+
+  async function toggleBioLock() {
+    setBioErro("");
+    if (bioEnabled) {
+      disableBiometricLock();
+      setBioEnabled(false);
+      return;
+    }
+    setBioBusy(true);
+    const res = await enableBiometricLock(session?.user.name ?? session?.user.email ?? "");
+    setBioBusy(false);
+    if (res.ok) {
+      setBioEnabled(true);
+    } else {
+      setBioErro(res.error ?? "Nao foi possivel ativar.");
+    }
   }
 
   async function handleTrocarSenha(e: React.FormEvent) {
@@ -329,6 +362,40 @@ export default function ParametrosPage() {
           })}
         </ul>
       </div>
+
+      {/* Bloqueio por biometria */}
+      {bioSupported && (
+        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+          <h2 className="mb-1 text-sm font-semibold text-slate-700 dark:text-slate-200">
+            Bloqueio por biometria
+          </h2>
+          <p className="mb-4 text-xs text-slate-500 dark:text-slate-400">
+            Trava a tela ao sair do app. Ao voltar, e pedida sua digital ou reconhecimento facial.
+            Funciona por aparelho - nao afeta outros dispositivos.
+          </p>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => void toggleBioLock()}
+              disabled={bioBusy}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none disabled:opacity-50 ${
+                bioEnabled ? "bg-slate-800 dark:bg-slate-200" : "bg-slate-200 dark:bg-slate-700"
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full transition-transform ${
+                  bioEnabled
+                    ? "translate-x-6 bg-white dark:bg-slate-900"
+                    : "translate-x-1 bg-white dark:bg-slate-400"
+                }`}
+              />
+            </button>
+            <span className="text-sm text-slate-700 dark:text-slate-300">
+              {bioBusy ? "Aguardando biometria..." : bioEnabled ? "Ativado" : "Desativado"}
+            </span>
+          </div>
+          {bioErro && <p className="mt-2 text-xs text-red-600 dark:text-red-400">{bioErro}</p>}
+        </div>
+      )}
 
       {/* Trocar senha */}
       <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">

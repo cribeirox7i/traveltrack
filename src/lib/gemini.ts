@@ -356,6 +356,91 @@ function corrigirCronologia(trecho: TrechoComDatas, rotulo: string): string | nu
   );
 }
 
+/** Resultado da analise de texto de notificacao (banco/pagamento). Subset do VoucherExtraido. */
+export interface NotificacaoExtraida {
+  descricao: string;
+  valor: string;
+  natureza: "debito" | "credito" | "";
+  data_pagamento: string;
+  nome_local: string;
+}
+
+const PROMPT_NOTIFICACAO = `Voce recebe o texto de uma notificacao de pagamento/banco (ex.: "Pix
+enviado R$ 50,00 para Padaria Silva", "Compra no cartao Nubank: R$ 120,00 - Supermercado Extra",
+"Pix recebido de Joao: R$ 300,00"). Extraia os campos abaixo, devolvendo SÓ o JSON pedido -
+nunca invente valor que nao esta na notificacao, deixe como "" se nao encontrar.
+
+Campos:
+- descricao: descricao curta do que foi pago/recebido (ex.: "Pix para Padaria Silva", "Compra Supermercado Extra").
+- valor: so o numero positivo (ex.: "50.00"), sem simbolo de moeda.
+- natureza: "debito" se foi um pagamento/saida de dinheiro, "credito" se foi recebimento/entrada.
+- data_pagamento: data do pagamento se aparecer na notificacao (AAAA-MM-DD), caso contrario "".
+- nome_local: nome do estabelecimento/pessoa envolvida, se identificavel (ex.: "Padaria Silva", "Joao").`;
+
+const RESPONSE_SCHEMA_NOTIFICACAO = {
+  type: "OBJECT",
+  properties: {
+    descricao: { type: "STRING" },
+    valor: { type: "STRING" },
+    natureza: { type: "STRING", enum: ["debito", "credito", ""] },
+    data_pagamento: { type: "STRING" },
+    nome_local: { type: "STRING" },
+  },
+  required: ["descricao", "valor", "natureza", "data_pagamento", "nome_local"],
+};
+
+function normalizarNotificacao(bruto: unknown): NotificacaoExtraida {
+  const obj = (bruto && typeof bruto === "object" ? bruto : {}) as Record<string, unknown>;
+  const natureza = obj.natureza === "credito" ? "credito" : obj.natureza === "debito" ? "debito" : "";
+  return {
+    descricao: typeof obj.descricao === "string" ? obj.descricao : "",
+    valor: typeof obj.valor === "string" ? obj.valor : "",
+    natureza,
+    data_pagamento: typeof obj.data_pagamento === "string" ? obj.data_pagamento : "",
+    nome_local: typeof obj.nome_local === "string" ? obj.nome_local : "",
+  };
+}
+
+/** Interpreta o texto de uma notificacao de banco/pagamento e extrai os campos financeiros. */
+export async function analisarTextoNotificacao(texto: string): Promise<NotificacaoExtraida> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new GeminiIndisponivelError("GEMINI_API_KEY nao configurada");
+
+  let res: Response;
+  try {
+    res = await fetch(`${ENDPOINT}?key=${apiKey}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: `${PROMPT_NOTIFICACAO}\n\nTexto da notificacao:\n${texto}` }] }],
+        generationConfig: {
+          responseMimeType: "application/json",
+          responseSchema: RESPONSE_SCHEMA_NOTIFICACAO,
+        },
+      }),
+    });
+  } catch {
+    throw new GeminiIndisponivelError("Falha de rede ao chamar o Gemini");
+  }
+
+  if (!res.ok) {
+    const corpo = await res.text().catch(() => "");
+    throw new GeminiIndisponivelError(`Gemini respondeu ${res.status}: ${corpo.slice(0, 200)}`);
+  }
+
+  const json = await res.json();
+  const textoCandidato = json?.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (typeof textoCandidato !== "string") {
+    throw new GeminiIndisponivelError("Resposta do Gemini sem conteudo de texto");
+  }
+
+  try {
+    return normalizarNotificacao(JSON.parse(textoCandidato));
+  } catch {
+    throw new GeminiIndisponivelError("Resposta do Gemini nao e um JSON valido");
+  }
+}
+
 export class GeminiIndisponivelError extends Error {}
 
 /** Envia o arquivo (base64) pro Gemini e devolve os campos identificados. Lança

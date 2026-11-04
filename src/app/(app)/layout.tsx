@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { NavBar } from "@/components/NavBar";
 import { SyncStatusBar } from "@/components/SyncStatusBar";
 import { TopBar } from "@/components/TopBar";
+import BiometricLock from "@/components/BiometricLock";
 import { buildLabel } from "@/lib/version";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -9,6 +10,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const initialDark = cookieStore.get("theme")?.value === "dark";
 
   return (
+    <BiometricLock>
     <div className="flex flex-1 flex-col">
       <TopBar initialDark={initialDark} />
       {/* TopBar virou `fixed` (não fica scrollando com a página, ver TopBar.tsx) - sem ocupar
@@ -29,5 +31,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         TravelTrack {buildLabel()}
       </footer>
     </div>
+    </BiometricLock>
   );
 }
