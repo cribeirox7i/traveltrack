@@ -79,10 +79,13 @@ export function AnexoViewer({
     };
   }, [fechar]);
 
+  const [tentativa, setTentativa] = useState(0);
+
   // Carrega os bytes e decide o tipo.
   useEffect(() => {
     let cancelado = false;
     let urlCriada: string | null = null;
+    setEstado({ fase: "carregando" });
 
     (async () => {
       try {
@@ -139,7 +142,7 @@ export function AnexoViewer({
       cancelado = true;
       if (urlCriada) URL.revokeObjectURL(urlCriada);
     };
-  }, [tripId, fileId, nome]);
+  }, [tripId, fileId, nome, tentativa]);
 
   // Zoom do visualizador. A pinça nativa do navegador fica desligada no app inteiro (viewport
   // travado em `app/layout.tsx`), então o zoom aqui e reimplementado no proprio componente: por
@@ -346,7 +349,16 @@ export function AnexoViewer({
         )}
 
         {estado.fase === "erro" && (
-          <p className="p-6 text-center text-sm text-white/80">{estado.msg}</p>
+          <div className="flex flex-col items-center gap-3 p-6 text-center">
+            <p className="text-sm text-white/80">{estado.msg}</p>
+            <button
+              type="button"
+              onClick={() => setTentativa((n) => n + 1)}
+              className="rounded-lg bg-white/15 px-4 py-2 text-sm font-medium text-white hover:bg-white/25"
+            >
+              Tentar novamente
+            </button>
+          </div>
         )}
 
         {estado.fase === "pronto" && estado.tipo === "imagem" && (
