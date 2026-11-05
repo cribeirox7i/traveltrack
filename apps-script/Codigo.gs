@@ -612,6 +612,74 @@ function driveDownloadFile(payload) {
   };
 }
 
+// ---------- MANUTENÇÃO (executar no editor, não são chamadas pela API) ----------
+
+/**
+ * Funde pastas duplicadas de uma mesma viagem - ocorre quando a viagem é renomeada, pois
+ * getTripFolder cria uma nova pasta com o nome novo enquanto os arquivos ficam na antiga.
+ *
+ * Para cada tripId com mais de uma pasta na raiz:
+ *   1. Escolhe a pasta com o nome mais longo como destino (tende a ser a mais recente/completa).
+ *   2. Move todos os arquivos das pastas duplicadas (mantendo subpastas de categoria).
+ *   3. Manda as pastas antigas e suas subpastas vazias para a lixeira (reversível).
+ *
+ * Executar uma vez no editor do Apps Script; inspecionar o Logger antes de confirmar.
+ */
+function deduplicarPastasDaViagem() {
+  if (!DRIVE_ROOT_FOLDER_ID) throw new Error('DRIVE_ROOT_FOLDER_ID não configurado em Config.gs');
+  const raiz = DriveApp.getFolderById(DRIVE_ROOT_FOLDER_ID);
+
+  // Agrupa subpastas pelo tripId (UUID de 36 chars no sufixo "... - <uuid>")
+  const grupos = {};
+  const iter = raiz.getFolders();
+  while (iter.hasNext()) {
+    const pasta = iter.next();
+    const m = pasta.getName().match(/- ([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i);
+    if (!m) continue;
+    const tid = m[1];
+    if (!grupos[tid]) grupos[tid] = [];
+    grupos[tid].push(pasta);
+  }
+
+  let totalMovidos = 0;
+  for (const tid in grupos) {
+    const lista = grupos[tid];
+    if (lista.length <= 1) continue;
+    // Pasta mais longa no nome = mais provável ser a mais recente
+    lista.sort((a, b) => b.getName().length - a.getName().length);
+    const destino = lista[0];
+    Logger.log('TripId ' + tid + ': fundindo ' + (lista.length - 1) + ' pasta(s) em "' + destino.getName() + '"');
+    for (let i = 1; i < lista.length; i++) {
+      const antiga = lista[i];
+      // Move subpastas de categoria
+      const subs = antiga.getFolders();
+      while (subs.hasNext()) {
+        const sub = subs.next();
+        const catDestino = getOrCreateSubfolder(destino, sub.getName());
+        const arquivos = sub.getFiles();
+        while (arquivos.hasNext()) {
+          const f = arquivos.next();
+          f.moveTo(catDestino);
+          totalMovidos++;
+          Logger.log('  Moveu: ' + f.getName());
+        }
+        sub.setTrashed(true);
+      }
+      // Arquivos soltos diretamente na pasta (sem categoria)
+      const soltos = antiga.getFiles();
+      while (soltos.hasNext()) {
+        const f = soltos.next();
+        f.moveTo(destino);
+        totalMovidos++;
+        Logger.log('  Moveu (solto): ' + f.getName());
+      }
+      antiga.setTrashed(true);
+      Logger.log('  Pasta antiga na lixeira: "' + antiga.getName() + '"');
+    }
+  }
+  Logger.log('Concluido. Arquivos movidos: ' + totalMovidos);
+}
+
 // ---------- TESTE DE AUTORIZAÇÃO (executar no editor para conceder os escopos) ----------
 function testeAutorizacao() {
   Logger.log('Planilha: ' + abrirPlanilha().getName());
