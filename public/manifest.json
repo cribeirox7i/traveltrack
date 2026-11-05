@@ -13,6 +13,22 @@
       "type": "image/svg+xml"
     }
   ],
+  "shortcuts": [
+    {
+      "name": "Nova Despesa",
+      "short_name": "Despesa",
+      "description": "Registrar uma nova despesa na viagem",
+      "url": "/share",
+      "icons": [{ "src": "/shortcut-despesa.svg", "sizes": "any", "type": "image/svg+xml" }]
+    },
+    {
+      "name": "Roteiro",
+      "short_name": "Roteiro",
+      "description": "Ver o roteiro da viagem ativa",
+      "url": "/roteiro",
+      "icons": [{ "src": "/shortcut-roteiro.svg", "sizes": "any", "type": "image/svg+xml" }]
+    }
+  ],
   "share_target": {
     "action": "/share",
     "method": "GET",
