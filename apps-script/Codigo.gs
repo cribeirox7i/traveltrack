@@ -555,24 +555,11 @@ function arquivoDaViagem(fileId, tripId, tripName) {
   if (!tripId) throw new Error('tripId obrigatório');
   if (!DRIVE_ROOT_FOLDER_ID) throw new Error('DRIVE_ROOT_FOLDER_ID não configurado em Config.gs');
 
-  // Tenta pelo nome exato primeiro (caso normal), depois pelo sufixo com tripId (viagem renomeada)
-  const raiz = DriveApp.getFolderById(DRIVE_ROOT_FOLDER_ID);
-  let tripFolder = null;
-  if (tripName) {
-    const porNome = raiz.getFoldersByName(tripName + ' - ' + tripId);
-    if (porNome.hasNext()) tripFolder = porNome.next();
-  }
-  if (!tripFolder) {
-    const sufixo = ' - ' + tripId;
-    const todas = raiz.getFolders();
-    while (todas.hasNext()) {
-      const pasta = todas.next();
-      if (pasta.getName().endsWith(sufixo)) { tripFolder = pasta; break; }
-    }
-  }
-  if (!tripFolder) {
-    throw new Error('Pasta não encontrada (buscou: "' + tripName + ' - ' + tripId + '" e sufixo " - ' + tripId + '")');
-  }
+  // Verifica subindo a partir do arquivo: o avô do arquivo deve ser filho direto da raiz E
+  // ter o tripId no sufixo do nome. Isso suporta múltiplas pastas com o mesmo tripId (criadas
+  // ao renomear a viagem) sem precisar achar qual é a "certa" antes de checar.
+  const raizId = DriveApp.getFolderById(DRIVE_ROOT_FOLDER_ID).getId();
+  const sufixo = ' - ' + tripId;
 
   const file = DriveApp.getFileById(fileId);
   const caminhos = [];
@@ -583,10 +570,16 @@ function arquivoDaViagem(fileId, tripId, tripName) {
     while (avos.hasNext()) {
       const avo = avos.next();
       caminhos.push(avo.getName() + '/' + categoria.getName());
-      if (avo.getId() === tripFolder.getId()) return file;
+      // Avô é filho direto da raiz E nome termina com o tripId → arquivo pertence a esta viagem
+      if (avo.getName().endsWith(sufixo)) {
+        const bisavos = avo.getParents();
+        while (bisavos.hasNext()) {
+          if (bisavos.next().getId() === raizId) return file;
+        }
+      }
     }
   }
-  throw new Error('Arquivo não está na pasta "' + tripFolder.getName() + '". Caminhos: ' + (caminhos.join(' | ') || '(nenhum)'));
+  throw new Error('Arquivo não pertence a esta viagem. Caminhos encontrados: ' + (caminhos.join(' | ') || '(nenhum)'));
 }
 
 /** Move para a lixeira do Drive (reversível) em vez de apagar de vez. */
