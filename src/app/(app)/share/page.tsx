@@ -5,17 +5,26 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { apiFetch, mensagemErro } from "@/lib/apiFetch";
 import { InfoDisclaimer } from "@/components/InfoDisclaimer";
+import { statusViagem } from "@/lib/tripStatus";
 
 interface Trip {
   id: string;
   nome: string;
   status: string;
+  data_inicio: string;
+  data_fim: string;
 }
 
 interface Classificacao {
   id: string;
   nome: string;
   ativo: string;
+}
+
+interface MeioPagamento {
+  id: string;
+  nome: string;
+  proprio: boolean;
 }
 
 interface NotificacaoExtraida {
@@ -28,6 +37,66 @@ interface NotificacaoExtraida {
 
 const hoje = new Date().toISOString().slice(0, 10);
 
+/** Tenta sugerir uma classificacao comparando o texto da notificacao com os nomes
+ * das classificacoes cadastradas usando palavras-chave comuns em portugues. */
+function sugerirClassificacao(
+  descricao: string,
+  nomeLocal: string,
+  classificacoes: Classificacao[]
+): string {
+  if (!classificacoes.length) return "";
+  const normalizar = (s: string) =>
+    s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  const texto = normalizar(`${descricao} ${nomeLocal}`);
+
+  const grupos: Record<string, string[]> = {
+    alimentacao: [
+      "restaurante", "lanchonete", "padaria", "cafe", "pizza", "hamburguer",
+      "sushi", "bar", "boteco", "food", "ifood", "rappi", "delivery", "bistro",
+      "brunch", "acai", "refeicao", "mercado", "supermercado", "mercearia",
+      "sorveteria", "doceria", "confeitaria", "cozinha", "cervejaria",
+    ],
+    hospedagem: ["hotel", "pousada", "hostel", "airbnb", "resort", "motel", "hospedagem"],
+    traslado: [
+      "uber", "taxi", "transfer", "traslado", "onibus", "metro", "cabify",
+      "combustivel", "gasolina", "posto",
+    ],
+    passeio: [
+      "museu", "teatro", "show", "ingresso", "excursao", "tour", "passeio",
+      "parque", "zoologico", "aquario", "atrativo",
+    ],
+    repasse: ["pix", "transferencia", "ted", "doc", "repasse", "reembolso"],
+  };
+
+  let melhorId = "";
+  let melhorPontos = 0;
+
+  for (const cl of classificacoes) {
+    let pontos = 0;
+    const nomeNorm = normalizar(cl.nome);
+
+    for (const [grupo, palavras] of Object.entries(grupos)) {
+      if (palavras.some((p) => texto.includes(p))) {
+        if (palavras.some((p) => nomeNorm.includes(p)) || nomeNorm.includes(grupo)) {
+          pontos += 2;
+        }
+      }
+    }
+
+    // Bonus: palavra significativa do nome da classificacao aparece no texto
+    for (const p of nomeNorm.split(/\s+/).filter((w) => w.length > 3)) {
+      if (texto.includes(p)) pontos += 1;
+    }
+
+    if (pontos > melhorPontos) {
+      melhorPontos = pontos;
+      melhorId = cl.id;
+    }
+  }
+
+  return melhorPontos >= 2 ? melhorId : "";
+}
+
 function ShareContent() {
   const params = useSearchParams();
   const router = useRouter();
@@ -39,30 +108,55 @@ function ShareContent() {
 
   const [trips, setTrips] = useState<Trip[]>([]);
   const [classificacoes, setClassificacoes] = useState<Classificacao[]>([]);
+  const [meiosPagamento, setMeiosPagamento] = useState<MeioPagamento[]>([]);
   const [tripId, setTripId] = useState("");
   const [classificacaoId, setClassificacaoId] = useState("");
   const [descricao, setDescricao] = useState("");
   const [valor, setValor] = useState("");
-  const [natureza, setNatureza] = useState<"debito" | "credito">("debito");
+  const [moeda, setMoeda] = useState("BRL");
+  const [meioPagamentoId, setMeioPagamentoId] = useState("");
+  // data e oculta - vem do Gemini ou default hoje
   const [data, setData] = useState(hoje);
   const [analisando, setAnalisando] = useState(false);
-  const [analisado, setAnalisado] = useState(false);
   const [erroAnalise, setErroAnalise] = useState("");
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState("");
+  // resultado bruto do Gemini (guardado pra sugestao de classificacao rever quando classificacoes chegar)
+  const [resultadoGemini, setResultadoGemini] = useState<NotificacaoExtraida | null>(null);
+  // incrementar para re-disparar analise manualmente
+  const [analiseTrigger, setAnaliseTrigger] = useState(0);
 
   const carregarDados = useCallback(async () => {
-    const [tripsRes, clasRes] = await Promise.all([
+    const [tripsRes, clasRes, mpRes] = await Promise.all([
       apiFetch<Trip[]>("/api/trips"),
       apiFetch<Classificacao[]>("/api/classificacoes"),
+      apiFetch<MeioPagamento[]>("/api/meios-pagamento"),
     ]);
+
     if (tripsRes.ok && Array.isArray(tripsRes.data)) {
-      const ativas = tripsRes.data.filter((t) => t.status !== "cancelada" && t.status !== "concluida");
+      const ativas = tripsRes.data.filter(
+        (t) => t.status !== "cancelada" && t.status !== "concluida"
+      );
       setTrips(ativas);
-      if (ativas.length === 1) setTripId(ativas[0].id);
+
+      // Auto-selecao: em_andamento primeiro; senao planejada com data_inicio mais proxima
+      const emAndamento = ativas.find((t) => statusViagem(t) === "em_andamento");
+      if (emAndamento) {
+        setTripId(emAndamento.id);
+      } else {
+        const planejadas = ativas
+          .filter((t) => statusViagem(t) === "planejada")
+          .sort((a, b) => a.data_inicio.localeCompare(b.data_inicio));
+        if (planejadas.length) setTripId(planejadas[0].id);
+      }
     }
+
     if (clasRes.ok && Array.isArray(clasRes.data)) {
       setClassificacoes(clasRes.data.filter((c) => c.ativo !== "false"));
+    }
+
+    if (mpRes.ok && Array.isArray(mpRes.data)) {
+      setMeiosPagamento((mpRes.data as MeioPagamento[]).filter((m) => m.proprio));
     }
   }, []);
 
@@ -70,27 +164,52 @@ function ShareContent() {
     carregarDados();
   }, [carregarDados]);
 
-  async function analisar() {
+  // Auto-dispara analise Gemini assim que tripId e texto estiverem disponiveis.
+  // `analiseTrigger` permite reanalisar manualmente.
+  useEffect(() => {
     if (!tripId || !textoOriginal) return;
-    setErroAnalise("");
-    setAnalisando(true);
-    const res = await apiFetch<NotificacaoExtraida>(`/api/trips/${tripId}/itens/analisar-texto`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ texto: textoOriginal }),
-    });
-    setAnalisando(false);
-    if (!res.ok) {
-      setErroAnalise(mensagemErro(res.error));
-      return;
-    }
-    const d = res.data!;
-    if (d.descricao) setDescricao(d.descricao);
-    if (d.valor) setValor(d.valor.replace(".", ","));
-    if (d.natureza) setNatureza(d.natureza as "debito" | "credito");
-    if (d.data_pagamento) setData(d.data_pagamento);
-    setAnalisado(true);
-  }
+    let cancelado = false;
+
+    (async () => {
+      setErroAnalise("");
+      setAnalisando(true);
+      const res = await apiFetch<NotificacaoExtraida>(
+        `/api/trips/${tripId}/itens/analisar-texto`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ texto: textoOriginal }),
+        }
+      );
+      if (cancelado) return;
+      setAnalisando(false);
+      if (!res.ok) {
+        setErroAnalise(mensagemErro(res.error));
+        return;
+      }
+      const d = res.data!;
+      if (d.descricao) setDescricao(d.descricao);
+      if (d.valor) setValor(d.valor.replace(".", ","));
+      if (d.data_pagamento) setData(d.data_pagamento);
+      setResultadoGemini(d);
+    })();
+
+    return () => { cancelado = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tripId, textoOriginal, analiseTrigger]);
+
+  // Aplica sugestao de classificacao quando resultado Gemini e classificacoes estiverem prontos.
+  // Nao sobrescreve selecao manual do usuario (classificacaoId ja preenchido).
+  useEffect(() => {
+    if (!resultadoGemini || !classificacoes.length || classificacaoId) return;
+    const sugerido = sugerirClassificacao(
+      resultadoGemini.descricao,
+      resultadoGemini.nome_local,
+      classificacoes
+    );
+    if (sugerido) setClassificacaoId(sugerido);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resultadoGemini, classificacoes]);
 
   async function salvar(e: React.FormEvent) {
     e.preventDefault();
@@ -106,10 +225,12 @@ function ShareContent() {
         roteiro_ativo: "false",
         descricao,
         valor: valor.replace(",", "."),
-        natureza,
+        natureza: "debito",
+        moeda: moeda.trim().toUpperCase() || "BRL",
         data,
         pagador_id: userId,
         status: "pago",
+        ...(meioPagamentoId ? { meio_pagamento_id: meioPagamentoId } : {}),
       }),
     });
     setSalvando(false);
@@ -127,9 +248,8 @@ function ShareContent() {
           Compartilhar notificacao
         </h1>
         <InfoDisclaimer>
-          Esta pagina recebe notificacoes compartilhadas do Android. Para usar: no celular,
-          segure a notificacao do banco → toque em{" "}
-          <strong>Compartilhar</strong> → escolha <strong>TravelTrack</strong>.
+          Esta pagina recebe notificacoes enviadas pelo TravelNotif. Para usar: instale o
+          TravelNotif no Android e configure o deep link para o TravelTrack.
         </InfoDisclaimer>
       </div>
     );
@@ -138,7 +258,7 @@ function ShareContent() {
   return (
     <div className="flex flex-col gap-5 max-w-lg">
       <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">
-        Nova despesa por notificacao
+        Nova despesa
       </h1>
 
       {/* Texto recebido */}
@@ -149,6 +269,16 @@ function ShareContent() {
         <p className="text-sm text-slate-800 dark:text-slate-200 break-words">{textoOriginal}</p>
       </div>
 
+      {/* Estado da analise */}
+      {analisando && (
+        <p className="text-xs text-slate-500 dark:text-slate-400">Analisando com IA...</p>
+      )}
+      {erroAnalise && (
+        <p className="text-xs text-amber-600 dark:text-amber-400">
+          {erroAnalise} — preencha os campos abaixo manualmente.
+        </p>
+      )}
+
       <form onSubmit={salvar} className="flex flex-col gap-4">
         {/* Viagem */}
         <div>
@@ -158,7 +288,7 @@ function ShareContent() {
           <select
             required
             value={tripId}
-            onChange={(e) => { setTripId(e.target.value); setAnalisado(false); }}
+            onChange={(e) => setTripId(e.target.value)}
             className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
           >
             <option value="">Selecione...</option>
@@ -168,24 +298,7 @@ function ShareContent() {
           </select>
         </div>
 
-        {/* Botao analisar */}
-        {!analisado && (
-          <button
-            type="button"
-            onClick={() => void analisar()}
-            disabled={!tripId || analisando}
-            className="rounded-lg border border-slate-300 dark:border-slate-700 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40"
-          >
-            {analisando ? "Analisando com IA..." : "Analisar com IA"}
-          </button>
-        )}
-        {erroAnalise && (
-          <p className="text-xs text-amber-600 dark:text-amber-400">
-            {erroAnalise} — preencha os campos abaixo manualmente.
-          </p>
-        )}
-
-        {/* Campos financeiros */}
+        {/* Classificacao */}
         <div>
           <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">
             Classificacao <span className="text-red-500">*</span>
@@ -203,6 +316,7 @@ function ShareContent() {
           </select>
         </div>
 
+        {/* Descricao */}
         <div>
           <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">
             Descricao <span className="text-red-500">*</span>
@@ -216,10 +330,11 @@ function ShareContent() {
           />
         </div>
 
+        {/* Valor + Moeda */}
         <div className="flex gap-3">
           <div className="flex-1">
             <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">
-              Valor (R$)
+              Valor
             </label>
             <input
               value={valor}
@@ -229,40 +344,45 @@ function ShareContent() {
               className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
             />
           </div>
-          <div className="flex-1">
+          <div className="w-24">
             <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">
-              Natureza
+              Moeda
             </label>
-            <select
-              value={natureza}
-              onChange={(e) => setNatureza(e.target.value as "debito" | "credito")}
-              className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
-            >
-              <option value="debito">Debito</option>
-              <option value="credito">Credito</option>
-            </select>
+            <input
+              value={moeda}
+              onChange={(e) => setMoeda(e.target.value.toUpperCase().slice(0, 3))}
+              placeholder="BRL"
+              maxLength={3}
+              className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm uppercase"
+            />
           </div>
         </div>
 
-        <div>
-          <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">
-            Data <span className="text-red-500">*</span>
-          </label>
-          <input
-            required
-            type="date"
-            value={data}
-            onChange={(e) => setData(e.target.value)}
-            className="rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
-          />
-        </div>
+        {/* Meio de pagamento */}
+        {meiosPagamento.length > 0 && (
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">
+              Meio de pagamento
+            </label>
+            <select
+              value={meioPagamentoId}
+              onChange={(e) => setMeioPagamentoId(e.target.value)}
+              className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
+            >
+              <option value="">Nao informar</option>
+              {meiosPagamento.map((m) => (
+                <option key={m.id} value={m.id}>{m.nome}</option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {erro && <p className="text-sm text-red-600 dark:text-red-400">{erro}</p>}
 
         <div className="flex gap-3">
           <button
             type="submit"
-            disabled={salvando}
+            disabled={salvando || analisando}
             className="flex-1 rounded-lg bg-slate-900 dark:bg-slate-100 px-4 py-2 text-sm font-medium text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-200 disabled:opacity-50"
           >
             {salvando ? "Criando..." : "Criar item"}
@@ -276,14 +396,28 @@ function ShareContent() {
           </button>
         </div>
       </form>
+
+      {/* Reanalisar: util se a analise automatica falhou ou o usuario quer tentar de novo */}
+      {!analisando && (
+        <button
+          type="button"
+          onClick={() => {
+            setResultadoGemini(null);
+            setAnaliseTrigger((n) => n + 1);
+          }}
+          className="self-start text-xs text-slate-500 dark:text-slate-400 hover:underline"
+        >
+          Reanalisar com IA
+        </button>
+      )}
     </div>
   );
 }
 
 /**
- * Destino do Web Share Target (manifest.json `share_target`). O usuario compartilha o texto de
- * uma notificacao bancaria do Android pra ca, o Gemini interpreta e pre-preenche o formulario de
- * novo Item financeiro.
+ * Destino do Web Share Target (manifest.json `share_target`) e do TravelNotif.
+ * Recebe o texto de uma notificacao de pagamento, analisa automaticamente com Gemini
+ * e pre-preenche o formulario de novo Item financeiro.
  */
 export default function SharePage() {
   return (
