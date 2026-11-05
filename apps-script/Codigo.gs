@@ -544,16 +544,33 @@ function driveListFiles(payload) {
 }
 
 /**
- * Confirma que o arquivo pedido está de fato dentro da pasta da viagem informada, e devolve o
- * File. Sem essa checagem, `fileId` era aceito solto: quem tivesse acesso a *uma* viagem podia
- * baixar ou mandar pra lixeira qualquer arquivo do Drive da conta que publicou o Web App,
- * bastando descobrir o id. A hierarquia esperada é {raiz}/{nome} - {tripId}/{categoria}/arquivo,
- * então o pai do arquivo é a pasta de categoria e o avô é a pasta da viagem.
+ * Confirma que o arquivo pedido está de fato dentro da pasta desta viagem, e devolve o File.
+ * Sem essa checagem, `fileId` era aceito solto: quem tivesse acesso a uma viagem podia baixar
+ * qualquer arquivo do Drive da conta bastando descobrir o id.
+ *
+ * A pasta é identificada pelo sufixo ' - {tripId}' no nome - não pelo nome completo - para
+ * sobreviver a renomear a viagem: a pasta no Drive mantém o nome antigo mas o tripId não muda.
  */
 function arquivoDaViagem(fileId, tripId, tripName) {
-  if (!tripId || !tripName) throw new Error('tripId/tripName obrigatórios');
-  const tripFolder = findTripFolder(tripId, tripName);
-  if (!tripFolder) throw new Error('Anexo não encontrado nesta viagem');
+  if (!tripId) throw new Error('tripId obrigatório');
+  if (!DRIVE_ROOT_FOLDER_ID) throw new Error('DRIVE_ROOT_FOLDER_ID não configurado em Config.gs');
+
+  // Tenta pelo nome exato primeiro (caso normal), depois pelo sufixo com tripId (viagem renomeada)
+  const raiz = DriveApp.getFolderById(DRIVE_ROOT_FOLDER_ID);
+  let tripFolder = null;
+  if (tripName) {
+    const porNome = raiz.getFoldersByName(tripName + ' - ' + tripId);
+    if (porNome.hasNext()) tripFolder = porNome.next();
+  }
+  if (!tripFolder) {
+    const sufixo = ' - ' + tripId;
+    const todas = raiz.getFolders();
+    while (todas.hasNext()) {
+      const pasta = todas.next();
+      if (pasta.getName().endsWith(sufixo)) { tripFolder = pasta; break; }
+    }
+  }
+  if (!tripFolder) throw new Error('Pasta da viagem não encontrada no Drive');
 
   const file = DriveApp.getFileById(fileId);
   const pais = file.getParents();
