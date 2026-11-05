@@ -570,18 +570,23 @@ function arquivoDaViagem(fileId, tripId, tripName) {
       if (pasta.getName().endsWith(sufixo)) { tripFolder = pasta; break; }
     }
   }
-  if (!tripFolder) throw new Error('Pasta da viagem não encontrada no Drive');
+  if (!tripFolder) {
+    throw new Error('Pasta não encontrada (buscou: "' + tripName + ' - ' + tripId + '" e sufixo " - ' + tripId + '")');
+  }
 
   const file = DriveApp.getFileById(fileId);
+  const caminhos = [];
   const pais = file.getParents();
   while (pais.hasNext()) {
     const categoria = pais.next();
     const avos = categoria.getParents();
     while (avos.hasNext()) {
-      if (avos.next().getId() === tripFolder.getId()) return file;
+      const avo = avos.next();
+      caminhos.push(avo.getName() + '/' + categoria.getName());
+      if (avo.getId() === tripFolder.getId()) return file;
     }
   }
-  throw new Error('Anexo não encontrado nesta viagem');
+  throw new Error('Arquivo não está na pasta "' + tripFolder.getName() + '". Caminhos: ' + (caminhos.join(' | ') || '(nenhum)'));
 }
 
 /** Move para a lixeira do Drive (reversível) em vez de apagar de vez. */
