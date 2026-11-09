@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Viagens App",
+  title: "TravelTrack",
   description: "Planejamento e orçamento de viagens em grupo",
   manifest: "/manifest.json",
 };
