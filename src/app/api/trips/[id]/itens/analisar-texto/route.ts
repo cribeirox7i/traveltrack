@@ -35,7 +35,9 @@ export async function POST(
     return NextResponse.json(extraido);
   } catch (err) {
     if (err instanceof GeminiIndisponivelError) {
-      return errorResponse("Nao foi possivel analisar automaticamente - preencha os campos a mao.", 503);
+      const detalhe = err.message ?? "sem detalhe";
+      console.error("[analisar-texto] GeminiIndisponivelError:", detalhe);
+      return errorResponse(`Nao foi possivel analisar automaticamente: ${detalhe}`, 503);
     }
     throw err;
   }
