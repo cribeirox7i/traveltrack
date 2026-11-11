@@ -382,7 +382,7 @@ const RESPONSE_SCHEMA_NOTIFICACAO = {
   properties: {
     descricao: { type: "STRING" },
     valor: { type: "STRING" },
-    natureza: { type: "STRING", enum: ["debito", "credito", ""] },
+    natureza: { type: "STRING", enum: ["debito", "credito"] },
     data_pagamento: { type: "STRING" },
     nome_local: { type: "STRING" },
   },
