@@ -4,7 +4,6 @@ import { Suspense, useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { apiFetch, mensagemErro } from "@/lib/apiFetch";
-import { InfoDisclaimer } from "@/components/InfoDisclaimer";
 import { statusViagem } from "@/lib/tripStatus";
 
 interface Trip {
@@ -100,7 +99,7 @@ function sugerirClassificacao(
 function ShareContent() {
   const params = useSearchParams();
   const router = useRouter();
-  const { data: session } = useSession();
+  const { data: session, status: sessionStatus } = useSession();
   const userId = session?.user?.id ?? "";
 
   const textoOriginal =
@@ -214,6 +213,14 @@ function ShareContent() {
   async function salvar(e: React.FormEvent) {
     e.preventDefault();
     if (!tripId || !classificacaoId || !descricao || !data) return;
+    if (!userId) {
+      setErro(
+        sessionStatus === "loading"
+          ? "Sessão ainda carregando - aguarde e tente novamente"
+          : `Sessão inválida (id ausente, status: ${sessionStatus}) - recarregue a página`
+      );
+      return;
+    }
     setSalvando(true);
     setErro("");
     const res = await apiFetch(`/api/trips/${tripId}/itens`, {
@@ -241,33 +248,21 @@ function ShareContent() {
     router.push(`/trips/${tripId}/itens`);
   }
 
-  if (!textoOriginal) {
-    return (
-      <div className="flex flex-col gap-4">
-        <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">
-          Compartilhar notificacao
-        </h1>
-        <InfoDisclaimer>
-          Esta pagina recebe notificacoes enviadas pelo TravelNotif. Para usar: instale o
-          TravelNotif no Android e configure o deep link para o TravelTrack.
-        </InfoDisclaimer>
-      </div>
-    );
-  }
-
   return (
     <div className="flex flex-col gap-5 max-w-lg">
       <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">
         Nova despesa
       </h1>
 
-      {/* Texto recebido */}
-      <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 p-4">
-        <p className="mb-1 text-xs font-medium text-slate-500 dark:text-slate-400">
-          Notificacao recebida
-        </p>
-        <p className="text-sm text-slate-800 dark:text-slate-200 break-words">{textoOriginal}</p>
-      </div>
+      {/* Texto recebido - só quando veio de notificacao */}
+      {textoOriginal && (
+        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 p-4">
+          <p className="mb-1 text-xs font-medium text-slate-500 dark:text-slate-400">
+            Notificacao recebida
+          </p>
+          <p className="text-sm text-slate-800 dark:text-slate-200 break-words">{textoOriginal}</p>
+        </div>
+      )}
 
       {/* Estado da analise */}
       {analisando && (
@@ -398,7 +393,7 @@ function ShareContent() {
       </form>
 
       {/* Reanalisar: util se a analise automatica falhou ou o usuario quer tentar de novo */}
-      {!analisando && (
+      {textoOriginal && !analisando && (
         <button
           type="button"
           onClick={() => {
