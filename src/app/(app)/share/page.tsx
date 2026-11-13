@@ -339,17 +339,53 @@ function ShareContent() {
               className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
             />
           </div>
-          <div className="w-24">
+          <div className="w-28">
             <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">
               Moeda
             </label>
-            <input
+            <select
               value={moeda}
-              onChange={(e) => setMoeda(e.target.value.toUpperCase().slice(0, 3))}
-              placeholder="BRL"
-              maxLength={3}
-              className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm uppercase"
-            />
+              onChange={(e) => setMoeda(e.target.value)}
+              className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
+            >
+              <option value="BRL">BRL</option>
+              <option value="USD">USD</option>
+              <option value="EUR">EUR</option>
+              <option value="ARS">ARS</option>
+              <option value="CLP">CLP</option>
+              <option value="UYU">UYU</option>
+              <option value="PYG">PYG</option>
+              <option value="PEN">PEN</option>
+              <option value="COP">COP</option>
+              <option value="BOB">BOB</option>
+              <option value="MXN">MXN</option>
+              <option value="GBP">GBP</option>
+              <option value="CHF">CHF</option>
+              <option value="JPY">JPY</option>
+              <option value="CAD">CAD</option>
+              <option value="AUD">AUD</option>
+              <option value="NZD">NZD</option>
+              <option value="CNY">CNY</option>
+              <option value="HKD">HKD</option>
+              <option value="SGD">SGD</option>
+              <option value="THB">THB</option>
+              <option value="IDR">IDR</option>
+              <option value="MYR">MYR</option>
+              <option value="KRW">KRW</option>
+              <option value="INR">INR</option>
+              <option value="AED">AED</option>
+              <option value="TRY">TRY</option>
+              <option value="ZAR">ZAR</option>
+              <option value="EGP">EGP</option>
+              <option value="MAD">MAD</option>
+              <option value="ILS">ILS</option>
+              <option value="PLN">PLN</option>
+              <option value="CZK">CZK</option>
+              <option value="HUF">HUF</option>
+              <option value="SEK">SEK</option>
+              <option value="NOK">NOK</option>
+              <option value="DKK">DKK</option>
+            </select>
           </div>
         </div>
 
